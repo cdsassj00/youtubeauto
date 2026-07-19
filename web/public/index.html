@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI 영상 스튜디오 · 주제만 던지면 유튜브까지</title>
+    <style>
+      :root {
+        --bg: #0d0f14;
+        --card: #161a22;
+        --line: #262c38;
+        --ink: #f2f4f8;
+        --sub: #9aa4b2;
+        --accent: #e8590c;
+        --accent2: #4dabf7;
+        --ok: #2f9e44;
+        --warn: #f08c00;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: 'Pretendard', system-ui, -apple-system, 'Malgun Gothic', sans-serif;
+        background: radial-gradient(1200px 600px at 50% -10%, #1b2130 0%, var(--bg) 60%);
+        color: var(--ink);
+        min-height: 100vh;
+      }
+      .wrap { max-width: 680px; margin: 0 auto; padding: 32px 20px 80px; }
+      header { text-align: center; margin-bottom: 28px; }
+      .badge {
+        display: inline-block; font-size: 13px; color: var(--accent2);
+        border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; margin-bottom: 14px;
+      }
+      h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.5px; }
+      header p { color: var(--sub); margin: 0; font-size: 15px; }
+      .card {
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 18px; padding: 24px; box-shadow: 0 20px 60px #0006;
+      }
+      label { display: block; font-size: 14px; color: var(--sub); margin: 16px 0 6px; }
+      input[type='text'], input[type='password'], select {
+        width: 100%; padding: 14px 16px; font-size: 16px;
+        background: #0f131b; border: 1px solid var(--line); border-radius: 12px; color: var(--ink);
+      }
+      input:focus, select:focus { outline: none; border-color: var(--accent2); }
+      .topic { font-size: 18px; }
+      .row { display: flex; gap: 12px; }
+      .row > div { flex: 1; }
+      .switch { display: flex; align-items: center; gap: 10px; margin-top: 18px; color: var(--sub); font-size: 14px; }
+      .switch input { width: 20px; height: 20px; accent-color: var(--accent); }
+      button.go {
+        width: 100%; margin-top: 24px; padding: 16px; font-size: 18px; font-weight: 700;
+        background: linear-gradient(135deg, var(--accent), #f76707); color: white;
+        border: none; border-radius: 14px; cursor: pointer; transition: transform .05s;
+      }
+      button.go:active { transform: scale(0.99); }
+      button.go:disabled { opacity: 0.5; cursor: not-allowed; }
+      .hint { font-size: 12px; color: var(--sub); margin-top: 10px; text-align: center; }
+      .status { margin-top: 26px; }
+      .steps { display: flex; justify-content: space-between; margin: 18px 0; }
+      .step { flex: 1; text-align: center; font-size: 12px; color: var(--sub); position: relative; }
+      .step .dot { width: 30px; height: 30px; line-height: 30px; border-radius: 50%; margin: 0 auto 6px; background: #0f131b; border: 1px solid var(--line); }
+      .step.active .dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .step.done .dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+      .runlist { margin-top: 20px; }
+      .run { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; font-size: 14px; }
+      .run a { color: var(--accent2); text-decoration: none; margin-left: auto; }
+      .pill { font-size: 12px; padding: 2px 10px; border-radius: 999px; }
+      .pill.run_ { background: #1c2b1c; color: #69db7c; }
+      .pill.queued { background: #2b2718; color: #ffd43b; }
+      .pill.ok { background: #14311c; color: #51cf66; }
+      .pill.fail { background: #331a1a; color: #ff6b6b; }
+      .toast { margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 14px; display: none; }
+      .toast.err { display: block; background: #331a1a; color: #ffa8a8; }
+      .toast.info { display: block; background: #16233a; color: #a5d8ff; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <span class="badge">🎬 AI 영상 자동 발행 스튜디오</span>
+        <h1>주제만 던지면, 유튜브까지</h1>
+        <p>대본 · 나레이션 · 손그림 애니메이션 · 업로드를 한 번에</p>
+      </header>
+
+      <div class="card">
+        <label for="topic">오늘 만들 주제</label>
+        <input id="topic" class="topic" type="text" placeholder="예: RAG가 뭐길래 다들 쓸까?" autocomplete="off" />
+
+        <div class="row">
+          <div>
+            <label for="mode">모드</label>
+            <select id="mode">
+              <option value="auto">자동(주제 있으면 그걸로)</option>
+              <option value="trend">최신 트렌드</option>
+              <option value="basics">기초 상식</option>
+            </select>
+          </div>
+          <div>
+            <label for="minutes">길이(분)</label>
+            <select id="minutes">
+              <option>5</option>
+              <option selected>10</option>
+              <option>15</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="switch">
+          <input id="upload" type="checkbox" checked />
+          <label for="upload" style="margin: 0">완성 후 유튜브 업로드 (끄면 렌더만)</label>
+        </div>
+
+        <label for="pw">앱 비밀번호 (설정한 경우)</label>
+        <input id="pw" type="password" placeholder="선택 사항" autocomplete="off" />
+
+        <button id="go" class="go">🚀 발행 시작</button>
+        <div class="hint">발행에는 몇 분 걸립니다. GitHub Actions에서 렌더·업로드가 진행됩니다.</div>
+        <div id="toast" class="toast"></div>
+
+        <div class="status">
+          <div class="steps" id="steps">
+            <div class="step" data-k="script"><div class="dot">1</div>대본</div>
+            <div class="step" data-k="voice"><div class="dot">2</div>나레이션</div>
+            <div class="step" data-k="render"><div class="dot">3</div>렌더</div>
+            <div class="step" data-k="upload"><div class="dot">4</div>업로드</div>
+          </div>
+          <div class="runlist" id="runlist"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const toast = (msg, kind = 'info') => {
+        const t = $('toast');
+        t.textContent = msg;
+        t.className = 'toast ' + (kind === 'err' ? 'err' : 'info');
+      };
+
+      async function publish() {
+        const topic = $('topic').value.trim();
+        const btn = $('go');
+        btn.disabled = true;
+        btn.textContent = '요청 중...';
+        try {
+          const res = await fetch('/api/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              topic,
+              mode: $('mode').value,
+              minutes: Number($('minutes').value),
+              upload: $('upload').checked,
+              password: $('pw').value,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || '요청 실패');
+          toast('✅ 발행이 시작됐어요! 아래에서 진행 상황을 확인하세요.', 'info');
+          setTimeout(poll, 1500);
+        } catch (e) {
+          toast('⚠️ ' + e.message, 'err');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '🚀 발행 시작';
+        }
+      }
+
+      const stepOrder = ['script', 'voice', 'render', 'upload'];
+      function stepKeyFromName(name) {
+        if (!name) return null;
+        if (name.includes('대본') || name.includes('파이프라인')) return null; // 세분화는 로그로만
+        return null;
+      }
+
+      async function poll() {
+        try {
+          const res = await fetch('/api/runs');
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'runs 조회 실패');
+          renderRuns(data.runs || []);
+          const active = (data.runs || []).find((r) => r.status !== 'completed');
+          if (active) setTimeout(poll, 6000);
+        } catch (e) {
+          toast('⚠️ ' + e.message, 'err');
+        }
+      }
+
+      function pill(r) {
+        if (r.status !== 'completed')
+          return `<span class="pill ${r.status === 'queued' ? 'queued' : 'run_'}">${r.status === 'queued' ? '대기중' : '진행중'}</span>`;
+        return r.conclusion === 'success'
+          ? '<span class="pill ok">완료</span>'
+          : `<span class="pill fail">${r.conclusion || '실패'}</span>`;
+      }
+
+      function renderRuns(runs) {
+        $('runlist').innerHTML = runs
+          .slice(0, 5)
+          .map(
+            (r) => `<div class="run">${pill(r)}<span>${(r.title || '영상').slice(0, 32)}</span>
+              <a href="${r.html_url}" target="_blank">로그 ↗</a></div>`,
+          )
+          .join('');
+      }
+
+      $('go').addEventListener('click', publish);
+      $('topic').addEventListener('keydown', (e) => { if (e.key === 'Enter') publish(); });
+      poll();
+    </script>
+  </body>
+</html>

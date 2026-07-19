@@ -1,0 +1,7 @@
+{
+  "name": "youtubeauto-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI 영상 자동 발행 트리거 웹앱 (Vercel 서버리스). GitHub Actions 파이프라인을 안전하게 트리거한다.",
+  "engines": { "node": ">=18" }
+}

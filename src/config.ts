@@ -58,6 +58,8 @@ export const config = {
   contentMode: optional('CONTENT_MODE', 'auto'),
   targetMinutes: Number(optional('TARGET_MINUTES', '10')),
   contentLanguage: optional('CONTENT_LANGUAGE', 'ko'),
+  // 직접 지정한 주제(웹앱/수동 실행에서 전달). 비어 있으면 모드에 따라 자동 선택.
+  customTopic: optional('TOPIC', '').trim(),
 
   // 동작
   doUpload: optional('DO_UPLOAD', 'false').toLowerCase() === 'true',

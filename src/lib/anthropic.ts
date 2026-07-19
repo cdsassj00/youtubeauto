@@ -5,7 +5,8 @@ import { ScriptSchema, type Script } from '../schema.js';
 
 /**
  * Claude(Opus 4.8) 로 이번 회차 영상 대본을 생성한다.
- * 구조화 출력(Structured Outputs)으로 ScriptSchema 형태의 JSON 을 강제한다.
+ * 구조화 출력(Structured Outputs)으로 ScriptSchema 형태의 JSON 을 강제하고,
+ * 대본이 길어질 수 있으므로 스트리밍으로 받는다(비스트리밍은 SDK 가 타임아웃으로 차단).
  */
 export async function generateScript(params: {
   mode: 'trend' | 'basics';
@@ -13,23 +14,25 @@ export async function generateScript(params: {
   language: string;
   dateLabel: string;
   recentTitles?: string[];
+  customTopic?: string;
 }): Promise<Script> {
   const client = new Anthropic({ apiKey: config.anthropicApiKey() });
 
-  const { mode, targetMinutes, language, dateLabel, recentTitles = [] } = params;
+  const { mode, targetMinutes, language, dateLabel, recentTitles = [], customTopic } = params;
 
-  const themeGuide =
-    mode === 'trend'
+  const themeGuide = customTopic
+    ? `사용자가 지정한 주제 "${customTopic}" 를 정확히 이 주제로 다룬다. 주제에서 벗어나지 말 것.`
+    : mode === 'trend'
       ? '최신 AI 트렌드/뉴스/신기술을 다룬다. 최근 몇 달 사이 화제가 된 모델, 제품, 논쟁, 업계 흐름 중 하나를 골라 깊이 있게 설명한다.'
       : 'AI 를 처음 접하는 사람도 이해할 수 있는 AI 기초 상식/핵심 개념을 다룬다. (예: LLM 작동 원리, 토큰, 임베딩, RAG, 파인튜닝, 프롬프트, 에이전트, 확산모델 등)';
 
   const avoid =
-    recentTitles.length > 0
+    !customTopic && recentTitles.length > 0
       ? `\n\n최근 발행한 제목들과 겹치지 않는 새로운 주제를 골라라:\n- ${recentTitles.join('\n- ')}`
       : '';
 
-  // 분량 가이드: 10분 ≈ 1,400~1,700 한국어 어절. 씬은 10~14개 권장.
-  const targetChars = Math.round(targetMinutes * 850); // 한국어 나레이션 목표 글자 수(대략)
+  // 분량 가이드: 10분 ≈ 약 8,500자 한국어 나레이션.
+  const targetChars = Math.round(targetMinutes * 850);
 
   const system = [
     '너는 교육 유튜브 채널의 수석 작가이자 연출가다.',
@@ -58,7 +61,7 @@ export async function generateScript(params: {
     '- tags 는 검색 최적화된 한국어/영어 키워드 8~15개.',
   ].join('\n');
 
-  const response = await client.messages.parse({
+  const stream = client.messages.stream({
     model: config.claudeModel,
     max_tokens: 32000,
     thinking: { type: 'adaptive' },
@@ -67,13 +70,22 @@ export async function generateScript(params: {
     messages: [{ role: 'user', content: user }],
   });
 
-  const parsed = response.parsed_output;
-  if (!parsed) {
-    throw new Error(
-      `Claude 대본 생성 실패: 구조화 출력 파싱 불가 (stop_reason=${response.stop_reason}).`,
-    );
+  const final = await stream.finalMessage();
+  if (final.stop_reason === 'refusal') {
+    throw new Error('Claude 가 대본 생성을 거부했습니다(안전상). 주제를 바꿔 다시 시도하세요.');
   }
 
-  // 안전을 위해 한 번 더 zod 검증(기본값 채우기 포함).
-  return ScriptSchema.parse(parsed);
+  const textBlock = final.content.find((b) => b.type === 'text');
+  const text = textBlock && 'text' in textBlock ? textBlock.text : '';
+  if (!text) {
+    throw new Error(`Claude 대본 생성 실패: 텍스트 출력 없음 (stop_reason=${final.stop_reason}).`);
+  }
+
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error('Claude 응답을 JSON 으로 파싱하지 못했습니다.');
+  }
+  return ScriptSchema.parse(json);
 }

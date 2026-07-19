@@ -49,13 +49,15 @@ async function stepScript(): Promise<Script> {
     /* 없으면 무시 */
   }
 
-  console.log(`▶ [1/4] 대본 생성 (모드=${mode}, ${config.targetMinutes}분)`);
+  const topicLabel = config.customTopic ? `주제="${config.customTopic}"` : `모드=${mode}`;
+  console.log(`▶ [1/4] 대본 생성 (${topicLabel}, ${config.targetMinutes}분)`);
   const script = await generateScript({
     mode,
     targetMinutes: config.targetMinutes,
     language: config.contentLanguage,
     dateLabel,
     recentTitles,
+    customTopic: config.customTopic || undefined,
   });
 
   await writeJson(SCRIPT_PATH, script);
