@@ -40,15 +40,19 @@ export async function generateThumbnail(params: {
   let b64: string | undefined;
   if (presenter) {
     const img = await toFile(presenter, 'presenter.png', { type: 'image/png' });
-    const res = await client.images.edit({
+    const editParams: Record<string, unknown> = {
       model: config.openaiImageModel,
       image: img,
       prompt,
       size: '1536x1024',
       quality: 'high',
-      // 입력 사진의 얼굴/디테일을 최대한 보존 (없으면 얼굴을 딴사람으로 다시 그림).
-      input_fidelity: 'high',
-    } as never);
+    };
+    // gpt-image-1 계열은 input_fidelity 로 얼굴 보존(없으면 딴사람으로 다시 그림).
+    // gpt-image-2 는 이 파라미터를 받지 않으므로 제외.
+    if (config.openaiImageModel.startsWith('gpt-image-1')) {
+      editParams.input_fidelity = 'high';
+    }
+    const res = await client.images.edit(editParams as never);
     b64 = res.data?.[0]?.b64_json;
   } else {
     const res = await client.images.generate({
