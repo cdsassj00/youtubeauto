@@ -135,6 +135,7 @@ async function stepRender(): Promise<void> {
     const ok = await generateThumbnail({
       title: script.title,
       topic: script.topic,
+      headline: script.thumbnailHeadline,
       outPath: THUMBNAIL_PATH,
     });
     console.log(
@@ -151,7 +152,7 @@ async function stepRender(): Promise<void> {
 async function stepThumbnail(): Promise<void> {
   const script = ScriptSchema.parse(await readJson(SCRIPT_PATH));
   console.log('▶ 썸네일 생성:', script.title);
-  const ok = await generateThumbnail({ title: script.title, topic: script.topic, outPath: THUMBNAIL_PATH });
+  const ok = await generateThumbnail({ title: script.title, topic: script.topic, headline: script.thumbnailHeadline, outPath: THUMBNAIL_PATH });
   console.log(ok ? '  · 저장: ' + THUMBNAIL_PATH : '  · OPENAI_API_KEY 없음 → 생성 안 함');
 }
 

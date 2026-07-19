@@ -57,6 +57,7 @@ export async function generateScript(params: {
     '- comparison 씬은 두 개념/접근을 좌우로 비교한다.',
     '- 마지막 씬은 visual="outro" 로 핵심 3줄 요약 + 구독 유도를 담는다.',
     '- title(제목)은 클릭하고 싶되 정확한 40자 이내.',
+    '- thumbnailHeadline: 썸네일에 크게 박을 아주 짧고 강한 후킹 문구. 한 줄에 5~9자씩 최대 2줄 분량(전체 18자 이내). 예: "헷갈리는 RAG 5분 완벽정리", "AI가 답을 만드는 진짜 원리". 제목과 달라도 됨, 임팩트 최우선.',
     '- description(설명란)은 3~5문장 요약 + 이번 영상에서 다루는 목차.',
     '- tags 는 검색 최적화된 한국어/영어 키워드 8~15개.',
   ].join('\n');
