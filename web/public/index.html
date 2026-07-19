@@ -37,12 +37,13 @@
         border-radius: 18px; padding: 24px; box-shadow: 0 20px 60px #0006;
       }
       label { display: block; font-size: 14px; color: var(--sub); margin: 16px 0 6px; }
-      input[type='text'], input[type='password'], select {
+      input[type='text'], input[type='password'], select, textarea {
         width: 100%; padding: 14px 16px; font-size: 16px;
         background: #0f131b; border: 1px solid var(--line); border-radius: 12px; color: var(--ink);
+        font-family: inherit;
       }
-      input:focus, select:focus { outline: none; border-color: var(--accent2); }
-      .topic { font-size: 18px; }
+      input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent2); }
+      .topic { font-size: 18px; min-height: 120px; line-height: 1.5; resize: vertical; }
       .row { display: flex; gap: 12px; }
       .row > div { flex: 1; }
       .switch { display: flex; align-items: center; gap: 10px; margin-top: 18px; color: var(--sub); font-size: 14px; }
@@ -143,7 +144,7 @@
 
       <div class="card">
         <label for="topic">오늘 만들 주제</label>
-        <input id="topic" class="topic" type="text" placeholder="예: RAG가 뭐길래 다들 쓸까?" autocomplete="off" />
+        <textarea id="topic" class="topic" rows="4" placeholder="예: RAG가 뭐길래 다들 쓸까?&#10;&#10;길게 적어도 좋아요 — 주제 · 타깃 · 꼭 다룰 핵심 포인트 · 톤 · 피할 것을 자유롭게.&#10;(Ctrl+Enter 로 바로 발행)"></textarea>
 
         <div class="row">
           <div>
@@ -457,7 +458,8 @@
       }
 
       $('go').addEventListener('click', publish);
-      $('topic').addEventListener('keydown', (e) => { if (e.key === 'Enter') publish(); });
+      // 여러 줄 입력이므로 Enter 는 줄바꿈, Ctrl/Cmd+Enter 로 발행.
+      $('topic').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) publish(); });
       startPolling(0);
     </script>
   </body>
