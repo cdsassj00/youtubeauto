@@ -1,0 +1,45 @@
+{
+  "name": "ai-youtube-auto-publish",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI 트렌드/기초 상식을 알려주는 10분 분량 유튜브 영상을 매일 자동으로 제작·발행하는 워크플로우 (Claude + ElevenLabs + Remotion + YouTube Data API)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "pipeline": "tsx src/pipeline/run.ts",
+    "generate:script": "tsx src/pipeline/run.ts --only=script",
+    "generate:voice": "tsx src/pipeline/run.ts --only=voice",
+    "render": "tsx src/pipeline/run.ts --only=render",
+    "thumb": "tsx src/pipeline/run.ts --only=thumbnail",
+    "upload": "tsx src/pipeline/run.ts --only=upload",
+    "authorize:youtube": "node scripts/authorize-youtube.mjs",
+    "studio": "remotion studio src/remotion/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.3",
+    "@remotion/bundler": "^4.0.400",
+    "@remotion/cli": "^4.0.400",
+    "@remotion/google-fonts": "^4.0.491",
+    "@remotion/media-utils": "^4.0.400",
+    "@remotion/renderer": "^4.0.400",
+    "dotenv": "^16.4.5",
+    "googleapis": "^144.0.0",
+    "music-metadata": "^10.0.0",
+    "openai": "^6.48.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "^4.0.400",
+    "roughjs": "^4.6.6",
+    "sharp": "^0.35.3",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

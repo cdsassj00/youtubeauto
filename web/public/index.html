@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI 영상 스튜디오 · 주제만 던지면 유튜브까지</title>
+    <style>
+      :root {
+        --bg: #0b0d13;
+        --card: #141824;
+        --line: #262c3a;
+        --ink: #f2f4f8;
+        --sub: #9aa4b2;
+        --accent: #e8590c;
+        --accent2: #4dabf7;
+        --ok: #2f9e44;
+        --warn: #f08c00;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: 'Pretendard', system-ui, -apple-system, 'Malgun Gothic', sans-serif;
+        background: radial-gradient(1200px 600px at 50% -10%, #1b2130 0%, var(--bg) 60%);
+        color: var(--ink);
+        min-height: 100vh;
+      }
+      .wrap { max-width: 680px; margin: 0 auto; padding: 32px 20px 80px; }
+      header { text-align: center; margin-bottom: 24px; }
+      .badge {
+        display: inline-block; font-size: 13px; color: var(--accent2);
+        border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; margin-bottom: 14px;
+      }
+      h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.5px; }
+      header p { color: var(--sub); margin: 0; font-size: 15px; }
+      .card {
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 18px; padding: 24px; box-shadow: 0 20px 60px #0006;
+      }
+      label { display: block; font-size: 14px; color: var(--sub); margin: 16px 0 6px; }
+      input[type='text'], input[type='password'], select {
+        width: 100%; padding: 14px 16px; font-size: 16px;
+        background: #0f131b; border: 1px solid var(--line); border-radius: 12px; color: var(--ink);
+      }
+      input:focus, select:focus { outline: none; border-color: var(--accent2); }
+      .topic { font-size: 18px; }
+      .row { display: flex; gap: 12px; }
+      .row > div { flex: 1; }
+      .switch { display: flex; align-items: center; gap: 10px; margin-top: 18px; color: var(--sub); font-size: 14px; }
+      .switch input { width: 20px; height: 20px; accent-color: var(--accent); }
+      button.go {
+        width: 100%; margin-top: 24px; padding: 16px; font-size: 18px; font-weight: 700;
+        background: linear-gradient(135deg, var(--accent), #f76707); color: white;
+        border: none; border-radius: 14px; cursor: pointer; transition: transform .05s;
+      }
+      button.go:active { transform: scale(0.99); }
+      button.go:disabled { opacity: 0.6; cursor: not-allowed; }
+      .hint { font-size: 12px; color: var(--sub); margin-top: 10px; text-align: center; }
+      .toast { margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 14px; display: none; }
+      .toast.err { display: block; background: #331a1a; color: #ffa8a8; }
+      .toast.info { display: block; background: #16233a; color: #a5d8ff; }
+
+      /* ── 라이브 제작 패널 (녹화용 비주얼) ── */
+      .live {
+        margin-top: 22px; border-radius: 18px; padding: 22px; position: relative; overflow: hidden;
+        background: linear-gradient(135deg, #131a2a 0%, #17141f 100%);
+        border: 1px solid var(--line);
+      }
+      .live.active { border-color: #3a2a1a; box-shadow: 0 0 0 1px #e8590c22, 0 0 40px #e8590c1a inset; }
+      .live.active::before {
+        content: ''; position: absolute; inset: -2px; border-radius: 20px; z-index: 0;
+        background: conic-gradient(from 0deg, #e8590c00, #e8590c55, #4dabf755, #e8590c00);
+        animation: spin 4s linear infinite; opacity: .5; filter: blur(14px);
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .live > * { position: relative; z-index: 1; }
+      .live-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+      .live-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 0 0 #ff4d4d88; animation: blip 1.2s infinite; }
+      @keyframes blip { 0% { box-shadow: 0 0 0 0 #ff4d4d99; } 70% { box-shadow: 0 0 0 10px #ff4d4d00; } 100% { box-shadow: 0 0 0 0 #ff4d4d00; } }
+      .live-label { font-size: 13px; letter-spacing: 1px; color: #ffb08a; font-weight: 700; }
+      .live-stage { font-size: 26px; font-weight: 800; margin: 8px 0 2px; }
+      .live-sub { font-size: 13px; color: var(--sub); }
+      .pctrow { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 8px; }
+      .pct { font-size: 46px; font-weight: 900; line-height: 1; letter-spacing: -1px;
+        background: linear-gradient(90deg, #ffd07a, #e8590c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .elapsed { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 15px; color: var(--sub); }
+      .bigbar { height: 16px; border-radius: 10px; background: #0e1420; overflow: hidden; border: 1px solid #232a3a; }
+      .bigbar > i {
+        display: block; height: 100%; width: 0%; border-radius: 10px;
+        background: linear-gradient(90deg, #e8590c, #f7920c, #ffd07a);
+        background-size: 200% 100%; transition: width .6s cubic-bezier(.2,.8,.2,1);
+        animation: flow 2s linear infinite; position: relative;
+      }
+      @keyframes flow { to { background-position: 200% 0; } }
+      .bigbar > i::after {
+        content: ''; position: absolute; inset: 0;
+        background: linear-gradient(90deg, transparent, #ffffff55, transparent);
+        transform: translateX(-100%); animation: sheen 1.6s ease-in-out infinite;
+      }
+      @keyframes sheen { to { transform: translateX(100%); } }
+
+      .stages { display: flex; gap: 8px; margin-top: 20px; }
+      .stage { flex: 1; text-align: center; position: relative; }
+      .stage .ic {
+        width: 46px; height: 46px; line-height: 44px; border-radius: 50%; margin: 0 auto 8px; font-size: 20px;
+        background: #0f131b; border: 2px solid var(--line); transition: all .3s;
+      }
+      .stage .nm { font-size: 12px; color: var(--sub); }
+      .stage.active .ic { border-color: var(--accent); background: #2a190f; box-shadow: 0 0 16px #e8590c66; animation: bob 1s ease-in-out infinite; }
+      .stage.active .nm { color: var(--accent); font-weight: 800; }
+      @keyframes bob { 50% { transform: translateY(-4px); } }
+      .stage.done .ic { border-color: var(--ok); background: #10331d; color: #69db7c; }
+      .stage.done .nm { color: #69db7c; }
+      .stage.fail .ic { border-color: #e03131; background: #331414; color: #ff8787; }
+      .stage.fail .nm { color: #ff8787; }
+      .stage + .stage::before {
+        content: ''; position: absolute; top: 22px; left: -50%; width: 100%; height: 2px; background: var(--line); z-index: -1;
+      }
+      .stage.done::before, .stage.active::before { background: linear-gradient(90deg, var(--ok), var(--accent)); }
+
+      .result { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #10331d; color: #b2f2bb; display: none; font-size: 14px; }
+      .result.show { display: block; }
+      .result a { color: #8ce99a; }
+
+      .runlist { margin-top: 18px; }
+      .run { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; font-size: 14px; }
+      .run a { color: var(--accent2); text-decoration: none; margin-left: auto; white-space: nowrap; }
+      .pill { font-size: 12px; padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+      .pill.run_ { background: #1c2b1c; color: #69db7c; }
+      .pill.queued { background: #2b2718; color: #ffd43b; }
+      .pill.ok { background: #14311c; color: #51cf66; }
+      .pill.fail { background: #331a1a; color: #ff6b6b; }
+      .rt { color: var(--sub); font-size: 12px; }
+      .mine { color: var(--accent2); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <span class="badge">🎬 AI 영상 자동 발행 스튜디오</span>
+        <h1>주제만 던지면, 유튜브까지</h1>
+        <p>대본 · 나레이션 · 손그림 애니메이션 · 업로드를 한 번에</p>
+      </header>
+
+      <div class="card">
+        <label for="topic">오늘 만들 주제</label>
+        <input id="topic" class="topic" type="text" placeholder="예: RAG가 뭐길래 다들 쓸까?" autocomplete="off" />
+
+        <div class="row">
+          <div>
+            <label for="mode">모드</label>
+            <select id="mode">
+              <option value="auto">자동(주제 있으면 그걸로)</option>
+              <option value="trend">최신 트렌드</option>
+              <option value="basics">기초 상식</option>
+            </select>
+          </div>
+          <div>
+            <label for="minutes">길이(분)</label>
+            <select id="minutes">
+              <option>5</option>
+              <option selected>10</option>
+              <option>15</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="switch">
+          <input id="upload" type="checkbox" checked />
+          <label for="upload" style="margin: 0">완성 후 유튜브 업로드 (끄면 렌더만)</label>
+        </div>
+
+        <label for="pw">앱 비밀번호 (설정한 경우)</label>
+        <input id="pw" type="password" placeholder="선택 사항" autocomplete="off" />
+
+        <button id="go" class="go">🚀 발행 시작</button>
+        <div class="hint">발행에는 몇 분 걸립니다. GitHub Actions에서 렌더·업로드가 진행됩니다.</div>
+        <div id="toast" class="toast"></div>
+
+        <!-- 라이브 제작 패널 -->
+        <div id="live" class="live">
+          <div class="live-head">
+            <span class="live-dot" id="livedot" style="display:none"></span>
+            <span class="live-label" id="livelabel">준비됨</span>
+          </div>
+          <div class="live-stage" id="livestage">주제를 던지면 여기서 제작 과정이 실시간으로 보여요</div>
+          <div class="live-sub" id="livesub">대본 → 나레이션 → 렌더 → 업로드</div>
+
+          <div class="pctrow">
+            <span class="pct" id="pct">0%</span>
+            <span class="elapsed" id="elapsed"></span>
+          </div>
+          <div class="bigbar"><i id="bar"></i></div>
+
+          <div class="stages" id="stages">
+            <div class="stage" data-k="script"><div class="ic">📝</div><div class="nm">대본</div></div>
+            <div class="stage" data-k="voice"><div class="ic">🎙️</div><div class="nm">나레이션</div></div>
+            <div class="stage" data-k="render"><div class="ic">🎬</div><div class="nm">렌더</div></div>
+            <div class="stage" data-k="upload"><div class="ic">⬆️</div><div class="nm">업로드</div></div>
+          </div>
+
+          <div class="result" id="result"></div>
+        </div>
+
+        <div class="runlist" id="runlist"></div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const toast = (msg, kind = 'info') => {
+        const t = $('toast');
+        t.textContent = msg;
+        t.className = 'toast ' + (kind === 'err' ? 'err' : 'info');
+      };
+
+      let triggeredAt = 0;
+      let pollTimer = null;
+      let tickTimer = null;
+      let clockSkew = 0; // 서버-클라 시각 보정(ms)
+      let shownPct = 0; // 부드럽게 올라가는 표시용 %
+      const COOLDOWN_MS = 15000;
+
+      // 단계 정의: 전체 진행률 구간 + 예상 소요(초). 렌더가 길어 구간 내 보간으로 계속 차오르게.
+      const STAGES = [
+        { k: 'script', kw: '대본', from: 2, to: 15, eta: 90, label: '대본 쓰는 중' },
+        { k: 'voice', kw: '나레이션', from: 15, to: 30, eta: 150, label: '목소리 입히는 중' },
+        { k: 'render', kw: '렌더', from: 30, to: 93, eta: 1500, label: '손그림 애니메이션 그리는 중' },
+        { k: 'upload', kw: '업로드', from: 93, to: 100, eta: 60, label: '유튜브에 올리는 중' },
+      ];
+
+      async function publish() {
+        const topic = $('topic').value.trim();
+        const btn = $('go');
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = '요청 중...';
+        try {
+          const res = await fetch('/api/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              topic, mode: $('mode').value, minutes: Number($('minutes').value),
+              upload: $('upload').checked, password: $('pw').value,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error((data.error || '요청 실패') + (data.detail ? ' — ' + data.detail : ''));
+          triggeredAt = Date.now();
+          shownPct = 0;
+          setLive('queued', { stage: '실행을 준비하고 있어요', sub: '잠시 후 GitHub Actions가 시작됩니다' });
+          toast('✅ 발행 요청을 보냈어요! 아래에서 제작 과정이 실시간으로 보여요.', 'info');
+          btn.textContent = '요청됨 · 실행 대기…';
+          setTimeout(() => { btn.disabled = false; btn.textContent = '🚀 발행 시작'; }, COOLDOWN_MS);
+          startPolling(1200);
+        } catch (e) {
+          toast('⚠️ ' + e.message, 'err');
+          btn.disabled = false;
+          btn.textContent = '🚀 발행 시작';
+        }
+      }
+
+      function startPolling(delay = 0) {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = setTimeout(poll, delay);
+      }
+
+      async function poll() {
+        try {
+          const res = await fetch('/api/runs');
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'runs 조회 실패');
+          if (data.serverTime) clockSkew = Date.now() - Date.parse(data.serverTime);
+          const runs = data.runs || [];
+          renderRuns(runs);
+
+          const newest = runs[0];
+          const newestTs = newest ? Date.parse(newest.created_at) : 0;
+          const waitingForMine = triggeredAt && (!newest || newestTs < triggeredAt - 20000);
+
+          window.__state = { runs, steps: data.steps || [], jobStartedAt: data.jobStartedAt, waitingForMine };
+          renderLive();
+
+          const active = runs.some((r) => r.status !== 'completed');
+          if (active || waitingForMine) startPolling(5000);
+          else { pollTimer = null; stopTick(); }
+        } catch (e) {
+          toast('⚠️ ' + e.message, 'err');
+        }
+      }
+
+      // 활성 단계 계산 + 전체 진행률(목표) 산출
+      function computeProgress(steps) {
+        const find = (kw) => steps.find((s) => s.name && s.name.includes(kw));
+        let target = 1, activeIdx = -1, failedIdx = -1, stageStart = null;
+        for (let i = 0; i < STAGES.length; i++) {
+          const st = find(STAGES[i].kw);
+          if (!st) continue;
+          if (st.status === 'completed') {
+            if (st.conclusion === 'success') target = Math.max(target, STAGES[i].to);
+            else if (st.conclusion === 'failure' || st.conclusion === 'timed_out') { failedIdx = i; }
+          } else if (st.status === 'in_progress') {
+            activeIdx = i;
+            stageStart = st.started_at ? Date.parse(st.started_at) : null;
+          }
+        }
+        if (activeIdx >= 0) {
+          const S = STAGES[activeIdx];
+          let frac = 0;
+          if (stageStart) {
+            const elapsed = (Date.now() - clockSkew - stageStart) / 1000;
+            frac = Math.max(0, Math.min(0.97, elapsed / S.eta));
+          }
+          target = Math.max(target, S.from + (S.to - S.from) * frac);
+        }
+        return { target, activeIdx, failedIdx };
+      }
+
+      function renderLive() {
+        const s = window.__state;
+        if (!s) return;
+        const live = $('live');
+
+        if (s.waitingForMine) {
+          setLive('queued', { stage: '실행을 준비하고 있어요', sub: '잠시 후 새 실행이 시작됩니다' });
+          startTick();
+          return;
+        }
+        const newest = s.runs[0];
+        if (!newest) { setLive('idle', {}); return; }
+
+        const active = newest.status !== 'completed';
+        const { target, activeIdx, failedIdx } = computeProgress(s.steps);
+
+        // 단계 아이콘 상태
+        document.querySelectorAll('.stage').forEach((el, i) => {
+          el.classList.remove('active', 'done', 'fail');
+          const S = STAGES.find((x) => x.k === el.getAttribute('data-k'));
+          const idx = STAGES.indexOf(S);
+          if (failedIdx === idx) el.classList.add('fail');
+          else if (activeIdx === idx) el.classList.add('active');
+          else if (activeIdx > idx || (!active && newest.conclusion === 'success')) el.classList.add('done');
+          else if (target >= S.to) el.classList.add('done');
+        });
+
+        if (active) {
+          const S = activeIdx >= 0 ? STAGES[activeIdx] : null;
+          setLive('active', {
+            stage: S ? S.label : '제작 중',
+            sub: S ? `${activeIdx + 1} / 4 단계 진행 중` : '곧 시작돼요',
+            target,
+          });
+          startTick();
+        } else {
+          stopTick();
+          if (newest.conclusion === 'success') {
+            setLive('done', { target: 100, title: newest.title });
+            $('bar').style.width = '100%';
+            $('pct').textContent = '100%';
+            shownPct = 100;
+          } else if (failedIdx >= 0 || newest.conclusion) {
+            setLive('failed', { conclusion: newest.conclusion });
+          } else {
+            setLive('idle', {});
+          }
+        }
+      }
+
+      function setLive(mode, opt) {
+        const live = $('live');
+        const dot = $('livedot'), label = $('livelabel'), stage = $('livestage'), sub = $('livesub');
+        const result = $('result');
+        result.classList.remove('show');
+        live.classList.toggle('active', mode === 'active' || mode === 'queued');
+        if (mode === 'idle') {
+          dot.style.display = 'none';
+          label.textContent = '준비됨'; label.style.color = 'var(--sub)';
+          stage.textContent = '주제를 던지면 제작 과정이 실시간으로 보여요';
+          sub.textContent = '대본 → 나레이션 → 렌더 → 업로드';
+          $('bar').style.width = '0%'; $('pct').textContent = '0%'; $('elapsed').textContent = '';
+          document.querySelectorAll('.stage').forEach((el) => el.classList.remove('active', 'done', 'fail'));
+        } else if (mode === 'queued') {
+          dot.style.display = 'inline-block';
+          label.textContent = '● 대기 중'; label.style.color = '#ffd43b';
+          stage.textContent = opt.stage || '실행 준비 중';
+          sub.textContent = opt.sub || '';
+        } else if (mode === 'active') {
+          dot.style.display = 'inline-block';
+          label.textContent = '● LIVE 제작 중'; label.style.color = '#ffb08a';
+          stage.textContent = opt.stage;
+          sub.textContent = opt.sub;
+          window.__target = opt.target;
+        } else if (mode === 'done') {
+          dot.style.display = 'none';
+          label.textContent = '✓ 완성!'; label.style.color = '#69db7c';
+          stage.textContent = '영상 제작 완료 🎉';
+          sub.textContent = opt.title ? String(opt.title).slice(0, 40) : '';
+          result.className = 'result show';
+          result.innerHTML = '🎉 완성됐어요! 위 실행 로그에서 아티팩트(영상)를 확인하거나, 업로드를 켰다면 유튜브 채널을 확인하세요.';
+        } else if (mode === 'failed') {
+          dot.style.display = 'none';
+          label.textContent = '⚠️ 중단됨'; label.style.color = '#ff8787';
+          stage.textContent = opt.conclusion === 'cancelled' ? '실행이 취소됐어요' : '실행이 실패했어요';
+          sub.textContent = '로그를 확인해 원인을 봐주세요';
+        }
+      }
+
+      // 부드러운 카운트업 + 경과시간 (초당 갱신)
+      function startTick() { if (!tickTimer) tickTimer = setInterval(tick, 100); }
+      function stopTick() { if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } }
+      function tick() {
+        const s = window.__state;
+        if (!s) return;
+        // 목표를 향해 부드럽게 접근
+        const target = window.__target != null ? window.__target : shownPct;
+        shownPct += (target - shownPct) * 0.08;
+        if (shownPct > target) shownPct = target;
+        const p = Math.max(0, Math.min(100, shownPct));
+        $('bar').style.width = p.toFixed(1) + '%';
+        $('pct').textContent = Math.round(p) + '%';
+        // 경과시간
+        if (s.jobStartedAt) {
+          const sec = Math.floor((Date.now() - clockSkew - Date.parse(s.jobStartedAt)) / 1000);
+          if (sec >= 0) {
+            const m = Math.floor(sec / 60), ss = sec % 60;
+            $('elapsed').textContent = `⏱ ${m}:${String(ss).padStart(2, '0')}`;
+          }
+        }
+      }
+
+      // ── 실행 목록 ──
+      const CONCLUSION = {
+        success: ['완료', 'ok'], failure: ['실패', 'fail'], cancelled: ['취소됨', 'queued'],
+        timed_out: ['시간초과', 'fail'], skipped: ['건너뜀', 'queued'], neutral: ['중립', 'queued'],
+      };
+      function relTime(iso) {
+        if (!iso) return '';
+        const sec = Math.max(0, (Date.now() - clockSkew - Date.parse(iso)) / 1000);
+        if (sec < 60) return '방금';
+        if (sec < 3600) return Math.floor(sec / 60) + '분 전';
+        if (sec < 86400) return Math.floor(sec / 3600) + '시간 전';
+        return Math.floor(sec / 86400) + '일 전';
+      }
+      function pill(r) {
+        if (r.status === 'queued') return '<span class="pill queued">대기중</span>';
+        if (r.status !== 'completed') return '<span class="pill run_">진행중</span>';
+        const [label, cls] = CONCLUSION[r.conclusion] || [r.conclusion || '종료', 'queued'];
+        return `<span class="pill ${cls}">${label}</span>`;
+      }
+      function renderRuns(runs) {
+        $('runlist').innerHTML = runs.slice(0, 5).map((r) => {
+          const mine = triggeredAt && Date.parse(r.created_at) >= triggeredAt - 20000;
+          const tag = mine ? ' · <span class="mine">내 요청</span>' : '';
+          return `<div class="run">${pill(r)}<span>${(r.title || '영상').slice(0, 24)}</span>
+            <span class="rt">${relTime(r.created_at)}${tag}</span>
+            <a href="${r.html_url}" target="_blank">로그 ↗</a></div>`;
+        }).join('');
+      }
+
+      $('go').addEventListener('click', publish);
+      $('topic').addEventListener('keydown', (e) => { if (e.key === 'Enter') publish(); });
+      startPolling(0);
+    </script>
+  </body>
+</html>
