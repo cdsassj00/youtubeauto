@@ -70,8 +70,10 @@ export const config = {
 
   // 썸네일 (OpenAI 이미지 모델). 현재 최신 이미지 모델명은 gpt-image-1.
   openaiApiKey: optional('OPENAI_API_KEY', ''),
-  // 최신 이미지 모델 gpt-image-2 (얼굴 보존 + 한글 텍스트 우수). 필요 시 env 로 변경.
+  // 썸네일용 고급 모델 gpt-image-2 (얼굴 보존 + 한글 텍스트 우수).
   openaiImageModel: optional('OPENAI_IMAGE_MODEL', 'gpt-image-2'),
+  // 영상 일러스트용 저가 모델 (글자 없는 흑백 라인아트라 mini 로 충분 → 비용 절감).
+  openaiIllustrationModel: optional('OPENAI_ILLUSTRATION_MODEL', 'gpt-image-1-mini'),
   // 진행자 사진을 URL 로 줄 경우(저장소에 커밋하기 싫을 때). 비면 assets/presenter.png 사용.
   presenterImageUrl: optional('PRESENTER_IMAGE_URL', ''),
   // 썸네일 배경 톤: dark(칠판) | cream(종이)

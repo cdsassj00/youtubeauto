@@ -44,7 +44,7 @@ export async function generateThumbnail(params: {
       model: config.openaiImageModel,
       image: img,
       prompt,
-      size: '1536x1024',
+      size: '1536x864',
       quality: 'high',
     };
     // gpt-image-1 계열은 input_fidelity 로 얼굴 보존(없으면 딴사람으로 다시 그림).
@@ -58,7 +58,7 @@ export async function generateThumbnail(params: {
     const res = await client.images.generate({
       model: config.openaiImageModel,
       prompt,
-      size: '1536x1024',
+      size: '1536x864',
       quality: 'high',
     });
     b64 = res.data?.[0]?.b64_json;

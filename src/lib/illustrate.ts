@@ -37,10 +37,10 @@ export async function generateIllustrations(
       const subject = (scene.illustration || scene.heading || 'a simple concept about AI').trim();
       try {
         const res = await client.images.generate({
-          model: config.openaiImageModel,
+          model: config.openaiIllustrationModel,
           prompt: `${STYLE} Subject: ${subject}`,
-          size: '1536x1024',
-          quality: 'high',
+          size: '1536x1024', // mini 는 16:9 미지원 → 3:2 생성 후 16:9 로 크롭(글자 없어 무해)
+          quality: 'medium',
         });
         const b64 = res.data?.[0]?.b64_json;
         if (!b64) continue;
