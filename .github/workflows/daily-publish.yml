@@ -1,0 +1,77 @@
+name: 매일 AI 영상 자동 발행
+
+on:
+  schedule:
+    # 매일 22:00 UTC = 다음날 07:00 KST 에 실행
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+    inputs:
+      content_mode:
+        description: '주제 모드 (auto | trend | basics)'
+        required: false
+        default: 'auto'
+      do_upload:
+        description: '유튜브 업로드 여부 (true | false)'
+        required: false
+        default: 'true'
+
+# 렌더링은 시간이 걸릴 수 있으므로 넉넉히.
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 한국어 폰트 & Chromium 의존성 설치
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fonts-nanum fonts-noto-cjk \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2
+          sudo fc-cache -f
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: Remotion 브라우저 준비
+        run: npx remotion browser ensure
+
+      - name: 파이프라인 실행 (대본 → 나레이션 → 렌더 → 업로드)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-4-8' }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
+          ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2' }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_PRIVACY_STATUS: ${{ vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
+          YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
+          CONTENT_MODE: ${{ github.event.inputs.content_mode || vars.CONTENT_MODE || 'auto' }}
+          TARGET_MINUTES: ${{ vars.TARGET_MINUTES || '10' }}
+          CONTENT_LANGUAGE: ${{ vars.CONTENT_LANGUAGE || 'ko' }}
+          DO_UPLOAD: ${{ github.event.inputs.do_upload || 'true' }}
+        run: npm run pipeline
+
+      - name: 산출물 업로드(디버그용 아티팩트)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-output
+          path: |
+            out/video.mp4
+            out/script.json
+            out/manifest.json
+          if-no-files-found: ignore
+          retention-days: 7
