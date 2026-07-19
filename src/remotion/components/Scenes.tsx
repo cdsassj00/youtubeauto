@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, interpolate, Easing } from 'remotion';
 import type { Scene } from '../../schema.js';
 import { theme, nodeColors } from '../theme.js';
 import { Heading, usePopIn, useDrawProgress } from './Layout.js';
@@ -42,7 +42,7 @@ const TitleVisual: React.FC<{ scene: Scene }> = ({ scene }) => {
         }}
       >
         <div style={{ fontFamily: theme.handFont, fontSize: 40, color: theme.accent }}>AI 이야기</div>
-        <h1 style={{ fontFamily: theme.handFont, fontSize: 96, color: theme.ink, margin: '10px 0', lineHeight: 1.15 }}>
+        <h1 style={{ fontFamily: theme.displayFont, fontSize: 100, color: theme.ink, margin: '10px 0', lineHeight: 1.15 }}>
           {scene.heading}
         </h1>
         {scene.bullets[0] && (
@@ -129,10 +129,37 @@ const DiagramVisual: React.FC<{ scene: Scene }> = ({ scene }) => {
     pos[n.id] = { x, y };
   });
 
+  // 카메라: 지금 그려지는 노드로 줌인하며 따라가다가, 마지막에 전체를 보여주며 줌아웃.
+  const camKeys: number[] = [0];
+  const camScale: number[] = [1.12];
+  const camX: number[] = [960];
+  const camY: number[] = [rows > 1 ? 560 : 460];
+  nodes.forEach((n, i) => {
+    const p = pos[n.id];
+    camKeys.push(14 + i * 12 + 8);
+    camScale.push(1.3);
+    camX.push(p.x + boxW / 2);
+    camY.push(p.y + boxH / 2);
+  });
+  camKeys.push(14 + nodes.length * 12 + 46);
+  camScale.push(1.0);
+  camX.push(960);
+  camY.push(rows > 1 ? 560 : 460);
+  const easeOpt = {
+    extrapolateLeft: 'clamp' as const,
+    extrapolateRight: 'clamp' as const,
+    easing: Easing.inOut(Easing.ease),
+  };
+  const cs = interpolate(frame, camKeys, camScale, easeOpt);
+  const cfx = interpolate(frame, camKeys, camX, easeOpt);
+  const cfy = interpolate(frame, camKeys, camY, easeOpt);
+  const cam = `translate(${960 - cfx * cs} ${540 - cfy * cs}) scale(${cs})`;
+
   return (
     <AbsoluteFill>
       <Heading text={scene.heading} />
       <svg width={1920} height={1080} viewBox="0 0 1920 1080" style={{ position: 'absolute', inset: 0 }}>
+        <g transform={cam}>
         {/* 엣지(화살표) — 노드가 대략 등장한 뒤 그린다. */}
         {diagram.edges.map((e, i) => {
           const a = pos[e.from];
@@ -197,6 +224,7 @@ const DiagramVisual: React.FC<{ scene: Scene }> = ({ scene }) => {
             </g>
           );
         })}
+        </g>
       </svg>
     </AbsoluteFill>
   );
@@ -283,7 +311,7 @@ const OutroVisual: React.FC<{ scene: Scene }> = ({ scene }) => {
   const subPop = interpolate(frame, [50, 70], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   return (
     <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center' }}>
-      <h1 style={{ fontFamily: theme.handFont, fontSize: 80, color: theme.ink, marginBottom: 40 }}>{scene.heading}</h1>
+      <h1 style={{ fontFamily: theme.displayFont, fontSize: 84, color: theme.ink, marginBottom: 40 }}>{scene.heading}</h1>
       <div style={{ width: 1200 }}>
         {scene.bullets.map((b, i) => {
           const s = 10 + i * 18;

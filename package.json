@@ -21,6 +21,7 @@
     "@anthropic-ai/sdk": "^0.112.3",
     "@remotion/bundler": "^4.0.400",
     "@remotion/cli": "^4.0.400",
+    "@remotion/google-fonts": "^4.0.491",
     "@remotion/media-utils": "^4.0.400",
     "@remotion/renderer": "^4.0.400",
     "dotenv": "^16.4.5",

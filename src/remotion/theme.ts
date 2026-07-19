@@ -1,3 +1,5 @@
+import { handFamily, bodyFamily, displayFamily } from './fonts.js';
+
 /** Excalidraw 손그림 느낌의 색/폰트 팔레트. */
 export const theme = {
   paper: '#faf9f5', // 종이 배경
@@ -8,11 +10,10 @@ export const theme = {
   accent3: '#2f9e44', // 강조(초록)
   highlight: '#ffe066', // 형광펜
   muted: '#adb5bd',
-  // Excalidraw 기본 손글씨 폰트 (Virgil) 를 못 구하면 시스템 손글씨/고딕으로 폴백.
-  handFont:
-    '"Excalifont", "Virgil", "Nanum Pen Script", "Gaegu", "Comic Sans MS", sans-serif',
-  bodyFont:
-    '"Pretendard", "Nanum Gothic", -apple-system, "Malgun Gothic", sans-serif',
+  // 번들 내장 폰트 (fonts.ts) — 시스템 설치 불필요
+  handFont: `${handFamily}, "Comic Sans MS", sans-serif`,
+  bodyFont: `${bodyFamily}, "Malgun Gothic", sans-serif`,
+  displayFont: `${displayFamily}, ${handFamily}, sans-serif`,
 } as const;
 
 /** diagram 노드에 순환 배정할 강조색. */

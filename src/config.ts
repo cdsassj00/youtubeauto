@@ -44,7 +44,8 @@ export const config = {
 
   // ElevenLabs
   elevenLabsApiKey: () => required('ELEVENLABS_API_KEY'),
-  elevenLabsVoiceId: optional('ELEVENLABS_VOICE_ID', '21m00Tcm4TlvDq8ikWAM'),
+  // ssjvoice (사용자 지정 목소리). 필요 시 ELEVENLABS_VOICE_ID 로 덮어쓸 수 있음.
+  elevenLabsVoiceId: optional('ELEVENLABS_VOICE_ID', 'dChkTgjs2tPbb8OYH4OX'),
   elevenLabsModelId: optional('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2'),
 
   // YouTube
