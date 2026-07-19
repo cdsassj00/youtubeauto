@@ -44,11 +44,12 @@ jobs:
       CONTENT_LANGUAGE: ${{ vars.CONTENT_LANGUAGE || 'ko' }}
       DO_UPLOAD: ${{ github.event.inputs.do_upload || github.event.client_payload.do_upload || 'true' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-1' }}
+      OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
+      OPENAI_ILLUSTRATION_MODEL: ${{ vars.OPENAI_ILLUSTRATION_MODEL || 'gpt-image-1-mini' }}
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
-      # 영상 엔진: web3d(3D 웹녹화) | remotion(손그림). 기본 web3d.
-      VIDEO_ENGINE: ${{ vars.VIDEO_ENGINE || 'web3d' }}
+      # 영상 엔진: illustrated(AI 흑백 일러스트) | web3d(3D 웹녹화) | remotion(손그림). 기본 illustrated.
+      VIDEO_ENGINE: ${{ vars.VIDEO_ENGINE || 'illustrated' }}
     steps:
       - name: 체크아웃
         uses: actions/checkout@v4

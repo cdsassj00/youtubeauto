@@ -40,7 +40,8 @@ export async function generateScript(params: {
     '시청자는 한국어 사용자이며, 어렵지 않고 흥미롭게, 그러나 정확하게 설명해야 한다.',
     '과장·낚시성 표현은 피하고, 구체적 예시와 비유로 이해를 돕는다.',
     'narration 은 성우가 그대로 읽을 수 있는 완결된 구어체 문장으로 작성한다. (마크다운/이모지/괄호 지시문 금지)',
-    'heading·bullets 는 화면에 손글씨로 표시되므로 짧고 핵심만 담는다.',
+    'heading·bullets 는 화면에 표시되므로 짧고 핵심만 담는다.',
+    'illustration 은 이 씬을 한 장의 흑백 라인아트 삽화로 그리기 위한 영어 묘사다. 구체적인 인물·사물·행동·은유를 담되 화면에 글자는 넣지 않는다.',
   ].join(' ');
 
   const user = [
@@ -53,6 +54,7 @@ export async function generateScript(params: {
     '- 씬(scenes)은 10~14개로 구성한다.',
     '- 첫 씬은 visual="title" 로 후킹 도입(왜 이 주제가 중요한지)을 담는다.',
     '- 중간 씬들은 bullets / diagram / comparison / quote 를 다양하게 섞어 지루하지 않게 한다.',
+    '- 각 씬에는 illustration 필드를 반드시 넣는다: 그 씬의 내용을 상징하는 흑백 라인아트 삽화의 영어 시각 묘사(구체적 장면·인물·은유, 한 문장~두 문장, "no text" 함의). 매 씬 서로 다른 그림이 되게 한다.',
     '- diagram 을 쓰는 씬은 nodes(2~6개)와 edges(화살표)로 개념 흐름을 표현한다. node.id 는 짧은 영숫자, label 은 한국어.',
     '- comparison 씬은 두 개념/접근을 좌우로 비교한다.',
     '- 마지막 씬은 visual="outro" 로 핵심 3줄 요약 + 구독 유도를 담는다.',

@@ -22,6 +22,7 @@ import { generateScript } from '../lib/anthropic.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { generateBgm } from '../lib/bgm.js';
 import { renderVideo } from '../lib/render.js';
+import { generateIllustrations } from '../lib/illustrate.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { uploadVideo } from '../lib/youtube.js';
 
@@ -146,8 +147,16 @@ async function stepRender(): Promise<void> {
   console.log(`▶ [3/4] 영상 렌더링 (엔진: ${config.videoEngine})`);
   if (config.videoEngine === 'web3d') {
     await render3dVideo();
+  } else if (config.videoEngine === 'illustrated') {
+    console.log('  · 씬별 흑백 일러스트 생성 중...');
+    const imgMap = await generateIllustrations(manifest.scenes);
+    manifest.scenes = manifest.scenes.map((s) => ({ ...s, imagePath: imgMap[s.id] }));
+    await writeJson(MANIFEST_PATH, manifest); // imagePath 반영 저장(재실행 대비)
+    const made = Object.keys(imgMap).length;
+    console.log(`  · 일러스트 ${made}/${manifest.scenes.length}장 완료 → Remotion 합성`);
+    await renderVideo(manifest, 'AiIllustrated');
   } else {
-    await renderVideo(manifest); // 손그림(Remotion). 렌더 시 기본 썸네일도 생성됨
+    await renderVideo(manifest); // 손그림(Remotion)
   }
   console.log('  · 저장:', VIDEO_PATH);
 

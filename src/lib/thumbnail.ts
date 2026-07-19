@@ -40,19 +40,25 @@ export async function generateThumbnail(params: {
   let b64: string | undefined;
   if (presenter) {
     const img = await toFile(presenter, 'presenter.png', { type: 'image/png' });
-    const res = await client.images.edit({
+    const editParams: Record<string, unknown> = {
       model: config.openaiImageModel,
       image: img,
       prompt,
-      size: '1536x1024',
+      size: '1536x864',
       quality: 'high',
-    });
+    };
+    // gpt-image-1 계열은 input_fidelity 로 얼굴 보존(없으면 딴사람으로 다시 그림).
+    // gpt-image-2 는 이 파라미터를 받지 않으므로 제외.
+    if (config.openaiImageModel.startsWith('gpt-image-1')) {
+      editParams.input_fidelity = 'high';
+    }
+    const res = await client.images.edit(editParams as never);
     b64 = res.data?.[0]?.b64_json;
   } else {
     const res = await client.images.generate({
       model: config.openaiImageModel,
       prompt,
-      size: '1536x1024',
+      size: '1536x864',
       quality: 'high',
     });
     b64 = res.data?.[0]?.b64_json;
@@ -92,6 +98,7 @@ function buildPrompt(headline: string, topic: string, tone: string, hasPresenter
     'Use orange (#e8590c), blue (#1971c2) and green (#2f9e44) accents on clean strokes. Lively and clear, NOT cluttered, with real depth.',
     `Add a HUGE, BOLD Korean title, hand-lettered marker style, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
     `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — very large and thick, 1-2 lines, ${inkTitle}, as the clear focal point.`,
+    'Keep ALL text fully inside the frame with a safe margin — never let letters touch or get cut off by any edge.',
     'You may add ONE tiny round accent sticker (a checkmark or a star), but it must NOT contain any of the title words and must not overlap the title text.',
     'Overall: energetic, high contrast, strong visual hierarchy; the title must be legible even as a tiny phone thumbnail. No watermark, no extra logos.',
   ].join(' ');

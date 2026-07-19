@@ -1,6 +1,7 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { AiVideo } from './Video.js';
+import { AiIllustrated } from './Illustrated.js';
 import type { RenderManifest } from '../schema.js';
 
 const FPS = 30;
@@ -22,6 +23,7 @@ const sampleManifest: RenderManifest = {
       heading: 'AI 는 어떻게 생각할까?',
       narration: '오늘은 인공지능이 어떻게 작동하는지 아주 쉽게 알아봅니다. 준비되셨나요?',
       bullets: ['핵심만, 쉽게, 그림으로'],
+      illustration: 'A friendly robot waving next to a curious person, simple concept intro.',
       visual: 'title',
       startFrame: 0,
       durationInFrames: FPS * 6,
@@ -33,6 +35,7 @@ const sampleManifest: RenderManifest = {
       heading: '3단계로 이해하기',
       narration: '첫째 입력, 둘째 처리, 셋째 출력. 이 흐름만 기억하면 됩니다.',
       bullets: ['입력을 받는다', '패턴을 계산한다', '결과를 내놓는다'],
+      illustration: 'A simple three-step flow: input arrow into a box into output arrow.',
       visual: 'diagram',
       diagram: {
         nodes: [
@@ -53,25 +56,39 @@ const sampleManifest: RenderManifest = {
   ],
 };
 
+const calcMeta = ({ props }: { props: Record<string, unknown> }) => {
+  const m = props as RenderManifest;
+  return {
+    durationInFrames: Math.max(1, m.totalDurationInFrames),
+    fps: m.fps || FPS,
+    width: m.width || WIDTH,
+    height: m.height || HEIGHT,
+  };
+};
+
 export const RemotionRoot: React.FC = () => {
   return (
-    <Composition
-      id="AiExplainer"
-      component={AiVideo}
-      durationInFrames={sampleManifest.totalDurationInFrames}
-      fps={FPS}
-      width={WIDTH}
-      height={HEIGHT}
-      defaultProps={sampleManifest}
-      calculateMetadata={({ props }) => {
-        const m = props as RenderManifest;
-        return {
-          durationInFrames: Math.max(1, m.totalDurationInFrames),
-          fps: m.fps || FPS,
-          width: m.width || WIDTH,
-          height: m.height || HEIGHT,
-        };
-      }}
-    />
+    <>
+      <Composition
+        id="AiExplainer"
+        component={AiVideo}
+        durationInFrames={sampleManifest.totalDurationInFrames}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
+        defaultProps={sampleManifest}
+        calculateMetadata={calcMeta}
+      />
+      <Composition
+        id="AiIllustrated"
+        component={AiIllustrated}
+        durationInFrames={sampleManifest.totalDurationInFrames}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
+        defaultProps={sampleManifest}
+        calculateMetadata={calcMeta}
+      />
+    </>
   );
 };

@@ -7,7 +7,7 @@ import type { RenderManifest } from '../schema.js';
 /**
  * Remotion 컴포지션을 렌더해 mp4 파일을 생성한다.
  */
-export async function renderVideo(manifest: RenderManifest): Promise<string> {
+export async function renderVideo(manifest: RenderManifest, compositionId = 'AiExplainer'): Promise<string> {
   await ensureBrowser();
 
   const entry = path.join(ROOT, 'src', 'remotion', 'index.ts');
@@ -34,7 +34,7 @@ export async function renderVideo(manifest: RenderManifest): Promise<string> {
 
   const composition = await selectComposition({
     serveUrl,
-    id: 'AiExplainer',
+    id: compositionId,
     inputProps: manifest,
   });
 
