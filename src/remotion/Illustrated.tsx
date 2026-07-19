@@ -11,6 +11,7 @@ import {
 } from 'remotion';
 import type { RenderManifest } from '../schema.js';
 import { theme } from './theme.js';
+import { PRETENDARD } from './pretendard.js';
 import { sentenceBounds } from './components/beats.js';
 
 /**
@@ -50,7 +51,7 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
       ) : (
         // 이미지 없을 때 폴백: 흰 배경 + 큰 제목.
         <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center' }}>
-          <h1 style={{ fontFamily: theme.displayFont, fontSize: 96, color: theme.ink, textAlign: 'center', maxWidth: 1500 }}>
+          <h1 style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 96, color: theme.ink, textAlign: 'center', maxWidth: 1500 }}>
             {scene.heading}
           </h1>
         </AbsoluteFill>
@@ -91,7 +92,7 @@ const WordCaption: React.FC<{ narration: string; durationInFrames: number }> = (
     >
       <span
         style={{
-          fontFamily: theme.bodyFont,
+          fontFamily: PRETENDARD,
           fontSize: 58,
           fontWeight: 800,
           lineHeight: 1.3,

@@ -92,6 +92,7 @@ function buildPrompt(headline: string, topic: string, tone: string, hasPresenter
     'Use orange (#e8590c), blue (#1971c2) and green (#2f9e44) accents on clean strokes. Lively and clear, NOT cluttered, with real depth.',
     `Add a HUGE, BOLD Korean title, hand-lettered marker style, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
     `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — very large and thick, 1-2 lines, ${inkTitle}, as the clear focal point.`,
+    'Keep ALL text fully inside the frame with a safe margin — never let letters touch or get cut off by any edge.',
     'You may add ONE tiny round accent sticker (a checkmark or a star), but it must NOT contain any of the title words and must not overlap the title text.',
     'Overall: energetic, high contrast, strong visual hierarchy; the title must be legible even as a tiny phone thumbnail. No watermark, no extra logos.',
   ].join(' ');
