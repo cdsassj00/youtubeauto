@@ -26,8 +26,8 @@ CLI 로도 가능: `cd web && npx vercel --prod` (프로젝트 루트를 web 으
 [github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens) →
 **Fine-grained token** → Repository access: `cdsassj00/youtubeauto` 만 →
 Permissions:
-- **Actions: Read and write** (워크플로우 트리거 + 상태 조회)
-- **Contents: Read-only**
+- **Actions: Read and write** (실행 상태 조회)
+- **Contents: Read and write** (repository_dispatch 발행 트리거에 필요 — Read-only 면 403)
 
 발급된 `github_pat_...` 를 위 `GITHUB_TOKEN` 에 넣습니다. (이 토큰은 웹앱 서버에만 저장되고 브라우저에 노출되지 않습니다.)
 
