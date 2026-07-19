@@ -47,8 +47,8 @@ jobs:
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-1' }}
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
-      # 영상 엔진: web3d(3D 웹녹화) | remotion(손그림). 기본 web3d.
-      VIDEO_ENGINE: ${{ vars.VIDEO_ENGINE || 'web3d' }}
+      # 영상 엔진: illustrated(AI 흑백 일러스트) | web3d(3D 웹녹화) | remotion(손그림). 기본 illustrated.
+      VIDEO_ENGINE: ${{ vars.VIDEO_ENGINE || 'illustrated' }}
     steps:
       - name: 체크아웃
         uses: actions/checkout@v4
