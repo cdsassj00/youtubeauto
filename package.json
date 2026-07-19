@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.3",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@remotion/bundler": "^4.0.400",
     "@remotion/cli": "^4.0.400",
     "@remotion/google-fonts": "^4.0.491",
@@ -29,6 +30,7 @@
     "googleapis": "^144.0.0",
     "music-metadata": "^10.0.0",
     "openai": "^6.48.0",
+    "playwright": "^1.61.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "remotion": "^4.0.400",
