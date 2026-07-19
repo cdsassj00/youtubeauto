@@ -1,4 +1,4 @@
-// 최근 GitHub Actions 실행 상태를 웹앱에 반환 (진행 상황 표시용).
+// 최근 GitHub Actions 실행 상태 + 최신 실행의 단계별 진행도를 웹앱에 반환.
 export default async function handler(req, res) {
   const { GITHUB_TOKEN, GITHUB_REPO } = process.env;
   if (!GITHUB_TOKEN || !GITHUB_REPO) {
@@ -28,22 +28,23 @@ export default async function handler(req, res) {
     event: w.event,
   }));
 
-  // 진행 중인 최신 실행의 현재 단계 이름
-  let currentStep = null;
-  const active = runs.find((w) => w.status !== 'completed');
-  if (active) {
+  // 최신 실행의 단계별 상태 (진행바용). 파이프라인 4단계 스텝을 그대로 노출.
+  let steps = [];
+  if (runs[0]) {
     const jr = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/actions/runs/${active.id}/jobs`,
+      `https://api.github.com/repos/${GITHUB_REPO}/actions/runs/${runs[0].id}/jobs`,
       { headers },
     );
     if (jr.ok) {
       const jd = await jr.json();
       const job = (jd.jobs || [])[0];
-      const steps = job?.steps || [];
-      const running = steps.find((s) => s.status === 'in_progress');
-      currentStep = running ? running.name : null;
+      steps = (job?.steps || []).map((s) => ({
+        name: s.name,
+        status: s.status, // queued | in_progress | completed
+        conclusion: s.conclusion, // success | failure | skipped | null
+      }));
     }
   }
 
-  return res.status(200).json({ runs, currentStep });
+  return res.status(200).json({ runs, steps, latestRunId: runs[0]?.id ?? null });
 }

@@ -59,8 +59,13 @@
       .steps { display: flex; justify-content: space-between; margin: 18px 0; }
       .step { flex: 1; text-align: center; font-size: 12px; color: var(--sub); position: relative; }
       .step .dot { width: 30px; height: 30px; line-height: 30px; border-radius: 50%; margin: 0 auto 6px; background: #0f131b; border: 1px solid var(--line); }
-      .step.active .dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .step.active .dot { background: var(--accent); border-color: var(--accent); color: #fff; animation: pulse 1s infinite; }
+      .step.active { color: var(--accent); font-weight: 700; }
       .step.done .dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+      .step.done { color: var(--ok); }
+      .step.fail .dot { background: #e03131; border-color: #e03131; color: #fff; }
+      .step.fail { color: #ff6b6b; }
+      @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
       .runlist { margin-top: 20px; }
       .run { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; font-size: 14px; }
       .run a { color: var(--accent2); text-decoration: none; margin-left: auto; }
@@ -179,8 +184,9 @@
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'runs 조회 실패');
           renderRuns(data.runs || []);
+          updateProgress(data.steps || []);
           const active = (data.runs || []).find((r) => r.status !== 'completed');
-          if (active) setTimeout(poll, 6000);
+          if (active) setTimeout(poll, 5000);
         } catch (e) {
           toast('⚠️ ' + e.message, 'err');
         }
@@ -202,6 +208,22 @@
               <a href="${r.html_url}" target="_blank">로그 ↗</a></div>`,
           )
           .join('');
+      }
+
+      // 최신 실행의 GitHub 스텝을 읽어 4단계 진행바를 채운다.
+      function updateProgress(steps) {
+        const map = { script: '대본', voice: '나레이션', render: '렌더', upload: '업로드' };
+        document.querySelectorAll('.step').forEach((el) => {
+          const kw = map[el.getAttribute('data-k')];
+          const st = steps.find((s) => s.name && s.name.includes(kw));
+          el.classList.remove('active', 'done', 'fail');
+          if (!st) return;
+          if (st.status === 'in_progress') el.classList.add('active');
+          else if (st.status === 'completed') {
+            if (st.conclusion === 'success') el.classList.add('done');
+            else if (st.conclusion === 'failure') el.classList.add('fail');
+          }
+        });
       }
 
       $('go').addEventListener('click', publish);
