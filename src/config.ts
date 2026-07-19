@@ -37,7 +37,10 @@ function required(name: string): string {
 }
 
 function optional(name: string, fallback: string): string {
-  return process.env[name] ?? fallback;
+  const v = process.env[name];
+  // 빈 문자열("")도 미설정으로 간주 — GitHub Actions 가 미설정 변수를 빈 값으로 넘겨
+  // 코드 기본값을 덮어쓰는 문제를 방지.
+  return v == null || v.trim() === '' ? fallback : v;
 }
 
 export const config = {
