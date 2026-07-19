@@ -1,24 +1,84 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Sequence, staticFile, useCurrentFrame } from 'remotion';
+import {
+  AbsoluteFill,
+  Audio,
+  Sequence,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+  interpolate,
+  spring,
+} from 'remotion';
 import type { RenderManifest } from '../schema.js';
 import { Paper } from './components/Layout.js';
 import { SceneVisual } from './components/Scenes.js';
 import { Captions } from './components/Captions.js';
 import { theme } from './theme.js';
 
-/** 전체 영상: 씬을 오디오 길이에 맞춰 순차 배치. */
+/** 전체 영상: 씬을 오디오 길이에 맞춰 순차 배치 + 전환/카메라 모션. */
 export const AiVideo: React.FC<RenderManifest> = (manifest) => {
   return (
     <AbsoluteFill>
-      <Paper />
-      {manifest.scenes.map((scene) => (
+      <MovingPaper />
+      {manifest.scenes.map((scene, i) => (
         <Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.durationInFrames} name={scene.heading}>
-          <SceneVisual scene={scene} />
+          <SceneStage durationInFrames={scene.durationInFrames} index={i}>
+            <SceneVisual scene={scene} />
+          </SceneStage>
           <Captions narration={scene.narration} durationInFrames={scene.durationInFrames} />
           <Audio src={staticFile(scene.audioPath)} />
         </Sequence>
       ))}
       <ProgressBar total={manifest.totalDurationInFrames} />
+    </AbsoluteFill>
+  );
+};
+
+/** 씬 콘텐츠에 입장 전환 + 느린 줌/이동(켄번즈) + 퇴장 페이드를 입힌다. */
+const SceneStage: React.FC<{ durationInFrames: number; index: number; children: React.ReactNode }> = ({
+  durationInFrames,
+  index,
+  children,
+}) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  // 입장: 아래에서 슬라이드 + 페이드 인 (스프링)
+  const enter = spring({ frame, fps, config: { damping: 18, stiffness: 90, mass: 0.8 }, durationInFrames: 20 });
+  const slideFrom = index % 2 === 0 ? 60 : -60; // 씬마다 좌우 번갈아 입장
+  const tx = interpolate(enter, [0, 1], [slideFrom, 0]);
+  const ty = interpolate(enter, [0, 1], [24, 0]);
+
+  // 켄번즈: 씬 내내 아주 천천히 확대(1.0 → 1.05)
+  const zoom = interpolate(frame, [0, durationInFrames], [1.0, 1.05], { extrapolateRight: 'clamp' });
+
+  // 퇴장: 마지막 10프레임 페이드
+  const exit = interpolate(frame, [durationInFrames - 10, durationInFrames], [1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill
+      style={{
+        opacity: Math.min(enter, exit),
+        transform: `translate(${tx}px, ${ty}px) scale(${zoom})`,
+        transformOrigin: 'center center',
+      }}
+    >
+      {children}
+    </AbsoluteFill>
+  );
+};
+
+/** 종이 배경이 아주 느리게 떠다니게 해서 정적인 느낌을 없앤다. */
+const MovingPaper: React.FC = () => {
+  const frame = useCurrentFrame();
+  const drift = Math.sin(frame / 90) * 12;
+  const drift2 = Math.cos(frame / 110) * 12;
+  return (
+    <AbsoluteFill style={{ transform: `translate(${drift}px, ${drift2}px) scale(1.05)` }}>
+      <Paper />
     </AbsoluteFill>
   );
 };
