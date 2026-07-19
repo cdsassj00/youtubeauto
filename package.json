@@ -12,6 +12,7 @@
     "generate:script": "tsx src/pipeline/run.ts --only=script",
     "generate:voice": "tsx src/pipeline/run.ts --only=voice",
     "render": "tsx src/pipeline/run.ts --only=render",
+    "thumb": "tsx src/pipeline/run.ts --only=thumbnail",
     "upload": "tsx src/pipeline/run.ts --only=upload",
     "authorize:youtube": "node scripts/authorize-youtube.mjs",
     "studio": "remotion studio src/remotion/index.ts",

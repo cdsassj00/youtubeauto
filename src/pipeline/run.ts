@@ -20,7 +20,7 @@ import { renderVideo } from '../lib/render.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { uploadVideo } from '../lib/youtube.js';
 
-type Step = 'script' | 'voice' | 'render' | 'upload';
+type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail';
 
 const TAIL_PAD_FRAMES = 18; // 각 씬 끝 여백(약 0.6초)
 
@@ -135,6 +135,14 @@ async function stepRender(): Promise<void> {
   }
 }
 
+/** (선택) 썸네일만 생성 — 프롬프트/스타일 튜닝용 (영상 렌더 없이). */
+async function stepThumbnail(): Promise<void> {
+  const script = ScriptSchema.parse(await readJson(SCRIPT_PATH));
+  console.log('▶ 썸네일 생성:', script.title);
+  const ok = await generateThumbnail({ title: script.title, topic: script.topic, outPath: THUMBNAIL_PATH });
+  console.log(ok ? '  · 저장: ' + THUMBNAIL_PATH : '  · OPENAI_API_KEY 없음 → 생성 안 함');
+}
+
 /** 4) 유튜브 업로드 */
 async function stepUpload(): Promise<void> {
   console.log('▶ [4/4] 유튜브 업로드');
@@ -163,6 +171,7 @@ async function main() {
     if (step === 'script') await stepScript();
     else if (step === 'voice') await stepVoice();
     else if (step === 'render') await stepRender();
+    else if (step === 'thumbnail') await stepThumbnail();
     else if (step === 'upload') await stepUpload();
   }
 
