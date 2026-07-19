@@ -21,8 +21,8 @@ export const PRESENTER_IMAGE_PATH = path.join(ASSETS_DIR, 'presenter.png');
 /** staticFile() 로 참조할 오디오 상대경로 (public 기준). */
 export const audioStaticPath = (sceneId: string) => `audio/${sceneId}.mp3`;
 
-/** 영상 규격 */
-export const FPS = 30;
+/** 영상 규격 (10분 영상 렌더 부담을 줄이기 위해 24fps — 부드러움 충분) */
+export const FPS = 24;
 export const WIDTH = 1920;
 export const HEIGHT = 1080;
 

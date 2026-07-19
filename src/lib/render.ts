@@ -45,7 +45,7 @@ export async function renderVideo(manifest: RenderManifest): Promise<string> {
     codec: 'h264',
     outputLocation: VIDEO_PATH,
     inputProps: manifest,
-    concurrency: 2,
+    concurrency: 4,
     onProgress: ({ progress }) => {
       process.stdout.write(`\r    렌더 ${(progress * 100).toFixed(1)}%   `);
     },
