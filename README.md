@@ -108,6 +108,18 @@ npm run studio
 수동 실행: **Actions → 매일 AI 영상 자동 발행 → Run workflow** (모드/업로드 여부 선택 가능).
 실행마다 산출물(`out/video.mp4`)이 아티팩트로 첨부되어 확인할 수 있습니다.
 
+### 키 한 번에 등록 (선택)
+GitHub 웹에서 하나씩 넣는 대신, 로컬 `.env` 를 채운 뒤 아래 한 줄이면 Secrets/Variables 를 일괄 등록합니다.
+[GitHub CLI](https://cli.github.com/) 설치 & 로그인(`gh auth login`)이 필요합니다.
+
+```bash
+cp .env.example .env      # 값 채우기
+gh auth login             # 최초 1회
+bash scripts/setup-secrets.sh
+```
+
+값은 로컬 `.env` 에서만 읽어 `gh` 가 암호화 전송하며 화면에 출력되지 않습니다.
+
 > 발행 시각은 `daily-publish.yml` 의 `cron: '0 22 * * *'` (UTC) 를 수정해 바꿉니다.
 
 ## 6. 커스터마이징
