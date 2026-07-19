@@ -68,6 +68,46 @@ export function revealFrames(
   return frames;
 }
 
+/**
+ * 나레이션을 짧은 자막 조각(chunk)으로 쪼개고 각 조각의 화면 구간(프레임)을 배분한다.
+ * 한 화면에 긴 문장이 통째로 지나가지 않도록, 문장을 다시 maxChars 이하의 구절로 나눈다.
+ */
+export function captionChunks(
+  narration: string,
+  durationInFrames: number,
+  maxChars = 16,
+): SentenceBound[] {
+  const sentences = sentenceBounds(narration, durationInFrames);
+  const out: SentenceBound[] = [];
+  for (const s of sentences) {
+    const words = s.text.split(/\s+/).filter(Boolean);
+    // maxChars 이하로 단어를 묶어 구절 생성.
+    const parts: string[] = [];
+    let cur = '';
+    for (const w of words) {
+      if (cur && (cur + ' ' + w).length > maxChars) {
+        parts.push(cur);
+        cur = w;
+      } else {
+        cur = cur ? cur + ' ' + w : w;
+      }
+    }
+    if (cur) parts.push(cur);
+    if (parts.length === 0) continue;
+    // 문장 구간을 구절 글자수 비례로 분배.
+    const total = parts.reduce((a, p) => a + p.length, 0) || 1;
+    let acc = 0;
+    const span = s.end - s.start;
+    for (const p of parts) {
+      const start = s.start + (acc / total) * span;
+      acc += p.length;
+      const end = s.start + (acc / total) * span;
+      out.push({ text: p, start, end });
+    }
+  }
+  return out;
+}
+
 /** 현재 프레임 기준, 지금까지 등장한 요소들 중 가장 최근 요소의 인덱스(-1=아직 없음). */
 export function activeIndex(revealAt: number[], frame: number): number {
   let idx = -1;
