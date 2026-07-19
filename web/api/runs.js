@@ -30,6 +30,7 @@ export default async function handler(req, res) {
 
   // 최신 실행의 단계별 상태 (진행바용). 파이프라인 4단계 스텝을 그대로 노출.
   let steps = [];
+  let jobStartedAt = null;
   if (runs[0]) {
     const jr = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/actions/runs/${runs[0].id}/jobs`,
@@ -42,9 +43,18 @@ export default async function handler(req, res) {
         name: s.name,
         status: s.status, // queued | in_progress | completed
         conclusion: s.conclusion, // success | failure | skipped | null
+        started_at: s.started_at || null,
+        completed_at: s.completed_at || null,
       }));
+      jobStartedAt = job?.started_at || null;
     }
   }
 
-  return res.status(200).json({ runs, steps, latestRunId: runs[0]?.id ?? null });
+  return res.status(200).json({
+    runs,
+    steps,
+    latestRunId: runs[0]?.id ?? null,
+    jobStartedAt,
+    serverTime: new Date().toISOString(),
+  });
 }
