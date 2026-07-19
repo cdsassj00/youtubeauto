@@ -46,7 +46,9 @@ export async function generateThumbnail(params: {
       prompt,
       size: '1536x1024',
       quality: 'high',
-    });
+      // 입력 사진의 얼굴/디테일을 최대한 보존 (없으면 얼굴을 딴사람으로 다시 그림).
+      input_fidelity: 'high',
+    } as never);
     b64 = res.data?.[0]?.b64_json;
   } else {
     const res = await client.images.generate({
