@@ -142,9 +142,17 @@
         t.className = 'toast ' + (kind === 'err' ? 'err' : 'info');
       };
 
+      // 방금 발행을 트리거한 시각(ms). 이 시각 이후에 생성된 실행만 "내 실행"으로 보고
+      // 진행바를 연결한다. 아직 새 실행이 안 뜬 동안 예전(실패한) 실행의 상태를
+      // 보여주지 않기 위함.
+      let triggeredAt = 0;
+      let pollTimer = null;
+      const COOLDOWN_MS = 15000; // 중복 트리거 방지 쿨다운
+
       async function publish() {
         const topic = $('topic').value.trim();
         const btn = $('go');
+        if (btn.disabled) return; // 연타 방지
         btn.disabled = true;
         btn.textContent = '요청 중...';
         try {
@@ -161,21 +169,23 @@
           });
           const data = await res.json();
           if (!res.ok) throw new Error((data.error || '요청 실패') + (data.detail ? ' — ' + data.detail : ''));
-          toast('✅ 발행이 시작됐어요! 아래에서 진행 상황을 확인하세요.', 'info');
-          setTimeout(poll, 1500);
+          triggeredAt = Date.now();
+          resetProgress();
+          toast('✅ 발행 요청을 보냈어요! 잠시 후 새 실행이 아래에 표시됩니다.', 'info');
+          btn.textContent = '요청됨 · 실행 대기…';
+          // 쿨다운 동안 버튼을 잠가 중복 트리거를 막는다.
+          setTimeout(() => { btn.disabled = false; btn.textContent = '🚀 발행 시작'; }, COOLDOWN_MS);
+          startPolling(1200);
         } catch (e) {
           toast('⚠️ ' + e.message, 'err');
-        } finally {
           btn.disabled = false;
           btn.textContent = '🚀 발행 시작';
         }
       }
 
-      const stepOrder = ['script', 'voice', 'render', 'upload'];
-      function stepKeyFromName(name) {
-        if (!name) return null;
-        if (name.includes('대본') || name.includes('파이프라인')) return null; // 세분화는 로그로만
-        return null;
+      function startPolling(delay = 0) {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = setTimeout(poll, delay);
       }
 
       async function poll() {
@@ -183,52 +193,90 @@
           const res = await fetch('/api/runs');
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'runs 조회 실패');
-          renderRuns(data.runs || []);
-          updateProgress(data.steps || []);
-          const active = (data.runs || []).find((r) => r.status !== 'completed');
-          if (active) setTimeout(poll, 5000);
+          const runs = data.runs || [];
+          renderRuns(runs);
+
+          // 진행바는 "내 실행"에만 연결한다. 트리거를 눌렀는데 아직 그 실행이
+          // 목록 맨 위에 안 떴으면(= 최신 실행이 트리거보다 이전) 대기 상태로 둔다.
+          const newest = runs[0];
+          const newestTs = newest ? Date.parse(newest.created_at) : 0;
+          const waitingForMine = triggeredAt && (!newest || newestTs < triggeredAt - 20000);
+          if (waitingForMine) resetProgress(true);
+          else updateProgress(data.steps || []);
+
+          const active = runs.some((r) => r.status !== 'completed');
+          if (active || waitingForMine) startPolling(5000);
+          else pollTimer = null;
         } catch (e) {
           toast('⚠️ ' + e.message, 'err');
         }
       }
 
+      // conclusion → 한글 라벨 + 스타일. 취소/건너뜀을 '실패'와 구분한다.
+      const CONCLUSION = {
+        success: ['완료', 'ok'],
+        failure: ['실패', 'fail'],
+        cancelled: ['취소됨', 'queued'],
+        timed_out: ['시간초과', 'fail'],
+        skipped: ['건너뜀', 'queued'],
+        action_required: ['확인필요', 'queued'],
+        neutral: ['중립', 'queued'],
+      };
+
+      function relTime(iso) {
+        if (!iso) return '';
+        const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+        if (s < 60) return '방금';
+        if (s < 3600) return Math.floor(s / 60) + '분 전';
+        if (s < 86400) return Math.floor(s / 3600) + '시간 전';
+        return Math.floor(s / 86400) + '일 전';
+      }
+
       function pill(r) {
-        if (r.status !== 'completed')
-          return `<span class="pill ${r.status === 'queued' ? 'queued' : 'run_'}">${r.status === 'queued' ? '대기중' : '진행중'}</span>`;
-        return r.conclusion === 'success'
-          ? '<span class="pill ok">완료</span>'
-          : `<span class="pill fail">${r.conclusion || '실패'}</span>`;
+        if (r.status === 'queued') return '<span class="pill queued">대기중</span>';
+        if (r.status !== 'completed') return '<span class="pill run_">진행중</span>';
+        const [label, cls] = CONCLUSION[r.conclusion] || [r.conclusion || '종료', 'queued'];
+        return `<span class="pill ${cls}">${label}</span>`;
       }
 
       function renderRuns(runs) {
         $('runlist').innerHTML = runs
           .slice(0, 5)
-          .map(
-            (r) => `<div class="run">${pill(r)}<span>${(r.title || '영상').slice(0, 32)}</span>
-              <a href="${r.html_url}" target="_blank">로그 ↗</a></div>`,
-          )
+          .map((r) => {
+            const mine = triggeredAt && Date.parse(r.created_at) >= triggeredAt - 20000;
+            const tag = mine ? ' · <span style="color:var(--accent2)">내 요청</span>' : '';
+            return `<div class="run">${pill(r)}<span>${(r.title || '영상').slice(0, 28)}</span>
+              <span style="color:var(--sub);font-size:12px">${relTime(r.created_at)}${tag}</span>
+              <a href="${r.html_url}" target="_blank">로그 ↗</a></div>`;
+          })
           .join('');
       }
 
-      // 최신 실행의 GitHub 스텝을 읽어 4단계 진행바를 채운다.
+      function resetProgress() {
+        document.querySelectorAll('.step').forEach((el) => el.classList.remove('active', 'done', 'fail'));
+      }
+
+      // 최신(내) 실행의 GitHub 스텝을 읽어 4단계 진행바를 채운다.
+      // 아직 실행되지 않은 스텝(queued/미도달)은 중립으로 두고 절대 fail 로 표시하지 않는다.
       function updateProgress(steps) {
         const map = { script: '대본', voice: '나레이션', render: '렌더', upload: '업로드' };
         document.querySelectorAll('.step').forEach((el) => {
           const kw = map[el.getAttribute('data-k')];
           const st = steps.find((s) => s.name && s.name.includes(kw));
           el.classList.remove('active', 'done', 'fail');
-          if (!st) return;
+          if (!st) return; // 스텝 정보 없음 → 중립
           if (st.status === 'in_progress') el.classList.add('active');
           else if (st.status === 'completed') {
             if (st.conclusion === 'success') el.classList.add('done');
-            else if (st.conclusion === 'failure') el.classList.add('fail');
+            else if (st.conclusion === 'failure' || st.conclusion === 'timed_out') el.classList.add('fail');
+            // skipped/cancelled 등은 중립 유지 (fail 아님)
           }
         });
       }
 
       $('go').addEventListener('click', publish);
       $('topic').addEventListener('keydown', (e) => { if (e.key === 'Enter') publish(); });
-      poll();
+      startPolling(0);
     </script>
   </body>
 </html>
