@@ -35,7 +35,9 @@ export async function generateThumbnail(params: {
   }
 
   const client = new OpenAI({ apiKey });
-  const prompt = buildPrompt(headline?.trim() || title, topic, config.thumbnailTone, Boolean(presenter));
+  // 매 생성마다 포즈·복장을 다르게 (얼굴/안경/헤어 정체성은 유지, 옷과 자세만 변주).
+  const variation = pickVariation();
+  const prompt = buildPrompt(headline?.trim() || title, topic, config.thumbnailTone, Boolean(presenter), variation);
 
   let b64: string | undefined;
   if (presenter) {
@@ -70,7 +72,41 @@ export async function generateThumbnail(params: {
   return true;
 }
 
-function buildPrompt(headline: string, topic: string, tone: string, hasPresenter: boolean): string {
+/** 매 생성마다 다른 포즈/복장을 고르기 위한 변주 목록. 정체성(얼굴·안경·헤어)은 건드리지 않는다. */
+const OUTFITS = [
+  'a crisp charcoal suit jacket over a white shirt (no tie)',
+  'a smart navy blazer over a light knit sweater',
+  'a clean black turtleneck',
+  'a casual light-grey hoodie',
+  'a denim shirt over a plain tee',
+  'a beige cardigan over a white shirt',
+  'a dark green bomber jacket over a tee',
+  'a light-blue oxford shirt with rolled-up sleeves',
+];
+const POSES = [
+  'one hand pointing toward the title/diagram (classic YouTube pose)',
+  'both hands open in an explaining gesture, palms up',
+  'one hand raised with a thumbs-up, the other relaxed',
+  'arms crossed with a confident half-smile',
+  'one hand touching his chin in a thoughtful "hmm" pose',
+  'leaning slightly forward, one finger raised as if making a key point',
+  'one hand near the head with a surprised, eyes-wide expression',
+  'giving an OK sign with one hand, cheerful expression',
+];
+
+function pickVariation(): { outfit: string; pose: string } {
+  const outfit = OUTFITS[Math.floor(Math.random() * OUTFITS.length)];
+  const pose = POSES[Math.floor(Math.random() * POSES.length)];
+  return { outfit, pose };
+}
+
+function buildPrompt(
+  headline: string,
+  topic: string,
+  tone: string,
+  hasPresenter: boolean,
+  variation: { outfit: string; pose: string },
+): string {
   const cream = tone !== 'dark';
   const bg = cream
     ? 'warm cream textured paper background (#efe9dc) filling the whole frame, like a hand-drawn notebook'
@@ -83,8 +119,9 @@ function buildPrompt(headline: string, topic: string, tone: string, hasPresenter
     ? [
         'You are given a photo of a real Korean man wearing black-framed glasses.',
         'Cleanly REMOVE his green/plain background and place the SAME man on the RIGHT side of the thumbnail, from chest up, turned slightly toward the center,',
-        'with a confident friendly expression, ONE HAND POINTING toward the title/diagram (classic YouTube pose).',
-        'CRITICAL: keep his real face, glasses, hairstyle and skin natural and clearly recognizable — do NOT beautify or change his identity. Add subtle rim lighting so he pops from the background.',
+        `with a confident friendly expression, ${variation.pose}.`,
+        `Dress him in ${variation.outfit}.`,
+        'CRITICAL: keep his real face, glasses, hairstyle and skin natural and clearly recognizable — do NOT beautify or change his identity; only his outfit and pose may differ. Add subtle rim lighting so he pops from the background.',
       ].join(' ')
     : 'Leave the right side as soft empty space (no person).';
 

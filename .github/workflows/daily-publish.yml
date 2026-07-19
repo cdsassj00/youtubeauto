@@ -38,6 +38,7 @@ jobs:
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       YOUTUBE_PRIVACY_STATUS: ${{ vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
+      YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
       TOPIC: ${{ github.event.inputs.topic || github.event.client_payload.topic || '' }}
       CONTENT_MODE: ${{ github.event.inputs.content_mode || github.event.client_payload.content_mode || vars.CONTENT_MODE || 'auto' }}
       TARGET_MINUTES: ${{ github.event.client_payload.target_minutes || vars.TARGET_MINUTES || '10' }}

@@ -30,12 +30,16 @@ export async function uploadVideo(params: {
   const auth = createOAuthClient();
   const youtube = google.youtube({ version: 'v3', auth });
 
+  // 대본 설명 + 고정 푸터(모든 영상 공통 안내). 줄바꿈(\n)은 유튜브가 그대로 표시.
+  const footer = config.youtubeDescriptionFooter.replace(/\\n/g, '\n').trim();
+  const description = (footer ? `${script.description.trim()}\n\n${footer}` : script.description.trim()).slice(0, 5000);
+
   const insertRes = await youtube.videos.insert({
     part: ['snippet', 'status'],
     requestBody: {
       snippet: {
         title: script.title.slice(0, 100),
-        description: script.description.slice(0, 5000),
+        description,
         tags: script.tags,
         categoryId: config.youtubeCategoryId,
         defaultLanguage: config.contentLanguage,
