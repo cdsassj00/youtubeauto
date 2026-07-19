@@ -1,8 +1,12 @@
 import fs from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import path from 'node:path';
 import {
   config,
   resolveTopicMode,
+  ROOT,
   OUT_DIR,
+  PUBLIC_DIR,
   AUDIO_DIR,
   SCRIPT_PATH,
   MANIFEST_PATH,
@@ -122,11 +126,29 @@ async function stepVoice(): Promise<RenderManifest> {
   return manifest;
 }
 
+/** 3D 웹녹화 렌더러(web-engine/render3d.cjs)를 실행해 out/video.mp4 를 만든다. */
+function render3dVideo(): Promise<void> {
+  const script = path.join(ROOT, 'web-engine', 'render3d.cjs');
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', [script, MANIFEST_PATH, VIDEO_PATH, PUBLIC_DIR], {
+      stdio: 'inherit',
+      // 전역 Playwright 설치를 쓰는 환경(개발 샌드박스)도 해석되게 NODE_PATH 보강.
+      env: { ...process.env, NODE_PATH: [process.env.NODE_PATH, '/opt/node22/lib/node_modules'].filter(Boolean).join(path.delimiter) },
+    });
+    child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`render3d 종료 코드 ${code}`))));
+    child.on('error', reject);
+  });
+}
+
 /** 3) 영상 렌더 + AI 썸네일 */
 async function stepRender(): Promise<void> {
   const manifest = (await readJson(MANIFEST_PATH)) as RenderManifest;
-  console.log('▶ [3/4] 영상 렌더링');
-  await renderVideo(manifest); // 렌더 시 기본(손그림) 썸네일도 THUMBNAIL_PATH 로 생성됨
+  console.log(`▶ [3/4] 영상 렌더링 (엔진: ${config.videoEngine})`);
+  if (config.videoEngine === 'web3d') {
+    await render3dVideo();
+  } else {
+    await renderVideo(manifest); // 손그림(Remotion). 렌더 시 기본 썸네일도 생성됨
+  }
   console.log('  · 저장:', VIDEO_PATH);
 
   // AI 썸네일 시도 — 실패/키없음 시 위의 기본 썸네일을 그대로 사용.

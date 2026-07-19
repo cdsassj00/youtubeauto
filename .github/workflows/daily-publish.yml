@@ -47,6 +47,8 @@ jobs:
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-1' }}
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
+      # 영상 엔진: web3d(3D 웹녹화) | remotion(손그림). 기본 web3d.
+      VIDEO_ENGINE: ${{ vars.VIDEO_ENGINE || 'web3d' }}
     steps:
       - name: 체크아웃
         uses: actions/checkout@v4
@@ -72,6 +74,9 @@ jobs:
 
       - name: Remotion 브라우저 준비
         run: npx remotion browser ensure
+
+      - name: Playwright 브라우저 준비 (3D 웹녹화용)
+        run: npx playwright install --with-deps chromium
 
       # ── 여기부터 4단계: 웹앱 진행바가 이 스텝 이름으로 진행도를 표시 ──
       - name: 대본 생성

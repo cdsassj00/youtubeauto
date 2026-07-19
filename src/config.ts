@@ -76,6 +76,9 @@ export const config = {
   // 썸네일 배경 톤: dark(칠판) | cream(종이)
   thumbnailTone: optional('THUMBNAIL_TONE', 'dark'),
 
+  // 영상 엔진: 'web3d'(3D 웹녹화) | 'remotion'(손그림). 기본 web3d.
+  videoEngine: optional('VIDEO_ENGINE', 'web3d').toLowerCase(),
+
   // 동작
   doUpload: optional('DO_UPLOAD', 'false').toLowerCase() === 'true',
 };
