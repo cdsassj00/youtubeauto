@@ -11,6 +11,8 @@ export const IMG_DIR = path.join(PUBLIC_DIR, 'img');
 const STYLE =
   'Clean black-and-white line-art editorial illustration, minimalist, on a pure white background. ' +
   'Consistent friendly cartoon style with fine ink linework and subtle grey shading, no color at all. ' +
+  'Depict the subject LITERALLY and DIRECTLY — show the actual objects, screens, and actions being explained, ' +
+  'not abstract metaphors or symbolic scenes; the viewer should instantly recognize what is being described. ' +
   'Centered composition with generous white space, 16:9 landscape. ' +
   'Absolutely NO text, letters, words, captions, numbers, logos, or watermarks anywhere in the image.';
 
