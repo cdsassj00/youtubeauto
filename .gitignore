@@ -6,3 +6,6 @@ out/
 .DS_Store
 .remotion/
 build/
+
+# 런타임 생성 오디오(나레이션/BGM)
+public/audio/

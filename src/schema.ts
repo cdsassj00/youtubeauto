@@ -87,4 +87,6 @@ export type RenderManifest = {
   totalDurationInFrames: number;
   scenes: SceneWithAudio[];
   createdAt: string;
+  /** 배경음악 staticFile 상대경로 (예: audio/bgm.wav). 없으면 무음. */
+  bgm?: string;
 };

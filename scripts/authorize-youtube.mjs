@@ -48,11 +48,28 @@ const server = http.createServer(async (req, res) => {
   }
   try {
     const { tokens } = await oauth2.getToken(code);
+    oauth2.setCredentials(tokens);
+
+    // 어느 유튜브 채널로 인증됐는지 확인해 출력 — 잘못된 계정 업로드를 사전에 방지.
+    let channelInfo = '';
+    try {
+      const yt = google.youtube({ version: 'v3', auth: oauth2 });
+      const me = await yt.channels.list({ part: ['snippet'], mine: true });
+      const ch = me.data.items?.[0]?.snippet;
+      if (ch) channelInfo = `${ch.title}`;
+    } catch (e) {
+      channelInfo = '(채널 정보 조회 실패: ' + (e?.message || e) + ')';
+    }
+
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(
-      '<h2>인증 완료!</h2><p>터미널로 돌아가 refresh token 을 복사하세요. 이 창은 닫아도 됩니다.</p>',
+      `<h2>인증 완료!</h2><p>인증된 채널: <b>${channelInfo || '확인 불가'}</b></p>` +
+        '<p>터미널로 돌아가 refresh token 을 복사하세요. 이 창은 닫아도 됩니다.</p>',
     );
     console.log('\n────────────────────────────────────────────');
+    console.log('✅ 인증된 유튜브 채널: ' + (channelInfo || '(확인 불가)'));
+    console.log('   → 이 채널이 업로드 대상입니다. 원하는 채널이 맞는지 꼭 확인하세요!');
+    console.log('────────────────────────────────────────────');
     if (tokens.refresh_token) {
       console.log('YOUTUBE_REFRESH_TOKEN=' + tokens.refresh_token);
     } else {

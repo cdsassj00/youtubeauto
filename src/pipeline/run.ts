@@ -16,6 +16,7 @@ import {
 import { ScriptSchema, type Script, type RenderManifest, type SceneWithAudio } from '../schema.js';
 import { generateScript } from '../lib/anthropic.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
+import { generateBgm } from '../lib/bgm.js';
 import { renderVideo } from '../lib/render.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { uploadVideo } from '../lib/youtube.js';
@@ -94,6 +95,16 @@ async function stepVoice(): Promise<RenderManifest> {
     console.log(`  · (${i + 1}/${script.scenes.length}) ${scene.id} — ${durationSec.toFixed(1)}s`);
   }
 
+  // 배경음악(BGM) 생성 — public/audio/bgm.wav (Remotion staticFile 로 참조).
+  let bgm: string | undefined;
+  try {
+    generateBgm(`${AUDIO_DIR}/bgm.wav`);
+    bgm = 'audio/bgm.wav';
+    console.log('  · 배경음악 생성: audio/bgm.wav');
+  } catch (e) {
+    console.warn('  · 배경음악 생성 실패(무시, 무음 진행):', (e as Error).message);
+  }
+
   const manifest: RenderManifest = {
     title: script.title,
     topic: script.topic,
@@ -103,6 +114,7 @@ async function stepVoice(): Promise<RenderManifest> {
     totalDurationInFrames: startFrame,
     scenes,
     createdAt: new Date().toISOString(),
+    bgm,
   };
   await writeJson(MANIFEST_PATH, manifest);
   const mins = (startFrame / FPS / 60).toFixed(1);
