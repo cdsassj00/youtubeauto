@@ -17,6 +17,7 @@ import { ScriptSchema, type Script, type RenderManifest, type SceneWithAudio } f
 import { generateScript } from '../lib/anthropic.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { renderVideo } from '../lib/render.js';
+import { generateThumbnail } from '../lib/thumbnail.js';
 import { uploadVideo } from '../lib/youtube.js';
 
 type Step = 'script' | 'voice' | 'render' | 'upload';
@@ -109,12 +110,29 @@ async function stepVoice(): Promise<RenderManifest> {
   return manifest;
 }
 
-/** 3) 영상 렌더 */
+/** 3) 영상 렌더 + AI 썸네일 */
 async function stepRender(): Promise<void> {
   const manifest = (await readJson(MANIFEST_PATH)) as RenderManifest;
   console.log('▶ [3/4] 영상 렌더링');
-  await renderVideo(manifest);
+  await renderVideo(manifest); // 렌더 시 기본(손그림) 썸네일도 THUMBNAIL_PATH 로 생성됨
   console.log('  · 저장:', VIDEO_PATH);
+
+  // AI 썸네일 시도 — 실패/키없음 시 위의 기본 썸네일을 그대로 사용.
+  const script = ScriptSchema.parse(await readJson(SCRIPT_PATH));
+  try {
+    const ok = await generateThumbnail({
+      title: script.title,
+      topic: script.topic,
+      outPath: THUMBNAIL_PATH,
+    });
+    console.log(
+      ok
+        ? '  · AI 썸네일(gpt-image-1) 생성 완료: ' + THUMBNAIL_PATH
+        : '  · AI 썸네일 건너뜀(OPENAI_API_KEY 없음) → 기본 손그림 썸네일 사용',
+    );
+  } catch (e) {
+    console.warn('  · AI 썸네일 실패(무시, 기본 썸네일 사용):', (e as Error).message);
+  }
 }
 
 /** 4) 유튜브 업로드 */

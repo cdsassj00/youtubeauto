@@ -14,6 +14,9 @@ export const SCRIPT_PATH = path.join(OUT_DIR, 'script.json');
 export const MANIFEST_PATH = path.join(OUT_DIR, 'manifest.json');
 export const VIDEO_PATH = path.join(OUT_DIR, 'video.mp4');
 export const THUMBNAIL_PATH = path.join(OUT_DIR, 'thumbnail.png');
+// 썸네일 인물 합성용 진행자 사진 (그린스크린/투명 모두 가능). CI 에선 저장소에 커밋하거나 URL 로 제공.
+export const ASSETS_DIR = path.join(ROOT, 'assets');
+export const PRESENTER_IMAGE_PATH = path.join(ASSETS_DIR, 'presenter.png');
 
 /** staticFile() 로 참조할 오디오 상대경로 (public 기준). */
 export const audioStaticPath = (sceneId: string) => `audio/${sceneId}.mp3`;
@@ -61,6 +64,14 @@ export const config = {
   contentLanguage: optional('CONTENT_LANGUAGE', 'ko'),
   // 직접 지정한 주제(웹앱/수동 실행에서 전달). 비어 있으면 모드에 따라 자동 선택.
   customTopic: optional('TOPIC', '').trim(),
+
+  // 썸네일 (OpenAI 이미지 모델). 현재 최신 이미지 모델명은 gpt-image-1.
+  openaiApiKey: optional('OPENAI_API_KEY', ''),
+  openaiImageModel: optional('OPENAI_IMAGE_MODEL', 'gpt-image-1'),
+  // 진행자 사진을 URL 로 줄 경우(저장소에 커밋하기 싫을 때). 비면 assets/presenter.png 사용.
+  presenterImageUrl: optional('PRESENTER_IMAGE_URL', ''),
+  // 썸네일 배경 톤: dark(칠판) | cream(종이)
+  thumbnailTone: optional('THUMBNAIL_TONE', 'dark'),
 
   // 동작
   doUpload: optional('DO_UPLOAD', 'false').toLowerCase() === 'true',

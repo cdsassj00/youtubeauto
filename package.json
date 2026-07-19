@@ -27,10 +27,12 @@
     "dotenv": "^16.4.5",
     "googleapis": "^144.0.0",
     "music-metadata": "^10.0.0",
+    "openai": "^6.48.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "remotion": "^4.0.400",
     "roughjs": "^4.6.6",
+    "sharp": "^0.35.3",
     "zod": "4.3.6"
   },
   "devDependencies": {
