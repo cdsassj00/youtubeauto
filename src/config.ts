@@ -60,6 +60,8 @@ export const config = {
   youtubeRefreshToken: () => required('YOUTUBE_REFRESH_TOKEN'),
   youtubePrivacyStatus: optional('YOUTUBE_PRIVACY_STATUS', 'private'),
   youtubeCategoryId: optional('YOUTUBE_CATEGORY_ID', '27'),
+  // 모든 영상 설명란 맨 아래에 붙는 고정 안내(줄바꿈은 실제 개행 또는 \n).
+  youtubeDescriptionFooter: optional('YOUTUBE_DESC_FOOTER', 'AX전환은 CDSA와 함께\nhttps://cdsa.kr'),
 
   // 콘텐츠
   contentMode: optional('CONTENT_MODE', 'auto'),
