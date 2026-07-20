@@ -15,16 +15,6 @@ import { revealFrames } from './beats.js';
 const W = 1920;
 const H = 1080;
 
-/** 2:1 등각 투영. (x,y) 는 바닥 격자 좌표, z 는 높이. */
-function isoProject(x: number, y: number, z = 0) {
-  return {
-    sx: (x - y) * ISO_SCALE_X,
-    sy: (x + y) * ISO_SCALE_Y - z,
-  };
-}
-const ISO_SCALE_X = 150;
-const ISO_SCALE_Y = 75;
-
 /** 얇은 등각 원반(플랫폼) — 참조 영상의 떠 있는 디스크. 그레이스케일 잉크 라인. */
 const IsoDisk: React.FC<{
   cx: number;
@@ -33,7 +23,7 @@ const IsoDisk: React.FC<{
   depth?: number;
   fill?: string;
   bob?: number; // 상하 부유 오프셋(px)
-}> = ({ cx, cy, r = 78, depth = 16, fill = '#f1f2f4', bob = 0 }) => {
+}> = ({ cx, cy, r = 128, depth = 26, fill = '#f1f2f4', bob = 0 }) => {
   const ry = r * 0.5;
   const y = cy + bob;
   return (
@@ -56,8 +46,8 @@ const IsoDisk: React.FC<{
 /** 노드/항목 위에 뜨는 라벨 칩(카드). 화면 텍스트라 가독성 위해 정면 플랫으로 그림. */
 const LabelChip: React.FC<{ x: number; y: number; text: string; accent?: string }> = ({ x, y, text, accent }) => (
   <g>
-    <line x1={x} y1={y + 18} x2={x} y2={y + 58} stroke={theme.muted} strokeWidth={2} strokeDasharray="1 6" strokeLinecap="round" />
-    <foreignObject x={x - 260} y={y - 54} width={520} height={80}>
+    <line x1={x} y1={y + 26} x2={x} y2={y + 78} stroke={theme.muted} strokeWidth={3} strokeDasharray="1 8" strokeLinecap="round" />
+    <foreignObject x={x - 340} y={y - 76} width={680} height={110}>
       <div
         style={{
           display: 'flex',
@@ -70,15 +60,15 @@ const LabelChip: React.FC<{ x: number; y: number; text: string; accent?: string 
           style={{
             fontFamily: PRETENDARD,
             fontWeight: 800,
-            fontSize: 34,
+            fontSize: 48,
             lineHeight: 1.2,
             color: theme.ink,
             background: '#ffffff',
-            border: `2.5px solid ${accent ?? theme.ink}`,
-            borderRadius: 14,
-            padding: '10px 22px',
+            border: `3.5px solid ${accent ?? theme.ink}`,
+            borderRadius: 18,
+            padding: '14px 30px',
             whiteSpace: 'nowrap',
-            boxShadow: '0 6px 0 rgba(30,30,30,0.08)',
+            boxShadow: '0 8px 0 rgba(30,30,30,0.08)',
           }}
         >
           {text}
@@ -96,7 +86,7 @@ const IsoArrow: React.FC<{ from: { x: number; y: number }; to: { x: number; y: n
   accent = theme.accent,
 }) => {
   const mx = (from.x + to.x) / 2;
-  const my = (from.y + to.y) / 2 - 34;
+  const my = (from.y + to.y) / 2 - 50;
   const d = `M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`;
   const len = Math.hypot(to.x - from.x, to.y - from.y) * 1.3 + 60;
   return (
@@ -105,7 +95,7 @@ const IsoArrow: React.FC<{ from: { x: number; y: number }; to: { x: number; y: n
         d={d}
         fill="none"
         stroke={accent}
-        strokeWidth={4}
+        strokeWidth={7}
         strokeLinecap="round"
         strokeDasharray={len}
         strokeDashoffset={len * (1 - progress)}
@@ -118,8 +108,8 @@ const IsoArrow: React.FC<{ from: { x: number; y: number }; to: { x: number; y: n
 
 const ArrowHeadDef = () => (
   <defs>
-    <marker id="iso-arrowhead" markerWidth="10" markerHeight="10" refX="6" refY="5" orient="auto">
-      <path d="M0,0 L10,5 L0,10 Z" fill={theme.accent} />
+    <marker id="iso-arrowhead" markerWidth="16" markerHeight="16" refX="9" refY="8" orient="auto">
+      <path d="M0,0 L16,8 L0,16 Z" fill={theme.accent} />
     </marker>
   </defs>
 );
@@ -134,12 +124,12 @@ export const IsoDiagram: React.FC<{ diagram: Diagram; narration: string; duratio
   const nodes = diagram.nodes.slice(0, 6);
   const revealAt = revealFrames(narration, durationInFrames, nodes.length, { head: 0.04, tail: 0.7 });
 
-  // 대각선 컨베이어 라인 위에 노드 배치 (참조 영상처럼).
+  // 대각선 컨베이어 라인 위에 노드 배치 (참조 영상처럼) — 화면을 넓게 채우도록 절대 좌표로 스프레드.
   const positions = nodes.map((_, i) => {
-    const t = nodes.length <= 1 ? 0 : i / (nodes.length - 1);
-    const gx = -2 + t * 4; // 격자 좌표 -2..2
-    const gy = -1 + t * 1.4;
-    return isoProject(gx, gy);
+    const t = nodes.length <= 1 ? 0.5 : i / (nodes.length - 1);
+    const sx = -600 + t * 1200; // -600..600
+    const sy = -230 + t * 460; // -230..230
+    return { sx, sy };
   });
 
   const idMap = new Map(nodes.map((n, i) => [n.id, i]));
@@ -173,13 +163,13 @@ export const IsoDiagram: React.FC<{ diagram: Diagram; narration: string; duratio
           const at = revealAt[i] ?? 0;
           const pop = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           if (pop <= 0) return null;
-          const bob = Math.sin((frame + i * 40) / 26) * 6;
+          const bob = Math.sin((frame + i * 40) / 26) * 8;
           const { sx, sy } = positions[i];
           const scale = 0.7 + pop * 0.3;
           return (
             <g key={n.id} transform={`translate(${sx}, ${sy}) scale(${scale}) translate(${-sx}, ${-sy})`} opacity={pop}>
               <IsoDisk cx={sx} cy={sy} bob={bob} fill={i % 2 === 0 ? '#f1f2f4' : '#e7e8eb'} />
-              <LabelChip x={sx} y={sy - 46 + bob} text={n.label} accent={i === nodes.length - 1 ? theme.accent : theme.ink} />
+              <LabelChip x={sx} y={sy - 104 + bob} text={n.label} accent={i === nodes.length - 1 ? theme.accent : theme.ink} />
             </g>
           );
         })}
@@ -205,21 +195,21 @@ export const IsoComparison: React.FC<{
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
       <ArrowHeadDef />
       {/* 타이틀 */}
-      <foreignObject x={W / 2 - 900} y={140} width={760} height={80}>
-        <div style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 46, color: theme.ink, textAlign: 'center' }}>
+      <foreignObject x={W / 2 - 900} y={110} width={760} height={100}>
+        <div style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 60, color: theme.ink, textAlign: 'center' }}>
           {comparison.leftTitle}
         </div>
       </foreignObject>
-      <foreignObject x={W / 2 + 140} y={140} width={760} height={80}>
-        <div style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 46, color: theme.accent2, textAlign: 'center' }}>
+      <foreignObject x={W / 2 + 140} y={110} width={760} height={100}>
+        <div style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 60, color: theme.accent2, textAlign: 'center' }}>
           {comparison.rightTitle}
         </div>
       </foreignObject>
 
       {/* 가운데 구분선 + VS */}
-      <line x1={W / 2} y1={190} x2={W / 2} y2={920} stroke={theme.muted} strokeWidth={2} strokeDasharray="2 10" />
-      <circle cx={W / 2} cy={555} r={46} fill={theme.ink} />
-      <text x={W / 2} y={568} textAnchor="middle" fontFamily={PRETENDARD} fontWeight={800} fontSize={30} fill="#fff">
+      <line x1={W / 2} y1={230} x2={W / 2} y2={920} stroke={theme.muted} strokeWidth={3} strokeDasharray="2 12" />
+      <circle cx={W / 2} cy={565} r={64} fill={theme.ink} />
+      <text x={W / 2} y={582} textAnchor="middle" fontFamily={PRETENDARD} fontWeight={800} fontSize={40} fill="#fff">
         VS
       </text>
 
@@ -229,28 +219,29 @@ export const IsoComparison: React.FC<{
         if (pop <= 0) return null;
         const idx = it.side === 'l' ? comparison.leftItems.indexOf(it.t) : comparison.rightItems.indexOf(it.t);
         const count = it.side === 'l' ? leftCount : rightCount;
-        const colX = it.side === 'l' ? W / 2 - 480 : W / 2 + 480;
-        const stackTop = 300;
-        const gap = 150;
-        const y = stackTop + idx * gap - ((count - 1) * gap) / 2 + 280;
-        const slide = (1 - pop) * (it.side === 'l' ? -60 : 60);
-        const bob = Math.sin((frame + idx * 30) / 30) * 4;
+        const colX = it.side === 'l' ? W / 2 - 500 : W / 2 + 500;
+        // 항목 개수와 무관하게 안전한 세로 대역(300~860) 안에 고르게 분배.
+        const bandTop = 320;
+        const bandBottom = 860;
+        const y = count <= 1 ? (bandTop + bandBottom) / 2 : bandTop + (idx / (count - 1)) * (bandBottom - bandTop);
+        const slide = (1 - pop) * (it.side === 'l' ? -70 : 70);
+        const bob = Math.sin((frame + idx * 30) / 30) * 5;
 
         return (
           <g key={`${it.side}-${idx}`} opacity={pop} transform={`translate(${slide}, 0)`}>
-            <IsoDisk cx={colX} cy={y + bob} r={64} depth={12} fill={it.side === 'l' ? '#f1f2f4' : '#eaf1fb'} />
-            <foreignObject x={colX - 260} y={y - 40 + bob} width={520} height={70}>
+            <IsoDisk cx={colX} cy={y + bob} r={108} depth={22} fill={it.side === 'l' ? '#f1f2f4' : '#eaf1fb'} />
+            <foreignObject x={colX - 320} y={y - 62 + bob} width={640} height={90}>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                 <div
                   style={{
                     fontFamily: PRETENDARD,
                     fontWeight: 700,
-                    fontSize: 30,
+                    fontSize: 40,
                     color: theme.ink,
                     background: '#ffffff',
-                    border: `2px solid ${it.side === 'l' ? theme.ink : theme.accent2}`,
-                    borderRadius: 12,
-                    padding: '8px 20px',
+                    border: `3px solid ${it.side === 'l' ? theme.ink : theme.accent2}`,
+                    borderRadius: 16,
+                    padding: '12px 26px',
                     whiteSpace: 'nowrap',
                   }}
                 >
