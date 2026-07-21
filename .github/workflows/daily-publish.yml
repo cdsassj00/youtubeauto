@@ -53,6 +53,9 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
       OPENAI_ILLUSTRATION_MODEL: ${{ vars.OPENAI_ILLUSTRATION_MODEL || 'gpt-image-1-mini' }}
+      # 대본 전 최신정보 웹서치 담당: openai(기본, 저비용) | anthropic(Claude 웹서치 폴백).
+      RESEARCH_PROVIDER: ${{ vars.RESEARCH_PROVIDER || 'openai' }}
+      OPENAI_RESEARCH_MODEL: ${{ vars.OPENAI_RESEARCH_MODEL || 'gpt-4.1-mini' }}
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
       # 영상 엔진: illustrated(AI 흑백 일러스트) | web3d(3D 웹녹화) | remotion(손그림). 기본 illustrated.

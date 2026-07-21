@@ -84,6 +84,11 @@ export const config = {
   // 썸네일 배경 톤: dark(칠판) | cream(종이)
   thumbnailTone: optional('THUMBNAIL_TONE', 'dark'),
 
+  // 대본 전 최신정보 리서치(웹서치) 담당 provider: openai(기본, 저비용) | anthropic(Claude 웹서치).
+  // 검색은 대본 작성만큼 비싼 모델이 필요 없는 작업이라 기본은 OpenAI 로 비용을 아낀다.
+  researchProvider: optional('RESEARCH_PROVIDER', 'openai').toLowerCase(),
+  openaiResearchModel: optional('OPENAI_RESEARCH_MODEL', 'gpt-4.1-mini'),
+
   // 영상 엔진: 'illustrated'(AI 흑백 일러스트) | 'web3d'(3D 웹녹화) | 'remotion'(손그림). 기본 illustrated.
   videoEngine: optional('VIDEO_ENGINE', 'illustrated').toLowerCase(),
 
