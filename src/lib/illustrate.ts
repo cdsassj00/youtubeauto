@@ -7,13 +7,21 @@ import { config, PUBLIC_DIR } from '../config.js';
 /** 일러스트 저장 폴더 (staticFile 로 참조하기 위해 public 아래). */
 export const IMG_DIR = path.join(PUBLIC_DIR, 'img');
 
-/** 모든 씬에 일관되게 적용하는 흑백 라인아트 스타일 규칙. */
+/**
+ * 모든 씬에 일관되게 적용하는 흑백 등각(isometric) 라인아트 스타일 규칙.
+ * 영상 내 diagram/comparison 씬은 코드로 그린 등각 모션 그래픽(IsoDiagram/IsoComparison, iso.tsx)을
+ * 쓰므로, AI 로 그리는 이 일러스트도 같은 등각 시각언어(뜬 플랫폼, 3/4 각도, 얇은 잉크선)로
+ * 맞춰야 영상 전체가 한 스타일처럼 보인다.
+ */
 const STYLE =
-  'Clean black-and-white line-art editorial illustration, minimalist, on a pure white background. ' +
-  'Consistent friendly cartoon style with fine ink linework and subtle grey shading, no color at all. ' +
-  'Depict the subject LITERALLY and DIRECTLY — show the actual objects, screens, and actions being explained, ' +
+  'Clean black-and-white isometric editorial illustration, minimalist, on a pure white background. ' +
+  'Draw the subject as a clean isometric (2.5D) technical illustration, like a modern SaaS product diagram: ' +
+  'objects and scenes are shown as geometric solids/platforms viewed from a 3/4 isometric angle with a consistent ' +
+  'top-left light source, NOT a flat front-facing view. ' +
+  'Consistent style with fine ink linework and subtle grey flat shading, no color at all (grayscale only, pure black outlines). ' +
+  'Depict the subject LITERALLY and DIRECTLY — show the actual objects, screens, and actions being explained in isometric form, ' +
   'not abstract metaphors or symbolic scenes; the viewer should instantly recognize what is being described. ' +
-  'Centered composition with generous white space, 16:9 landscape. ' +
+  'Centered composition with generous white space and soft drop shadows beneath floating elements, 16:9 landscape. ' +
   'Absolutely NO text, letters, words, captions, numbers, logos, or watermarks anywhere in the image.';
 
 /**

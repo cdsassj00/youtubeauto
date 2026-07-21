@@ -15,10 +15,12 @@ export async function generateScript(params: {
   dateLabel: string;
   recentTitles?: string[];
   customTopic?: string;
+  /** 웹서치로 미리 조사한 최신 정보 요약(research.ts) — 있으면 대본에 사실관계를 반영. */
+  research?: string;
 }): Promise<Script> {
   const client = new Anthropic({ apiKey: config.anthropicApiKey() });
 
-  const { mode, targetMinutes, language, dateLabel, recentTitles = [], customTopic } = params;
+  const { mode, targetMinutes, language, dateLabel, recentTitles = [], customTopic, research } = params;
 
   // customTopic 이 한 줄 주제가 아니라 상세 브리핑(설치 방법·단계·목록 등)일 수 있다.
   // 그런 경우 Claude 가 자기 판단으로 요약·생략하지 않도록, 원문 내용을 빠짐없이 충실히 반영하게 강제한다.
@@ -43,23 +45,55 @@ export async function generateScript(params: {
       ? `\n\n최근 발행한 제목들과 겹치지 않는 새로운 주제를 골라라:\n- ${recentTitles.join('\n- ')}`
       : '';
 
+  // 웹서치로 조사한 최신 정보(research.ts) — 있으면 이 사실관계를 바탕으로 대본을 쓰게 한다.
+  // (Claude 학습 데이터 시점보다 최신 소식을 반영하기 위함. 지어내지 말고 여기 있는 사실만 활용.)
+  const researchBlock = research?.trim()
+    ? [
+        '',
+        '=== 웹서치로 조사한 최신 정보(참고용) 시작 ===',
+        research.trim(),
+        '=== 웹서치로 조사한 최신 정보 끝 ===',
+        '위 리서치에 나온 사실·수치·날짜를 대본에 적극 반영해라. 리서치에 없는 내용을 최신 사실인 것처럼 지어내지 말 것.',
+      ].join('\n')
+    : '';
+
   // 분량 가이드: 10분 ≈ 약 8,500자 한국어 나레이션.
   const targetChars = Math.round(targetMinutes * 850);
 
+  // 대본 난이도/전문성 (CONTENT_LEVEL). "너무 쉽게만 풀어줘서 전문적인 영상이 안 나온다"는
+  // 피드백에 따라 기본값(expert)은 실무자 대상으로 깊이 있게 쓴다.
+  const levelGuides: Record<string, string> = {
+    basic:
+      '시청자는 이 주제를 처음 접하는 완전 초보다. 전문 용어는 최대한 풀어쓰고, 친절한 비유와 쉬운 예시로 눈높이를 낮춰 설명한다.',
+    intermediate:
+      '시청자는 AI/IT에 어느 정도 익숙한 사람이다. 기초 개념 설명은 짧게 짚고 넘어가고, 실무 예시·구체적 수치·최신 사례 위주로 균형 있게 설명한다.',
+    expert:
+      [
+        '이 채널은 실무자·전문가 시청자를 대상으로 한다. 초등학생 눈높이로 풀어쓰지 않는다.',
+        '전문 용어는 순화하지 않고 그대로 쓰되, 처음 등장할 때만 한 문장으로 짧게 정의하고 이후로는 계속 전문 용어로 서술한다.',
+        '"쉽게 말하면", "간단히 설명하면", "초등학생도 이해하는" 같은 눈높이를 낮추는 표현을 쓰지 않는다.',
+        '구체적인 수치·벤치마크·버전명·회사명·날짜·출처를 최대한 명시하고, 실무에 바로 쓸 수 있는 디테일(설정값, 한계, 트레이드오프, 실패 사례)을 반드시 포함한다.',
+      ].join(' '),
+  };
+  const levelGuide = levelGuides[config.contentLevel] ?? levelGuides.expert;
+
   const system = [
     '너는 교육 유튜브 채널의 수석 작가이자 연출가다.',
-    '영상은 씬마다 "깨끗한 흑백 라인아트 삽화 한 장 + 화면 하단 자막(나레이션) + 배경음악"으로 구성되는 설명 영상이다. (손그림/판서/플래시 애니메이션이 아니다.)',
-    '시청자는 한국어 사용자이며, 어렵지 않고 흥미롭게, 그러나 정확하게 설명해야 한다.',
+    '영상은 씬마다 "깨끗한 흑백 등각(isometric) 삽화 한 장 + 화면 하단 자막(나레이션) + 배경음악"으로 구성되는 설명 영상이다. (손그림/판서/플래시 애니메이션이 아니다.)',
+    'diagram/comparison 씬은 그림 대신 코드로 그린 등각 모션 그래픽(떠 있는 원반+라벨 카드, 화살표)이 자동으로 들어간다.',
+    '시청자는 한국어 사용자다. 흥미롭게, 그러나 정확하고 밀도 있게 설명해야 한다.',
+    levelGuide,
     '과장·낚시성 표현은 피한다. 이해는 추상적 비유·은유가 아니라 실제 사례·구체적 수치·단계별 설명으로 돕는다. 비유는 꼭 필요할 때만 최소한으로.',
     'narration 은 성우가 그대로 읽을 수 있는 완결된 구어체 문장으로 작성한다. (마크다운/이모지/괄호 지시문 금지)',
     'heading·bullets 는 보조 데이터일 뿐 화면 자막으로는 나레이션이 쓰이므로, 짧고 핵심만 담는다.',
-    'illustration 은 이 씬을 한 장의 흑백 라인아트 삽화로 그리기 위한 영어 묘사다. 나레이션이 말하는 사물·행동·화면을 직접적·직관적으로 그린다(은유 금지). 화면에 글자는 넣지 않는다.',
+    'illustration 은 이 씬을 한 장의 흑백 등각(isometric) 삽화로 그리기 위한 영어 묘사다. 나레이션이 말하는 사물·행동·화면을, 3/4 등각 각도에서 본 입체 형태(장치·박스·인물 등)로 직접적·직관적으로 그린다(은유 금지, 정면 평면 구도 금지). 화면에 글자는 넣지 않는다.',
   ].join(' ');
 
   const user = [
     `오늘은 ${dateLabel} 이다. ${targetMinutes}분 분량의 ${language === 'ko' ? '한국어' : language} 영상 대본을 만들어라.`,
     `이번 회차 방향: ${themeGuide}`,
     avoid,
+    researchBlock,
     '',
     '요구사항:',
     isBrief
@@ -70,7 +104,7 @@ export async function generateScript(params: {
       : '- 씬(scenes)은 18~26개로 잘게 나눈다. 한 씬의 narration 은 1~2문장으로 짧게(한 화면에 자막이 너무 길게 지나가지 않도록).',
     '- 첫 씬은 visual="title" 로 후킹 도입(왜 이 주제가 중요한지)을 담는다.',
     '- 중간 씬들은 bullets / diagram / comparison / quote 를 다양하게 섞어 지루하지 않게 한다.',
-    '- 각 씬에는 illustration 필드를 반드시 넣는다: 그 씬의 나레이션 내용을 "직접적·직관적으로 그대로" 보여주는 흑백 라인아트 삽화의 영어 시각 묘사. 추상적 은유·비유는 피하고, 실제로 설명하는 사물·행동·화면을 구체적으로 그린다(예: "서버"면 데이터센터 랙, "데이터베이스"면 원통형 DB 아이콘과 표, "로그인"이면 자물쇠와 아이디/비밀번호 입력창). 한 문장~두 문장, 화면에 글자는 넣지 않는다. 매 씬 서로 다른 그림.',
+    '- 각 씬에는 illustration 필드를 반드시 넣는다: 그 씬의 나레이션 내용을 "직접적·직관적으로 그대로" 보여주는 흑백 등각(isometric) 삽화의 영어 시각 묘사. 추상적 은유·비유는 피하고, 실제로 설명하는 사물·행동·화면을 3/4 등각 각도의 입체 형태로 구체적으로 그린다(예: "서버"면 데이터센터 랙, "데이터베이스"면 원통형 DB 아이콘과 표, "로그인"이면 자물쇠와 아이디/비밀번호 입력창). 한 문장~두 문장, 화면에 글자는 넣지 않는다. 매 씬 서로 다른 그림.',
     '- diagram 을 쓰는 씬은 nodes(2~6개)와 edges(화살표)로 개념 흐름을 표현한다. node.id 는 짧은 영숫자, label 은 한국어.',
     '- comparison 씬은 두 개념/접근을 좌우로 비교한다.',
     '- 마지막 씬은 visual="outro" 로 핵심 3줄 요약 + 구독 유도를 담는다.',

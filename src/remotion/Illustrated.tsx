@@ -13,6 +13,7 @@ import type { RenderManifest } from '../schema.js';
 import { theme } from './theme.js';
 import { PRETENDARD } from './pretendard.js';
 import { captionChunks } from './components/beats.js';
+import { IsoDiagram, IsoComparison } from './components/iso.js';
 
 /**
  * 일러스트 영상: 씬마다 흑백 라인아트 이미지를 흰 배경에 꽉 채워 보여주고(줌인/줌아웃),
@@ -46,6 +47,30 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
   const panY = dir * interpolate(frame, [0, dur], [18, -18], { extrapolateRight: 'clamp' }) + Math.cos(frame / 110) * 5;
   // 씬 시작/끝 흰색 페이드(부드러운 전환).
   const fade = interpolate(frame, [0, 10, dur - 10, dur], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+
+  // diagram/comparison 씬은 AI 그림 대신 등각(isometric) 코드 애니메이션으로 그린다 —
+  // 구조화된 노드/엣지·좌우비교 데이터를 실제 모션 그래픽으로 보여줘서 AI 그림보다 깔끔하고
+  // 나레이션 타이밍에 정확히 맞물린다.
+  if (scene.visual === 'diagram' && scene.diagram && scene.diagram.nodes.length > 0) {
+    return (
+      <AbsoluteFill style={{ opacity: fade }}>
+        <AbsoluteFill style={{ transform: `scale(${1 + (zoom - 1) * 0.35}) translate(${panX * 0.3}px, ${panY * 0.3}px)`, transformOrigin: 'center center' }}>
+          <IsoDiagram diagram={scene.diagram} narration={scene.narration} durationInFrames={dur} />
+        </AbsoluteFill>
+        <WordCaption narration={scene.narration} durationInFrames={dur} />
+      </AbsoluteFill>
+    );
+  }
+  if (scene.visual === 'comparison' && scene.comparison) {
+    return (
+      <AbsoluteFill style={{ opacity: fade }}>
+        <AbsoluteFill style={{ transform: `scale(${1 + (zoom - 1) * 0.35}) translate(${panX * 0.3}px, ${panY * 0.3}px)`, transformOrigin: 'center center' }}>
+          <IsoComparison comparison={scene.comparison} narration={scene.narration} durationInFrames={dur} />
+        </AbsoluteFill>
+        <WordCaption narration={scene.narration} durationInFrames={dur} />
+      </AbsoluteFill>
+    );
+  }
 
   return (
     <AbsoluteFill style={{ opacity: fade }}>

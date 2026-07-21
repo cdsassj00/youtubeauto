@@ -16,8 +16,11 @@ export default async function handler(req, res) {
   }
 
   const client_payload = {
-    topic: String(body.topic || '').slice(0, 200),
+    // 설치 방법처럼 긴 브리핑도 넣을 수 있어야 하므로 넉넉히 허용(200자는 실수로
+    // 브리핑을 잘라버려 "충실 반영" 기능을 무력화시켰음).
+    topic: String(body.topic || '').slice(0, 8000),
     content_mode: ['auto', 'trend', 'basics'].includes(body.mode) ? body.mode : 'auto',
+    content_level: ['basic', 'intermediate', 'expert'].includes(body.level) ? body.level : 'expert',
     do_upload: body.upload ? 'true' : 'false',
     target_minutes: String(Math.max(3, Math.min(20, Number(body.minutes) || 10))),
   };

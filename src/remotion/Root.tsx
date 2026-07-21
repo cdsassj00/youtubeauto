@@ -15,7 +15,7 @@ const sampleManifest: RenderManifest = {
   fps: FPS,
   width: WIDTH,
   height: HEIGHT,
-  totalDurationInFrames: FPS * 12,
+  totalDurationInFrames: FPS * 18,
   createdAt: new Date(0).toISOString(),
   scenes: [
     {
@@ -51,6 +51,24 @@ const sampleManifest: RenderManifest = {
       startFrame: FPS * 6,
       durationInFrames: FPS * 6,
       audioPath: 'audio/s2.mp3',
+      durationSec: 6,
+    },
+    {
+      id: 's3',
+      heading: '규칙 기반 vs AI 기반',
+      narration: '규칙 기반은 사람이 정한 조건만 따르지만, AI 기반은 데이터를 보고 스스로 패턴을 찾아냅니다.',
+      bullets: [],
+      illustration: 'A split scene comparing a rulebook with checkboxes versus a neural network learning from data.',
+      visual: 'comparison',
+      comparison: {
+        leftTitle: '규칙 기반',
+        leftItems: ['고정된 조건', '예외에 약함'],
+        rightTitle: 'AI 기반',
+        rightItems: ['데이터로 학습', '패턴을 스스로 찾음'],
+      },
+      startFrame: FPS * 12,
+      durationInFrames: FPS * 6,
+      audioPath: 'audio/s3.mp3',
       durationSec: 6,
     },
   ],

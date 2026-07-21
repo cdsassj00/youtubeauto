@@ -19,6 +19,7 @@ import {
 } from '../config.js';
 import { ScriptSchema, type Script, type RenderManifest, type SceneWithAudio } from '../schema.js';
 import { generateScript } from '../lib/anthropic.js';
+import { researchRecentInfo } from '../lib/research.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { generateBgm } from '../lib/bgm.js';
 import { renderVideo } from '../lib/render.js';
@@ -57,14 +58,28 @@ async function stepScript(): Promise<Script> {
   }
 
   const topicLabel = config.customTopic ? `주제="${config.customTopic}"` : `모드=${mode}`;
-  console.log(`▶ [1/4] 대본 생성 (${topicLabel}, ${config.targetMinutes}분)`);
+  console.log(`▶ [1/4] 대본 생성 (${topicLabel}, ${config.targetMinutes}분, 난이도=${config.contentLevel})`);
+
+  // 상세 브리핑(긴 글)은 그 자체가 콘텐츠 명세라 리서치가 불필요하다.
+  // 그 외(자동 트렌드 모드, 또는 사용자가 짧게 지정한 주제)는 웹서치로 최신 정보를 조사해
+  // "학습 데이터 시점에 머문 오래된 내용"이 아니라 실제 최신 사실을 반영하게 한다.
+  const customTopic = config.customTopic || undefined;
+  const isBriefTopic = Boolean(customTopic) && (customTopic!.length > 120 || /\n/.test(customTopic!));
+  let research: string | undefined;
+  if (!isBriefTopic && (customTopic || mode === 'trend')) {
+    console.log('  · 최신 정보 웹서치 조사 중...');
+    research = await researchRecentInfo({ dateLabel, topic: customTopic });
+    console.log(research ? '  · 리서치 완료' : '  · 리서치 없음(건너뜀, 학습 데이터로만 진행)');
+  }
+
   const script = await generateScript({
     mode,
     targetMinutes: config.targetMinutes,
     language: config.contentLanguage,
     dateLabel,
     recentTitles,
-    customTopic: config.customTopic || undefined,
+    customTopic,
+    research,
   });
 
   await writeJson(SCRIPT_PATH, script);
@@ -148,12 +163,15 @@ async function stepRender(): Promise<void> {
   if (config.videoEngine === 'web3d') {
     await render3dVideo();
   } else if (config.videoEngine === 'illustrated') {
-    console.log('  · 씬별 흑백 일러스트 생성 중...');
-    const imgMap = await generateIllustrations(manifest.scenes);
+    // diagram/comparison 씬은 AI 그림 대신 코드 기반 등각(isometric) 모션 그래픽으로 그리므로
+    // AI 일러스트 생성을 건너뛰어 비용을 아낀다 (Illustrated.tsx 의 IsoDiagram/IsoComparison 참고).
+    const needsAiImage = manifest.scenes.filter((s) => !((s.visual === 'diagram' && s.diagram?.nodes.length) || (s.visual === 'comparison' && s.comparison)));
+    console.log(`  · 씬별 흑백 일러스트 생성 중... (${needsAiImage.length}/${manifest.scenes.length}, 도식/비교 씬은 등각 그래픽으로 대체)`);
+    const imgMap = await generateIllustrations(needsAiImage);
     manifest.scenes = manifest.scenes.map((s) => ({ ...s, imagePath: imgMap[s.id] }));
     await writeJson(MANIFEST_PATH, manifest); // imagePath 반영 저장(재실행 대비)
     const made = Object.keys(imgMap).length;
-    console.log(`  · 일러스트 ${made}/${manifest.scenes.length}장 완료 → Remotion 합성`);
+    console.log(`  · 일러스트 ${made}/${needsAiImage.length}장 완료 → Remotion 합성`);
     await renderVideo(manifest, 'AiIllustrated');
   } else {
     await renderVideo(manifest); // 손그림(Remotion)

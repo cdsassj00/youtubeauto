@@ -93,6 +93,16 @@ export function captionChunks(
       }
     }
     if (cur) parts.push(cur);
+    // 글자수로만 자르면 마지막에 "-합니다." 같은 접미사 한 조각만 남아 다음 자막이
+    // 문맥 없는 꼬리말처럼 보이는 문제가 있다. 너무 짧은 조각은 바로 앞 조각에 합쳐
+    // (maxChars 를 살짝 넘기더라도) 어색한 고아 자막을 없앤다.
+    const MIN_CHUNK_CHARS = 5;
+    for (let i = parts.length - 1; i > 0; i--) {
+      if (parts[i].length < MIN_CHUNK_CHARS) {
+        parts[i - 1] = `${parts[i - 1]} ${parts[i]}`;
+        parts.splice(i, 1);
+      }
+    }
     if (parts.length === 0) continue;
     // 문장 구간을 구절 글자수 비례로 분배.
     const total = parts.reduce((a, p) => a + p.length, 0) || 1;
