@@ -65,6 +65,9 @@ export const config = {
 
   // 콘텐츠
   contentMode: optional('CONTENT_MODE', 'auto'),
+  // 대본 난이도/전문성: basic(쉬운 설명) | intermediate(균형) | expert(전문가용, 기본값).
+  // "너무 쉽게만 풀어준다"는 피드백에 따라 기본을 expert 로 둔다.
+  contentLevel: optional('CONTENT_LEVEL', 'expert').toLowerCase(),
   targetMinutes: Number(optional('TARGET_MINUTES', '10')),
   contentLanguage: optional('CONTENT_LANGUAGE', 'ko'),
   // 직접 지정한 주제(웹앱/수동 실행에서 전달). 비어 있으면 모드에 따라 자동 선택.

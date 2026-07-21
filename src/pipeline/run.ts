@@ -19,6 +19,7 @@ import {
 } from '../config.js';
 import { ScriptSchema, type Script, type RenderManifest, type SceneWithAudio } from '../schema.js';
 import { generateScript } from '../lib/anthropic.js';
+import { researchRecentInfo } from '../lib/research.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { generateBgm } from '../lib/bgm.js';
 import { renderVideo } from '../lib/render.js';
@@ -57,14 +58,28 @@ async function stepScript(): Promise<Script> {
   }
 
   const topicLabel = config.customTopic ? `주제="${config.customTopic}"` : `모드=${mode}`;
-  console.log(`▶ [1/4] 대본 생성 (${topicLabel}, ${config.targetMinutes}분)`);
+  console.log(`▶ [1/4] 대본 생성 (${topicLabel}, ${config.targetMinutes}분, 난이도=${config.contentLevel})`);
+
+  // 상세 브리핑(긴 글)은 그 자체가 콘텐츠 명세라 리서치가 불필요하다.
+  // 그 외(자동 트렌드 모드, 또는 사용자가 짧게 지정한 주제)는 웹서치로 최신 정보를 조사해
+  // "학습 데이터 시점에 머문 오래된 내용"이 아니라 실제 최신 사실을 반영하게 한다.
+  const customTopic = config.customTopic || undefined;
+  const isBriefTopic = Boolean(customTopic) && (customTopic!.length > 120 || /\n/.test(customTopic!));
+  let research: string | undefined;
+  if (!isBriefTopic && (customTopic || mode === 'trend')) {
+    console.log('  · 최신 정보 웹서치 조사 중...');
+    research = await researchRecentInfo({ dateLabel, topic: customTopic });
+    console.log(research ? '  · 리서치 완료' : '  · 리서치 없음(건너뜀, 학습 데이터로만 진행)');
+  }
+
   const script = await generateScript({
     mode,
     targetMinutes: config.targetMinutes,
     language: config.contentLanguage,
     dateLabel,
     recentTitles,
-    customTopic: config.customTopic || undefined,
+    customTopic,
+    research,
   });
 
   await writeJson(SCRIPT_PATH, script);

@@ -163,6 +163,14 @@
               <option>15</option>
             </select>
           </div>
+          <div>
+            <label for="level">난이도</label>
+            <select id="level">
+              <option value="basic">쉽게(초보용)</option>
+              <option value="intermediate">중급</option>
+              <option value="expert" selected>전문가용(깊이있게)</option>
+            </select>
+          </div>
         </div>
 
         <div class="switch">
@@ -241,6 +249,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               topic, mode: $('mode').value, minutes: Number($('minutes').value),
+              level: $('level').value,
               upload: $('upload').checked, password: $('pw').value,
             }),
           });
