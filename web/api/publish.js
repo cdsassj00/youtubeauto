@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     content_mode: ['auto', 'trend', 'basics'].includes(body.mode) ? body.mode : 'auto',
     content_level: ['basic', 'intermediate', 'expert'].includes(body.level) ? body.level : 'expert',
     do_upload: body.upload ? 'true' : 'false',
-    target_minutes: String(Math.max(3, Math.min(20, Number(body.minutes) || 10))),
+    target_minutes: String(Math.max(2, Math.min(20, Number(body.minutes) || 10))),
   };
 
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
