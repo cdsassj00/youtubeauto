@@ -43,6 +43,8 @@ jobs:
       YOUTUBE_PRIVACY_STATUS: ${{ vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
       YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
+      # AI 합성 콘텐츠(음성·썸네일) 공개 표시 — YouTube 정책 3진아웃 리스크 방지. 기본 true.
+      SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'true' }}
       TOPIC: ${{ github.event.inputs.topic || github.event.client_payload.topic || '' }}
       CONTENT_MODE: ${{ github.event.inputs.content_mode || github.event.client_payload.content_mode || vars.CONTENT_MODE || 'auto' }}
       # 대본 난이도/전문성: basic | intermediate | expert. 기본 expert(전문가용).

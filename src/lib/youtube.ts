@@ -34,6 +34,14 @@ export async function uploadVideo(params: {
   const footer = config.youtubeDescriptionFooter.replace(/\\n/g, '\n').trim();
   const description = (footer ? `${script.description.trim()}\n\n${footer}` : script.description.trim()).slice(0, 5000);
 
+  // containsSyntheticMedia 는 googleapis 패키지의 타입 정의가 아직 못 따라와서(2024-10-30 API 추가분)
+  // 여기서는 존재하지 않는 필드로 잡힌다 — 런타임 REST 요청 자체는 정상 처리되므로 캐스팅으로 우회.
+  const status: Record<string, unknown> = {
+    privacyStatus: config.youtubePrivacyStatus,
+    selfDeclaredMadeForKids: false,
+    containsSyntheticMedia: config.containsSyntheticMedia,
+  };
+
   const insertRes = await youtube.videos.insert({
     part: ['snippet', 'status'],
     requestBody: {
@@ -45,10 +53,7 @@ export async function uploadVideo(params: {
         defaultLanguage: config.contentLanguage,
         defaultAudioLanguage: config.contentLanguage,
       },
-      status: {
-        privacyStatus: config.youtubePrivacyStatus,
-        selfDeclaredMadeForKids: false,
-      },
+      status: status as never,
     },
     media: {
       body: fs.createReadStream(videoPath),

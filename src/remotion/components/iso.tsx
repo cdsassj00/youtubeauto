@@ -78,17 +78,40 @@ const LabelChip: React.FC<{ x: number; y: number; text: string; accent?: string 
   </g>
 );
 
-/** 노드 사이를 잇는 화살표. progress(0~1) 만큼 그어지는 draw-on 애니메이션. */
-const IsoArrow: React.FC<{ from: { x: number; y: number }; to: { x: number; y: number }; progress: number; accent?: string }> = ({
+/** 이차 베지어 곡선 위의 t(0~1) 지점 좌표. */
+function quadPoint(p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, t: number) {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x,
+    y: mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y,
+  };
+}
+
+/**
+ * 노드 사이를 잇는 화살표. progress(0~1) 만큼 그어지는 draw-on 애니메이션.
+ * 다 그려진 뒤에는 그 경로 위로 실제 데이터가 흐르는 것처럼 작은 펄스(점)가 반복 이동한다 —
+ * 정적으로 연결만 되고 끝나는 대신, "무엇이 어디로 흘러가는지" 를 실제로 보여준다.
+ */
+const IsoArrow: React.FC<{ from: { x: number; y: number }; to: { x: number; y: number }; progress: number; accent?: string; pulseDelay?: number }> = ({
   from,
   to,
   progress,
   accent = theme.accent,
+  pulseDelay = 0,
 }) => {
-  const mx = (from.x + to.x) / 2;
-  const my = (from.y + to.y) / 2 - 50;
-  const d = `M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`;
+  const frame = useCurrentFrame();
+  const control = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 50 };
+  const d = `M ${from.x} ${from.y} Q ${control.x} ${control.y} ${to.x} ${to.y}`;
   const len = Math.hypot(to.x - from.x, to.y - from.y) * 1.3 + 60;
+
+  const pulseActive = progress >= 0.92;
+  const loopFrames = 52;
+  const pulseT = pulseActive ? (((frame + pulseDelay) % loopFrames) / loopFrames) : 0;
+  const pulsePos = quadPoint(from, control, to, pulseT);
+  const pulseFade = pulseActive
+    ? interpolate(pulseT, [0, 0.08, 0.9, 1], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    : 0;
+
   return (
     <g>
       <path
@@ -102,6 +125,12 @@ const IsoArrow: React.FC<{ from: { x: number; y: number }; to: { x: number; y: n
         markerEnd={progress > 0.85 ? 'url(#iso-arrowhead)' : undefined}
         opacity={progress > 0.02 ? 1 : 0}
       />
+      {pulseActive && (
+        <>
+          <circle cx={pulsePos.x} cy={pulsePos.y} r={17} fill={accent} opacity={pulseFade * 0.22} />
+          <circle cx={pulsePos.x} cy={pulsePos.y} r={9} fill={accent} opacity={pulseFade} />
+        </>
+      )}
     </g>
   );
 };
@@ -217,6 +246,7 @@ export const IsoDiagram: React.FC<{ diagram: Diagram; narration: string; duratio
               from={{ x: positions[fi].sx, y: positions[fi].sy }}
               to={{ x: positions[ti].sx, y: positions[ti].sy }}
               progress={progress}
+              pulseDelay={i * 17}
             />
           );
         })}

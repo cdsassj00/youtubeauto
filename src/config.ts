@@ -62,6 +62,9 @@ export const config = {
   youtubeCategoryId: optional('YOUTUBE_CATEGORY_ID', '27'),
   // 모든 영상 설명란 맨 아래에 붙는 고정 안내(줄바꿈은 실제 개행 또는 \n).
   youtubeDescriptionFooter: optional('YOUTUBE_DESC_FOOTER', 'AX전환은 CDSA와 함께\nhttps://cdsa.kr'),
+  // 합성 콘텐츠(AI 음성·AI 합성 썸네일) 공개 표시. YouTube 정책상 미신고 시 3진 아웃(경고→90일 수익화 정지→
+  // 영구 퇴출) 리스크가 있어 기본 true. videos.insert 의 status.containsSyntheticMedia 로 전달된다.
+  containsSyntheticMedia: optional('SYNTHETIC_MEDIA_DISCLOSURE', 'true').toLowerCase() === 'true',
 
   // 콘텐츠
   contentMode: optional('CONTENT_MODE', 'auto'),
