@@ -1,7 +1,8 @@
 import React from 'react';
-import { Composition } from 'remotion';
+import { Composition, Sequence, AbsoluteFill } from 'remotion';
 import { AiVideo } from './Video.js';
 import { AiIllustrated } from './Illustrated.js';
+import { FlatIconSlide, FLAT_ICON_KINDS } from './components/flatIcon.js';
 import type { RenderManifest } from '../schema.js';
 
 const FPS = 30;
@@ -108,6 +109,20 @@ const calcMeta = ({ props }: { props: Record<string, unknown> }) => {
   };
 };
 
+/** 생활코딩 스타일 평면 아이콘 미리보기용 — 아이콘 3종을 이어붙여 보여준다(샘플 확인용, 실제 파이프라인 미사용). */
+const FlatIconPreview: React.FC = () => {
+  const per = FPS * 2;
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#ffffff' }}>
+      {FLAT_ICON_KINDS.map((icon, i) => (
+        <Sequence key={icon} from={i * per} durationInFrames={per}>
+          <FlatIconSlide icon={icon} />
+        </Sequence>
+      ))}
+    </AbsoluteFill>
+  );
+};
+
 export const RemotionRoot: React.FC = () => {
   return (
     <>
@@ -130,6 +145,14 @@ export const RemotionRoot: React.FC = () => {
         height={HEIGHT}
         defaultProps={sampleManifest}
         calculateMetadata={calcMeta}
+      />
+      <Composition
+        id="FlatIconPreview"
+        component={FlatIconPreview}
+        durationInFrames={FPS * 2 * FLAT_ICON_KINDS.length}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
       />
     </>
   );
