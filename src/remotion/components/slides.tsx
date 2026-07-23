@@ -86,6 +86,79 @@ export const BulletSlide: React.FC<{ heading: string; bullets: string[]; narrati
   );
 };
 
+const MONO = "'SFMono-Regular', 'Consolas', 'Menlo', 'Liberation Mono', monospace";
+
+/**
+ * 실제 파일/코드 예시 한 화면 — 에디터 창처럼 보이는 다크 카드에 줄 단위로 코드가 타이핑되듯 나타난다.
+ * "추상적 표현만 하고 구체적으로 설명 안 한다"는 피드백에 대한 대응: 개념을 말로만 풀지 않고
+ * 실제 파일명·설정·코드 한 조각을 화면에 그대로 보여준다.
+ */
+export const CodeSlide: React.FC<{
+  filename: string;
+  language: string;
+  code: string;
+  narration: string;
+  durationInFrames: number;
+}> = ({ filename, code, narration, durationInFrames }) => {
+  const frame = useCurrentFrame();
+  const lines = code.split('\n').slice(0, 16);
+  const revealAt = revealFrames(narration, durationInFrames, lines.length, { head: 0.1, tail: 0.85 });
+
+  return (
+    <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center' }}>
+      <div
+        style={{
+          width: 1420,
+          borderRadius: 22,
+          background: '#1c1e26',
+          boxShadow: '0 26px 60px rgba(0,0,0,0.28)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '22px 28px',
+            borderBottom: '1px solid #2e313d',
+          }}
+        >
+          <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#ff5f57' }} />
+          <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#febc2e' }} />
+          <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#28c840' }} />
+          <div style={{ marginLeft: 16, fontFamily: MONO, fontSize: 30, color: '#8a8fa3' }}>{filename}</div>
+        </div>
+        <div style={{ padding: '32px 40px 40px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {lines.map((line, i) => {
+            const at = revealAt[i] ?? 0;
+            const pop = interpolate(frame, [at, at + 10], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+            if (pop <= 0) return null;
+            return (
+              <div key={i} style={{ display: 'flex', gap: 24, opacity: pop }}>
+                <div style={{ width: 44, textAlign: 'right', fontFamily: MONO, fontSize: 30, color: '#4d5266', flexShrink: 0 }}>
+                  {i + 1}
+                </div>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 32,
+                    lineHeight: 1.5,
+                    color: '#d7dae2',
+                    whiteSpace: 'pre',
+                  }}
+                >
+                  {line || ' '}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 /** 한 문장을 크게 강조하는 인용구 슬라이드. */
 export const QuoteSlide: React.FC<{ text: string; durationInFrames: number }> = ({ text, durationInFrames }) => {
   const frame = useCurrentFrame();

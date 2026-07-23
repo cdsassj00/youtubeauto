@@ -34,8 +34,16 @@ export const VisualKind = z.enum([
   'diagram', // 개념 도식(노드+화살표)
   'comparison', // 좌/우 비교
   'quote', // 한 문장 강조
+  'code', // 실제 파일/코드/설정 예시 한 화면
   'outro', // 마무리/구독 유도
 ]);
+
+/** visual="code" 씬에 쓰는 실제 파일/코드 예시 한 화면 (에디터 창처럼 렌더링됨). */
+export const CodeExampleSchema = z.object({
+  filename: z.string(), // 예: "skills/harness/SKILL.md", "hooks/pre-tool-use.sh"
+  language: z.string().default('text'), // 하이라이트 힌트용 (yaml/json/bash/markdown 등, 실제 색칠은 안 함)
+  code: z.string(), // 실제 화면에 보일 코드/설정 텍스트 (짧게, 8~14줄 이내)
+});
 
 export const SceneSchema = z.object({
   id: z.string(),
@@ -54,6 +62,7 @@ export const SceneSchema = z.object({
       rightItems: z.array(z.string()).max(4),
     })
     .optional(),
+  code: CodeExampleSchema.optional(),
 });
 
 export type Scene = z.infer<typeof SceneSchema>;
