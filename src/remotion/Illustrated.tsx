@@ -15,6 +15,7 @@ import { PRETENDARD } from './pretendard.js';
 import { captionChunks } from './components/beats.js';
 import { IsoDiagram, IsoComparison } from './components/iso.js';
 import { BulletSlide, QuoteSlide, CodeSlide } from './components/slides.js';
+import { FlatIconSlide } from './components/flatIcon.js';
 
 /**
  * 일러스트 영상: 씬마다 흑백 라인아트 이미지를 배경에 꽉 채워 보여주고(줌인/줌아웃),
@@ -109,6 +110,16 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
     return (
       <AbsoluteFill style={{ opacity: fade }}>
         <QuoteSlide text={scene.narration} durationInFrames={dur} theme={theme} />
+      </AbsoluteFill>
+    );
+  }
+  // title/outro 는 기본적으로 생활코딩 스타일 평면 2D 라인 아이콘으로 그린다(AI 그림 대신) —
+  // 대본 생성 시 그 씬이 실제로 설명하는 대상에 맞춰 고른 아이콘이라 장식용이 아니라 내용 그 자체다.
+  if ((scene.visual === 'title' || scene.visual === 'outro') && scene.icon) {
+    return (
+      <AbsoluteFill style={{ opacity: fade }}>
+        <FlatIconSlide icon={scene.icon} theme={theme} />
+        <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
   }
