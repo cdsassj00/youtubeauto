@@ -17,7 +17,7 @@ import { config } from '../config.js';
  *
  * @returns 리서치 요약 텍스트. 실패하면 빈 문자열(호출부는 리서치 없이 진행).
  */
-export async function researchRecentInfo(params: { dateLabel: string; topic?: string }): Promise<string> {
+export async function researchRecentInfo(params: { dateLabel: string; topic?: string; kind?: 'topic' | 'landscape' }): Promise<string> {
   if (config.researchProvider === 'anthropic') return researchWithClaude(params);
   if (!config.openaiApiKey) {
     console.warn('  · RESEARCH_PROVIDER=openai 이지만 OPENAI_API_KEY 없음 → Claude 웹서치로 대체');
@@ -28,7 +28,12 @@ export async function researchRecentInfo(params: { dateLabel: string; topic?: st
   return result || researchWithClaude(params);
 }
 
-function buildQuery(topic?: string): string {
+function buildQuery(topic?: string, kind: 'topic' | 'landscape' = 'topic'): string {
+  // 'landscape': 기초(basics) 개념 영상용 — 주제가 무엇이든 "지금 현재의 최신 모델 지형"을 알아야
+  // GPT-4o 같은 이미 구세대가 된 모델을 대표 예시로 드는 실수를 막는다(학습 시점 지식은 낡음).
+  if (kind === 'landscape') {
+    return '지금 현재 각 회사의 최신 주력 대형 언어 모델(LLM)이 무엇인지 — OpenAI, Anthropic(Claude), Google(Gemini), Meta 등 회사별 가장 최근 출시된 대표 모델의 정확한 이름·버전과 대략의 컨텍스트 길이. 이미 구세대가 된 모델(예: GPT-4o, GPT-4 Turbo)이 아니라 "가장 최신" 모델';
+  }
   return topic
     ? `"${topic}"에 대한 최신 소식·업데이트·수치·논쟁`
     : '최근 1~2개월 사이 AI 업계에서 화제가 된 모델·제품·논쟁·연구 발표';
@@ -51,10 +56,10 @@ function researchPrompt(dateLabel: string, query: string): string {
 }
 
 /** 저비용 provider: OpenAI Responses API + 내장 web_search 툴 (gpt-4.1-mini 기본값). tool_choice 로 검색을 강제한다. */
-async function researchWithOpenAI(params: { dateLabel: string; topic?: string }): Promise<string> {
-  const { dateLabel, topic } = params;
+async function researchWithOpenAI(params: { dateLabel: string; topic?: string; kind?: 'topic' | 'landscape' }): Promise<string> {
+  const { dateLabel, topic, kind } = params;
   const client = new OpenAI({ apiKey: config.openaiApiKey });
-  const query = buildQuery(topic);
+  const query = buildQuery(topic, kind);
   try {
     const res = await client.responses.create({
       model: config.openaiResearchModel,
@@ -75,10 +80,10 @@ async function researchWithOpenAI(params: { dateLabel: string; topic?: string })
 }
 
 /** 폴백/대체 provider: Claude + 서버사이드 web_search 툴. tool_choice 로 검색을 강제한다. */
-async function researchWithClaude(params: { dateLabel: string; topic?: string }): Promise<string> {
-  const { dateLabel, topic } = params;
+async function researchWithClaude(params: { dateLabel: string; topic?: string; kind?: 'topic' | 'landscape' }): Promise<string> {
+  const { dateLabel, topic, kind } = params;
   const client = new Anthropic({ apiKey: config.anthropicApiKey() });
-  const query = buildQuery(topic);
+  const query = buildQuery(topic, kind);
   try {
     const res = await client.messages.create({
       model: config.claudeModel,

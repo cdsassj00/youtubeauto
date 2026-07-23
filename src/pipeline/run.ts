@@ -67,9 +67,18 @@ async function stepScript(): Promise<Script> {
   const customTopic = config.customTopic || undefined;
   const isBriefTopic = Boolean(customTopic) && (customTopic!.length > 120 || /\n/.test(customTopic!));
   let research: string | undefined;
-  if (!isBriefTopic && (customTopic || mode === 'trend')) {
-    console.log('  · 최신 정보 웹서치 조사 중...');
-    research = await researchRecentInfo({ dateLabel, topic: customTopic });
+  if (!isBriefTopic) {
+    if (customTopic || mode === 'trend') {
+      // 주제 지정/트렌드 모드: 그 주제의 최신 소식을 조사.
+      console.log('  · 최신 정보 웹서치 조사 중...');
+      research = await researchRecentInfo({ dateLabel, topic: customTopic });
+    } else {
+      // basics(기초 개념) 모드: 주제는 모델이 자동으로 고르므로 특정 주제 검색은 못 하지만,
+      // "지금 현재의 최신 모델 지형"을 미리 조사해 넘긴다 — 안 그러면 학습 시점(≈2024) 지식으로
+      // GPT-4o·GPT-4 터보 같은 이미 구세대가 된 모델을 대표 예시로 드는 문제가 생긴다(실제로 발생).
+      console.log('  · 최신 모델 지형 웹서치 조사 중(기초 모드 그라운딩)...');
+      research = await researchRecentInfo({ dateLabel, kind: 'landscape' });
+    }
     console.log(research ? '  · 리서치 완료' : '  · 리서치 없음(건너뜀, 학습 데이터로만 진행)');
   }
 
