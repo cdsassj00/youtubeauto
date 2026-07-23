@@ -170,6 +170,7 @@ async function stepRender(): Promise<void> {
       (s.visual === 'diagram' && Boolean(s.diagram?.nodes.length)) ||
       (s.visual === 'comparison' && Boolean(s.comparison)) ||
       (s.visual === 'bullets' && s.bullets.length > 0) ||
+      (s.visual === 'code' && Boolean(s.code)) ||
       s.visual === 'quote';
     const needsAiImage = manifest.scenes.filter((s) => !isCodeRendered(s));
     console.log(`  · 씬별 흑백 일러스트 생성 중... (${needsAiImage.length}/${manifest.scenes.length}, 도식/비교/불릿/인용 씬은 코드 렌더링으로 대체)`);

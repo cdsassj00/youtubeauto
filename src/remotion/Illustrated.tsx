@@ -14,7 +14,7 @@ import { theme } from './theme.js';
 import { PRETENDARD } from './pretendard.js';
 import { captionChunks } from './components/beats.js';
 import { IsoDiagram, IsoComparison } from './components/iso.js';
-import { BulletSlide, QuoteSlide } from './components/slides.js';
+import { BulletSlide, QuoteSlide, CodeSlide } from './components/slides.js';
 
 /**
  * 일러스트 영상: 씬마다 흑백 라인아트 이미지를 흰 배경에 꽉 채워 보여주고(줌인/줌아웃),
@@ -78,6 +78,20 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
     return (
       <AbsoluteFill style={{ opacity: fade }}>
         <BulletSlide heading={scene.heading} bullets={scene.bullets} narration={scene.narration} durationInFrames={dur} />
+        <WordCaption narration={scene.narration} durationInFrames={dur} />
+      </AbsoluteFill>
+    );
+  }
+  if (scene.visual === 'code' && scene.code) {
+    return (
+      <AbsoluteFill style={{ opacity: fade, backgroundColor: '#0f1117' }}>
+        <CodeSlide
+          filename={scene.code.filename}
+          language={scene.code.language}
+          code={scene.code.code}
+          narration={scene.narration}
+          durationInFrames={dur}
+        />
         <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
