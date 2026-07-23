@@ -187,7 +187,7 @@ function detectEquation(
   nodes: { id: string; label: string }[],
   edges: { from: string; to: string }[],
 ): { operands: { id: string; label: string }[]; sum: { id: string; label: string } } | null {
-  if (nodes.length < 3 || nodes.length > 5) return null;
+  if (nodes.length !== 3) return null;
   const indeg = new Map<string, number>();
   const outdeg = new Map<string, number>();
   nodes.forEach((n) => {
@@ -204,7 +204,10 @@ function detectEquation(
   const operands = nodes.filter(
     (n) => n.id !== sum.id && (outdeg.get(n.id) ?? 0) >= 1 && (indeg.get(n.id) ?? 0) === 0,
   );
-  if (operands.length < 2) return null;
+  // 딱 "A, B 두 개가 합쳐져 C 하나가 된다"(3노드) 형태만 수식으로 그린다 — 오퍼랜드가 3개 이상이면
+  // "여러 개가 코어 하나에 붙는" 허브 구조와 그래프 모양이 같아져 오판하기 쉽고(실제로 5노드 허브가
+  // 수식으로 잘못 렌더돼 박스 5개가 화면 밖으로 넘쳐버린 사례가 있었음), 그런 경우는 hub 레이아웃이 맞다.
+  if (operands.length !== 2) return null;
   // 오퍼랜드→합 이외의 곁가지 엣지가 있으면(다른 관계가 섞인 그래프) 수식으로 단순화하지 않는다.
   const allEdgesAreCore = edges.every((e) => e.to === sum.id && operands.some((o) => o.id === e.from));
   if (!allEdgesAreCore || edges.length !== operands.length) return null;
@@ -390,9 +393,13 @@ const IsoEquation: React.FC<{
     cursor += w + gap;
   });
 
+  // 안전장치: 혹시 오퍼랜드가 늘어나 폭이 화면을 넘어서면(더 이상 3노드 전용이 아니게 되더라도)
+  // 잘리는 대신 통째로 축소해서 항상 프레임 안에 들어오게 한다.
+  const safeScale = Math.min(1, (W - 160) / totalW);
+
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
-      <g transform={`translate(${W / 2}, ${H / 2})`}>
+      <g transform={`translate(${W / 2}, ${H / 2}) scale(${safeScale})`}>
         {items.map((item, i) => {
           const at = revealAt[i] ?? 0;
           const pop = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
@@ -505,22 +512,27 @@ export const IsoComparison: React.FC<{
         const slide = (1 - pop) * (it.side === 'l' ? -70 : 70);
         const bob = Math.sin((frame + idx * 30) / 30) * 5;
 
+        // 긴 문구가 카드 밖으로 잘리지 않도록: nowrap 강제 대신 폭에 맞춰 줄바꿈 + 길이에 따라 폰트를 줄인다.
+        const fontSize = it.t.length > 18 ? 28 : it.t.length > 12 ? 34 : 40;
         return (
           <g key={`${it.side}-${idx}`} opacity={pop} transform={`translate(${slide}, 0)`}>
             <IsoDisk cx={colX} cy={y + bob} r={108} depth={22} fill={it.side === 'l' ? '#f1f2f4' : '#eaf1fb'} />
-            <foreignObject x={colX - 320} y={y - 62 + bob} width={640} height={90}>
+            <foreignObject x={colX - 340} y={y - 78 + bob} width={680} height={130}>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                 <div
                   style={{
                     fontFamily: PRETENDARD,
                     fontWeight: 700,
-                    fontSize: 40,
+                    fontSize,
+                    lineHeight: 1.25,
                     color: theme.ink,
                     background: '#ffffff',
                     border: `3px solid ${it.side === 'l' ? theme.ink : theme.accent2}`,
                     borderRadius: 16,
-                    padding: '12px 26px',
-                    whiteSpace: 'nowrap',
+                    padding: '12px 24px',
+                    textAlign: 'center',
+                    maxWidth: 632,
+                    wordBreak: 'keep-all',
                   }}
                 >
                   {it.t}
