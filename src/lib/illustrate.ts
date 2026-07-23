@@ -21,6 +21,10 @@ const STYLE =
   'Consistent style with fine ink linework and subtle grey flat shading, no color at all (grayscale only, pure black outlines). ' +
   'Depict the subject LITERALLY and DIRECTLY — show the actual objects, screens, and actions being explained in isometric form, ' +
   'not abstract metaphors or symbolic scenes; the viewer should instantly recognize what is being described. ' +
+  'STRICTLY FORBIDDEN generic "AI cliche" imagery: a brain made of circuits, a glowing lightbulb, an abstract cloud of floating dots/network nodes, ' +
+  'a robot hand touching a human hand, a glowing orb/sphere, a holographic brain, magical light rays, or any generic sci-fi "AI" symbolism. ' +
+  'Instead always depict one concrete, real, specific object or scene tied to the exact subject (an actual laptop screen with a real UI, a physical office desk, ' +
+  'a specific labeled diagram, a real tool, a stack of paper documents, a server rack, a phone showing an app). ' +
   'Centered composition with generous white space and soft drop shadows beneath floating elements, 16:9 landscape. ' +
   'Absolutely NO text, letters, words, captions, numbers, logos, or watermarks anywhere in the image.';
 

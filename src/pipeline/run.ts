@@ -163,10 +163,16 @@ async function stepRender(): Promise<void> {
   if (config.videoEngine === 'web3d') {
     await render3dVideo();
   } else if (config.videoEngine === 'illustrated') {
-    // diagram/comparison 씬은 AI 그림 대신 코드 기반 등각(isometric) 모션 그래픽으로 그리므로
-    // AI 일러스트 생성을 건너뛰어 비용을 아낀다 (Illustrated.tsx 의 IsoDiagram/IsoComparison 참고).
-    const needsAiImage = manifest.scenes.filter((s) => !((s.visual === 'diagram' && s.diagram?.nodes.length) || (s.visual === 'comparison' && s.comparison)));
-    console.log(`  · 씬별 흑백 일러스트 생성 중... (${needsAiImage.length}/${manifest.scenes.length}, 도식/비교 씬은 등각 그래픽으로 대체)`);
+    // diagram/comparison/bullets/quote 씬은 AI 그림 대신 코드로 그린 등각 모션 그래픽·발표자료
+    // 슬라이드로 렌더하므로(Illustrated.tsx 의 IsoDiagram/IsoComparison/BulletSlide/QuoteSlide 참고)
+    // AI 일러스트 생성을 건너뛰어 비용을 아끼고, 영상 전체가 AI 그림 한 가지로만 도배되는 걸 막는다.
+    const isCodeRendered = (s: (typeof manifest.scenes)[number]) =>
+      (s.visual === 'diagram' && Boolean(s.diagram?.nodes.length)) ||
+      (s.visual === 'comparison' && Boolean(s.comparison)) ||
+      (s.visual === 'bullets' && s.bullets.length > 0) ||
+      s.visual === 'quote';
+    const needsAiImage = manifest.scenes.filter((s) => !isCodeRendered(s));
+    console.log(`  · 씬별 흑백 일러스트 생성 중... (${needsAiImage.length}/${manifest.scenes.length}, 도식/비교/불릿/인용 씬은 코드 렌더링으로 대체)`);
     const imgMap = await generateIllustrations(needsAiImage);
     manifest.scenes = manifest.scenes.map((s) => ({ ...s, imagePath: imgMap[s.id] }));
     await writeJson(MANIFEST_PATH, manifest); // imagePath 반영 저장(재실행 대비)

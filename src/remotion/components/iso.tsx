@@ -78,17 +78,40 @@ const LabelChip: React.FC<{ x: number; y: number; text: string; accent?: string 
   </g>
 );
 
-/** 노드 사이를 잇는 화살표. progress(0~1) 만큼 그어지는 draw-on 애니메이션. */
-const IsoArrow: React.FC<{ from: { x: number; y: number }; to: { x: number; y: number }; progress: number; accent?: string }> = ({
+/** 이차 베지어 곡선 위의 t(0~1) 지점 좌표. */
+function quadPoint(p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, t: number) {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x,
+    y: mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y,
+  };
+}
+
+/**
+ * 노드 사이를 잇는 화살표. progress(0~1) 만큼 그어지는 draw-on 애니메이션.
+ * 다 그려진 뒤에는 그 경로 위로 실제 데이터가 흐르는 것처럼 작은 펄스(점)가 반복 이동한다 —
+ * 정적으로 연결만 되고 끝나는 대신, "무엇이 어디로 흘러가는지" 를 실제로 보여준다.
+ */
+const IsoArrow: React.FC<{ from: { x: number; y: number }; to: { x: number; y: number }; progress: number; accent?: string; pulseDelay?: number }> = ({
   from,
   to,
   progress,
   accent = theme.accent,
+  pulseDelay = 0,
 }) => {
-  const mx = (from.x + to.x) / 2;
-  const my = (from.y + to.y) / 2 - 50;
-  const d = `M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`;
+  const frame = useCurrentFrame();
+  const control = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 50 };
+  const d = `M ${from.x} ${from.y} Q ${control.x} ${control.y} ${to.x} ${to.y}`;
   const len = Math.hypot(to.x - from.x, to.y - from.y) * 1.3 + 60;
+
+  const pulseActive = progress >= 0.92;
+  const loopFrames = 52;
+  const pulseT = pulseActive ? (((frame + pulseDelay) % loopFrames) / loopFrames) : 0;
+  const pulsePos = quadPoint(from, control, to, pulseT);
+  const pulseFade = pulseActive
+    ? interpolate(pulseT, [0, 0.08, 0.9, 1], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    : 0;
+
   return (
     <g>
       <path
@@ -102,6 +125,12 @@ const IsoArrow: React.FC<{ from: { x: number; y: number }; to: { x: number; y: n
         markerEnd={progress > 0.85 ? 'url(#iso-arrowhead)' : undefined}
         opacity={progress > 0.02 ? 1 : 0}
       />
+      {pulseActive && (
+        <>
+          <circle cx={pulsePos.x} cy={pulsePos.y} r={17} fill={accent} opacity={pulseFade * 0.22} />
+          <circle cx={pulsePos.x} cy={pulsePos.y} r={9} fill={accent} opacity={pulseFade} />
+        </>
+      )}
     </g>
   );
 };
@@ -114,23 +143,86 @@ const ArrowHeadDef = () => (
   </defs>
 );
 
-/** 등각 개념 도식: 노드가 대각선 컨베이어처럼 배치되고 순서대로 떠오르며 화살표로 연결된다. */
-export const IsoDiagram: React.FC<{ diagram: Diagram; narration: string; durationInFrames: number }> = ({
+type DiagramLayout = 'conveyor' | 'row' | 'hub';
+
+/**
+ * 매번 "대각선 컨베이어 + 원반 + 화살표"만 반복되지 않도록, 노드/엣지 구조와 씬 순번(seed)에
+ * 따라 레이아웃을 다르게 고른다. 한 노드가 나머지 대부분과 연결된 허브 구조면 방사형(hub)으로,
+ * 아니면 seed 로 대각선(conveyor)과 가로 지그재그(row)를 번갈아 쓴다.
+ */
+function pickLayout(nodes: { id: string }[], edges: { from: string; to: string }[], seed: number): DiagramLayout {
+  if (nodes.length >= 4) {
+    const degree = new Map<string, number>();
+    for (const e of edges) {
+      degree.set(e.from, (degree.get(e.from) ?? 0) + 1);
+      degree.set(e.to, (degree.get(e.to) ?? 0) + 1);
+    }
+    const maxDegree = Math.max(0, ...degree.values());
+    if (maxDegree >= nodes.length - 1) return 'hub';
+  }
+  return seed % 2 === 0 ? 'conveyor' : 'row';
+}
+
+function layoutPositions(
+  nodes: { id: string }[],
+  edges: { from: string; to: string }[],
+  layout: DiagramLayout,
+): { sx: number; sy: number }[] {
+  if (layout === 'hub') {
+    const degree = new Map<string, number>();
+    for (const e of edges) {
+      degree.set(e.from, (degree.get(e.from) ?? 0) + 1);
+      degree.set(e.to, (degree.get(e.to) ?? 0) + 1);
+    }
+    let hubIdx = 0;
+    let bestDeg = -1;
+    nodes.forEach((n, i) => {
+      const d = degree.get(n.id) ?? 0;
+      if (d > bestDeg) {
+        bestDeg = d;
+        hubIdx = i;
+      }
+    });
+    const others = nodes.map((_, i) => i).filter((i) => i !== hubIdx);
+    const radius = 400;
+    return nodes.map((_, i) => {
+      if (i === hubIdx) return { sx: 0, sy: 0 };
+      const k = others.indexOf(i);
+      const angle = -Math.PI / 2 + (k / others.length) * Math.PI * 2;
+      return { sx: Math.cos(angle) * radius, sy: Math.sin(angle) * radius * 0.72 };
+    });
+  }
+  if (layout === 'row') {
+    // 가로 일렬 배치 + 살짝 지그재그(완전 일직선은 밋밋해서 위아래로 교대).
+    return nodes.map((_, i) => {
+      const t = nodes.length <= 1 ? 0.5 : i / (nodes.length - 1);
+      const sx = -680 + t * 1360;
+      const sy = i % 2 === 0 ? -50 : 90;
+      return { sx, sy };
+    });
+  }
+  // conveyor(기본): 대각선 컨베이어 라인.
+  return nodes.map((_, i) => {
+    const t = nodes.length <= 1 ? 0.5 : i / (nodes.length - 1);
+    const sx = -600 + t * 1200;
+    const sy = -230 + t * 460;
+    return { sx, sy };
+  });
+}
+
+/** 등각 개념 도식: 구조에 따라 컨베이어/가로/허브 레이아웃 중 하나로 배치되고 순서대로 떠오르며 화살표로 연결된다. */
+export const IsoDiagram: React.FC<{ diagram: Diagram; narration: string; durationInFrames: number; seed?: number }> = ({
   diagram,
   narration,
   durationInFrames,
+  seed = 0,
 }) => {
   const frame = useCurrentFrame();
   const nodes = diagram.nodes.slice(0, 6);
   const revealAt = revealFrames(narration, durationInFrames, nodes.length, { head: 0.04, tail: 0.7 });
 
-  // 대각선 컨베이어 라인 위에 노드 배치 (참조 영상처럼) — 화면을 넓게 채우도록 절대 좌표로 스프레드.
-  const positions = nodes.map((_, i) => {
-    const t = nodes.length <= 1 ? 0.5 : i / (nodes.length - 1);
-    const sx = -600 + t * 1200; // -600..600
-    const sy = -230 + t * 460; // -230..230
-    return { sx, sy };
-  });
+  const layout = pickLayout(nodes, diagram.edges, seed);
+  const positions = layoutPositions(nodes, diagram.edges, layout);
 
   const idMap = new Map(nodes.map((n, i) => [n.id, i]));
 
@@ -154,6 +246,7 @@ export const IsoDiagram: React.FC<{ diagram: Diagram; narration: string; duratio
               from={{ x: positions[fi].sx, y: positions[fi].sy }}
               to={{ x: positions[ti].sx, y: positions[ti].sy }}
               progress={progress}
+              pulseDelay={i * 17}
             />
           );
         })}
