@@ -26,6 +26,7 @@ import { renderVideo } from '../lib/render.js';
 import { generateIllustrations } from '../lib/illustrate.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { uploadVideo, setThumbnail } from '../lib/youtube.js';
+import { pickVisualThemeMode } from '../lib/visualTheme.js';
 
 type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail' | 'rethumb';
 
@@ -125,6 +126,11 @@ async function stepVoice(): Promise<RenderManifest> {
     console.warn('  · 배경음악 생성 실패(무시, 무음 진행):', (e as Error).message);
   }
 
+  // 라이트/다크 테마를 영상 단위로 한 번 정해 매니페스트에 저장 — 코드로 그리는 발표자료/등각
+  // 도식과 AI 일러스트 전체가 이 값을 그대로 따른다(매번 같은 흰 배경으로 안 보이게).
+  const visualTheme = pickVisualThemeMode(script.title);
+  console.log(`  · 시각 테마: ${visualTheme}`);
+
   const manifest: RenderManifest = {
     title: script.title,
     topic: script.topic,
@@ -134,6 +140,7 @@ async function stepVoice(): Promise<RenderManifest> {
     totalDurationInFrames: startFrame,
     scenes,
     createdAt: new Date().toISOString(),
+    theme: visualTheme,
     bgm,
   };
   await writeJson(MANIFEST_PATH, manifest);
@@ -174,7 +181,9 @@ async function stepRender(): Promise<void> {
       s.visual === 'quote';
     const needsAiImage = manifest.scenes.filter((s) => !isCodeRendered(s));
     console.log(`  · 씬별 흑백 일러스트 생성 중... (${needsAiImage.length}/${manifest.scenes.length}, 도식/비교/불릿/인용 씬은 코드 렌더링으로 대체)`);
-    const imgMap = await generateIllustrations(needsAiImage);
+    // manifest.theme(다크로 정해졌으면) 에 맞춰 AI 일러스트도 색을 반전해, title/outro 씬만
+    // 흰 배경으로 튀지 않고 영상 전체가 한 톤으로 보이게 한다.
+    const imgMap = await generateIllustrations(needsAiImage, manifest.theme === 'dark');
     manifest.scenes = manifest.scenes.map((s) => ({ ...s, imagePath: imgMap[s.id] }));
     await writeJson(MANIFEST_PATH, manifest); // imagePath 반영 저장(재실행 대비)
     const made = Object.keys(imgMap).length;

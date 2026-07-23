@@ -101,6 +101,9 @@ export type RenderManifest = {
   totalDurationInFrames: number;
   scenes: SceneWithAudio[];
   createdAt: string;
+  /** 이 영상 전체(코드로 그리는 발표자료/등각 도식 + AI 일러스트)가 라이트/다크 중 무엇을 쓸지.
+   * 영상 단위로 한 번 정해 일관되게 적용한다(씬마다 바뀌면 어색함). 기본은 light. */
+  theme?: 'light' | 'dark';
   /** 배경음악 staticFile 상대경로 (예: audio/bgm.wav). 없으면 무음. */
   bgm?: string;
 };

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame } from 'remotion';
-import { theme, nodeColors } from '../theme.js';
+import { theme as defaultTheme, nodeColors, type VisualTheme } from '../theme.js';
 import { PRETENDARD } from '../pretendard.js';
 import { revealFrames } from './beats.js';
 
@@ -13,12 +13,13 @@ import { revealFrames } from './beats.js';
  */
 
 /** 번호 매긴 불릿 리스트 슬라이드 — 나레이션 타이밍에 맞춰 한 줄씩 등장. */
-export const BulletSlide: React.FC<{ heading: string; bullets: string[]; narration: string; durationInFrames: number }> = ({
-  heading,
-  bullets,
-  narration,
-  durationInFrames,
-}) => {
+export const BulletSlide: React.FC<{
+  heading: string;
+  bullets: string[];
+  narration: string;
+  durationInFrames: number;
+  theme?: VisualTheme;
+}> = ({ heading, bullets, narration, durationInFrames, theme = defaultTheme }) => {
   const frame = useCurrentFrame();
   const items = bullets.slice(0, 6);
   const revealAt = revealFrames(narration, durationInFrames, items.length, { head: 0.08, tail: 0.72 });
@@ -160,7 +161,11 @@ export const CodeSlide: React.FC<{
 };
 
 /** 한 문장을 크게 강조하는 인용구 슬라이드. */
-export const QuoteSlide: React.FC<{ text: string; durationInFrames: number }> = ({ text, durationInFrames }) => {
+export const QuoteSlide: React.FC<{ text: string; durationInFrames: number; theme?: VisualTheme }> = ({
+  text,
+  durationInFrames,
+  theme = defaultTheme,
+}) => {
   const frame = useCurrentFrame();
   const pop = interpolate(frame, [0, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const settle = interpolate(frame, [0, 20], [0.94, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });

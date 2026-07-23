@@ -10,22 +10,27 @@ import {
   interpolate,
 } from 'remotion';
 import type { RenderManifest } from '../schema.js';
-import { theme } from './theme.js';
+import { theme as lightTheme, darkTheme } from './theme.js';
 import { PRETENDARD } from './pretendard.js';
 import { captionChunks } from './components/beats.js';
 import { IsoDiagram, IsoComparison } from './components/iso.js';
 import { BulletSlide, QuoteSlide, CodeSlide } from './components/slides.js';
 
 /**
- * 일러스트 영상: 씬마다 흑백 라인아트 이미지를 흰 배경에 꽉 채워 보여주고(줌인/줌아웃),
+ * 일러스트 영상: 씬마다 흑백 라인아트 이미지를 배경에 꽉 채워 보여주고(줌인/줌아웃),
  * 하단에 짧은 구절 단위 볼드 한글 자막을 얹는다. 나레이션 + 배경음악 포함.
+ *
+ * manifest.theme(light/dark, 영상 생성 시 한 번 정해짐)에 따라 코드로 그리는 발표자료/등각
+ * 도식 전체의 배경·색을 라이트(흰 배경+검은 잉크) 또는 다크(짙은 배경+흰 도형)로 통일한다 —
+ * "다크/화이트를 반전 활용해달라"는 요청에 대응, 매 영상이 항상 같은 흰 배경으로 보이지 않게.
  */
 export const AiIllustrated: React.FC<RenderManifest> = (manifest) => {
+  const theme = manifest.theme === 'dark' ? darkTheme : lightTheme;
   return (
-    <AbsoluteFill style={{ backgroundColor: '#ffffff' }}>
+    <AbsoluteFill style={{ backgroundColor: theme.paper }}>
       {manifest.scenes.map((scene, i) => (
         <Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.durationInFrames} name={scene.heading}>
-          <SceneShot scene={scene} index={i} />
+          <SceneShot scene={scene} index={i} theme={theme} />
           <Audio src={staticFile(scene.audioPath)} />
         </Sequence>
       ))}
@@ -34,7 +39,11 @@ export const AiIllustrated: React.FC<RenderManifest> = (manifest) => {
   );
 };
 
-const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: number }> = ({ scene, index }) => {
+const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: number; theme: typeof lightTheme }> = ({
+  scene,
+  index,
+  theme,
+}) => {
   const frame = useCurrentFrame();
   const dur = scene.durationInFrames;
 
@@ -56,7 +65,7 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
     return (
       <AbsoluteFill style={{ opacity: fade }}>
         <AbsoluteFill style={{ transform: `scale(${1 + (zoom - 1) * 0.35}) translate(${panX * 0.3}px, ${panY * 0.3}px)`, transformOrigin: 'center center' }}>
-          <IsoDiagram diagram={scene.diagram} narration={scene.narration} durationInFrames={dur} seed={index} />
+          <IsoDiagram diagram={scene.diagram} narration={scene.narration} durationInFrames={dur} seed={index} theme={theme} />
         </AbsoluteFill>
         <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
@@ -66,7 +75,7 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
     return (
       <AbsoluteFill style={{ opacity: fade }}>
         <AbsoluteFill style={{ transform: `scale(${1 + (zoom - 1) * 0.35}) translate(${panX * 0.3}px, ${panY * 0.3}px)`, transformOrigin: 'center center' }}>
-          <IsoComparison comparison={scene.comparison} narration={scene.narration} durationInFrames={dur} />
+          <IsoComparison comparison={scene.comparison} narration={scene.narration} durationInFrames={dur} theme={theme} />
         </AbsoluteFill>
         <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
@@ -77,7 +86,7 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
   if (scene.visual === 'bullets' && scene.bullets.length > 0) {
     return (
       <AbsoluteFill style={{ opacity: fade }}>
-        <BulletSlide heading={scene.heading} bullets={scene.bullets} narration={scene.narration} durationInFrames={dur} />
+        <BulletSlide heading={scene.heading} bullets={scene.bullets} narration={scene.narration} durationInFrames={dur} theme={theme} />
         <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
@@ -99,7 +108,7 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
   if (scene.visual === 'quote') {
     return (
       <AbsoluteFill style={{ opacity: fade }}>
-        <QuoteSlide text={scene.narration} durationInFrames={dur} />
+        <QuoteSlide text={scene.narration} durationInFrames={dur} theme={theme} />
       </AbsoluteFill>
     );
   }
