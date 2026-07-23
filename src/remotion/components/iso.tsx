@@ -6,123 +6,18 @@ import { PRETENDARD } from '../pretendard.js';
 import { revealFrames } from './beats.js';
 
 /**
- * 등각(isometric) 모션 그래픽 컴포넌트.
+ * 평면(flat) 2D "생활코딩" 스타일 모션 그래픽 컴포넌트.
  * diagram/comparison 씬은 AI 그림 대신 이 코드 기반 벡터 애니메이션으로 그린다 —
- * 노드/엣지·좌우비교처럼 "구조화된 데이터"는 참조 영상(Vonix 스타일)처럼
- * 흑백 등각 카드가 나레이션에 맞춰 순서대로 떠오르는 편이 AI 그림보다 훨씬 깔끔하다.
+ * 예전엔 등각(isometric) 원반이었지만, "전부 생활코딩 스타일로 통일 + 도형 애니메이션 강화"
+ * 요청에 따라 얇은 선으로 그린 평면 도형(둥근 사각형/원)이 테두리부터 그려지고(draw-on),
+ * 통통 튀어 등장하며, 연결선이 그어진 뒤 데이터 펄스가 흐르는 방식으로 바꿨다.
  *
- * 모든 하위 컴포넌트는 theme 을 prop 으로 받는다(라이트/다크 반전을 영상 단위로 고르기 위함,
- * Illustrated.tsx 에서 manifest.theme 에 따라 결정돼 여기까지 내려온다). prop 을 안 주면 기존
- * 라이트 팔레트로 동작해 하위호환된다.
+ * (export 이름은 IsoDiagram/IsoComparison 을 유지 — 호출부 변경 최소화. 시각만 평면으로 전환됨.)
+ * 모든 하위 컴포넌트는 theme 을 prop 으로 받는다(라이트/다크 반전을 영상 단위로 고름).
  */
 
 const W = 1920;
 const H = 1080;
-
-/** 얇은 등각 원반(플랫폼) — 참조 영상의 떠 있는 디스크. 그레이스케일 잉크 라인. */
-const IsoDisk: React.FC<{
-  cx: number;
-  cy: number;
-  r?: number;
-  depth?: number;
-  fill?: string;
-  bob?: number; // 상하 부유 오프셋(px)
-  theme?: VisualTheme;
-}> = ({ cx, cy, r = 128, depth = 26, fill, bob = 0, theme = defaultTheme }) => {
-  const ry = r * 0.5;
-  const y = cy + bob;
-  const topFill = fill ?? theme.paper;
-  return (
-    <g>
-      {/* 그림자 */}
-      <ellipse cx={cx} cy={cy + depth + 10} rx={r * 0.9} ry={ry * 0.55} fill="rgba(0,0,0,0.18)" />
-      {/* 옆면(두께) */}
-      <path
-        d={`M ${cx - r} ${y} A ${r} ${ry} 0 0 0 ${cx + r} ${y} L ${cx + r} ${y + depth} A ${r} ${ry} 0 0 1 ${cx - r} ${y + depth} Z`}
-        fill={theme.muted}
-        stroke={theme.ink}
-        strokeWidth={2.5}
-      />
-      {/* 윗면 */}
-      <ellipse cx={cx} cy={y} rx={r} ry={ry} fill={topFill} stroke={theme.ink} strokeWidth={2.5} />
-    </g>
-  );
-};
-
-/** 등각 카드(다이아몬드 타일) — IsoDisk 의 대안 노드 모양. 원반과 실루엣이 확실히 다르다. */
-const IsoCard: React.FC<{
-  cx: number;
-  cy: number;
-  w?: number;
-  h?: number;
-  depth?: number;
-  fill?: string;
-  bob?: number;
-  theme?: VisualTheme;
-}> = ({ cx, cy, w = 260, h = 172, depth = 26, fill, bob = 0, theme = defaultTheme }) => {
-  const y = cy + bob;
-  const halfW = w / 2;
-  const halfH = h / 2;
-  const topFill = fill ?? theme.paper;
-  const top = [
-    [cx, y - halfH],
-    [cx + halfW, y],
-    [cx, y + halfH],
-    [cx - halfW, y],
-  ];
-  const topPath = `M ${top[0][0]} ${top[0][1]} L ${top[1][0]} ${top[1][1]} L ${top[2][0]} ${top[2][1]} L ${top[3][0]} ${top[3][1]} Z`;
-  const sideLeft = `M ${top[3][0]} ${top[3][1]} L ${top[2][0]} ${top[2][1]} L ${top[2][0]} ${top[2][1] + depth} L ${top[3][0]} ${top[3][1] + depth} Z`;
-  const sideRight = `M ${top[2][0]} ${top[2][1]} L ${top[1][0]} ${top[1][1]} L ${top[1][0]} ${top[1][1] + depth} L ${top[2][0]} ${top[2][1] + depth} Z`;
-  return (
-    <g>
-      <ellipse cx={cx} cy={cy + depth + 12} rx={halfW * 0.85} ry={halfH * 0.32} fill="rgba(0,0,0,0.18)" />
-      <path d={sideLeft} fill={theme.muted} stroke={theme.ink} strokeWidth={2.5} />
-      <path d={sideRight} fill={theme.sub} stroke={theme.ink} strokeWidth={2.5} />
-      <path d={topPath} fill={topFill} stroke={theme.ink} strokeWidth={2.5} />
-    </g>
-  );
-};
-
-/** 노드/항목 위에 뜨는 라벨 칩(카드). 화면 텍스트라 가독성 위해 정면 플랫으로 그림. */
-const LabelChip: React.FC<{ x: number; y: number; text: string; accent?: string; theme?: VisualTheme }> = ({
-  x,
-  y,
-  text,
-  accent,
-  theme = defaultTheme,
-}) => (
-  <g>
-    <line x1={x} y1={y + 26} x2={x} y2={y + 78} stroke={theme.muted} strokeWidth={3} strokeDasharray="1 8" strokeLinecap="round" />
-    <foreignObject x={x - 340} y={y - 76} width={680} height={110}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100%',
-        }}
-      >
-        <div
-          style={{
-            fontFamily: PRETENDARD,
-            fontWeight: 800,
-            fontSize: 48,
-            lineHeight: 1.2,
-            color: theme.ink,
-            background: theme.paper,
-            border: `3.5px solid ${accent ?? theme.ink}`,
-            borderRadius: 18,
-            padding: '14px 30px',
-            whiteSpace: 'nowrap',
-            boxShadow: '0 8px 0 rgba(0,0,0,0.18)',
-          }}
-        >
-          {text}
-        </div>
-      </div>
-    </foreignObject>
-  </g>
-);
 
 /** 이차 베지어 곡선 위의 t(0~1) 지점 좌표. */
 function quadPoint(p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, t: number) {
@@ -133,31 +28,145 @@ function quadPoint(p0: { x: number; y: number }, p1: { x: number; y: number }, p
   };
 }
 
+/** 통통 튀는 등장(overshoot) — appear 0~1 을 scale 로. */
+function popScale(appear: number): number {
+  // 0 → 0.7 에서 시작, 1.08 까지 튀었다가 1.0 으로 안착.
+  if (appear <= 0) return 0.7;
+  if (appear >= 1) return 1;
+  const s = interpolate(appear, [0, 0.7, 1], [0.7, 1.08, 1]);
+  return s;
+}
+
 /**
- * 노드 사이를 잇는 화살표. progress(0~1) 만큼 그어지는 draw-on 애니메이션.
- * 다 그려진 뒤에는 그 경로 위로 실제 데이터가 흐르는 것처럼 작은 펄스(점)가 반복 이동한다 —
- * 정적으로 연결만 되고 끝나는 대신, "무엇이 어디로 흘러가는지" 를 실제로 보여준다.
+ * 평면 노드 — 둥근 사각형(box) 또는 원(circle). 얇은 선 테두리가 draw-on 으로 그려지고,
+ * 라벨은 도형 "안"에 들어간다. 등장 후엔 계속 살짝 부유(float)하고, 강조 노드(마지막)는
+ * 바깥으로 은은한 펄스 링이 반복된다 — "도형 애니메이션 강화".
  */
-const IsoArrow: React.FC<{
+const FlatNode: React.FC<{
+  cx: number;
+  cy: number;
+  label: string;
+  shape: 'box' | 'circle';
+  accent: string;
+  emphasize?: boolean;
+  theme: VisualTheme;
+  appear: number; // 0..1 등장 진행
+  frame: number;
+  seed: number;
+}> = ({ cx, cy, label, shape, accent, emphasize = false, theme, appear, frame, seed }) => {
+  if (appear <= 0) return null;
+  const bob = Math.sin((frame + seed * 40) / 26) * 6 * appear;
+  const scale = popScale(appear);
+  const y = cy + bob;
+
+  const boxW = 300;
+  const boxH = 150;
+  const r = 100;
+
+  // 테두리 draw-on: pathLength 정규화 + dashoffset.
+  const strokeCommon = {
+    fill: theme.paper,
+    stroke: emphasize ? accent : theme.ink,
+    strokeWidth: emphasize ? 7 : 5,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    pathLength: 1,
+    strokeDasharray: 1,
+    strokeDashoffset: 1 - Math.min(1, appear * 1.15),
+  };
+
+  // 강조 노드의 반복 펄스 링(등장 완료 후).
+  const pulse = appear >= 0.98 ? (frame % 60) / 60 : -1;
+  const pulseFade = pulse >= 0 ? interpolate(pulse, [0, 0.1, 1], [0, 0.5, 0]) : 0;
+  const pulseScale = pulse >= 0 ? interpolate(pulse, [0, 1], [1, 1.35]) : 1;
+
+  const labelFontSize = label.length > 10 ? 34 : label.length > 6 ? 40 : 46;
+
+  return (
+    <g transform={`translate(${cx}, ${y}) scale(${scale})`} opacity={Math.min(1, appear * 1.4)}>
+      {emphasize && pulse >= 0 && (
+        shape === 'circle' ? (
+          <circle cx={0} cy={0} r={r * pulseScale} fill="none" stroke={accent} strokeWidth={4} opacity={pulseFade} />
+        ) : (
+          <rect
+            x={(-boxW / 2) * pulseScale}
+            y={(-boxH / 2) * pulseScale}
+            width={boxW * pulseScale}
+            height={boxH * pulseScale}
+            rx={26 * pulseScale}
+            fill="none"
+            stroke={accent}
+            strokeWidth={4}
+            opacity={pulseFade}
+          />
+        )
+      )}
+      {shape === 'circle' ? (
+        <circle cx={0} cy={0} r={r} {...strokeCommon} />
+      ) : (
+        <rect x={-boxW / 2} y={-boxH / 2} width={boxW} height={boxH} rx={24} {...strokeCommon} />
+      )}
+      <foreignObject
+        x={shape === 'circle' ? -r + 14 : -boxW / 2 + 18}
+        y={shape === 'circle' ? -r + 14 : -boxH / 2 + 14}
+        width={shape === 'circle' ? (r - 14) * 2 : boxW - 36}
+        height={shape === 'circle' ? (r - 14) * 2 : boxH - 28}
+      >
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            fontFamily: PRETENDARD,
+            fontWeight: 800,
+            fontSize: labelFontSize,
+            lineHeight: 1.2,
+            color: emphasize ? accent : theme.ink,
+            wordBreak: 'keep-all',
+            opacity: interpolate(appear, [0.4, 0.8], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+          }}
+        >
+          {label}
+        </div>
+      </foreignObject>
+    </g>
+  );
+};
+
+/**
+ * 노드 사이 연결선(평면). progress 만큼 그어지고, 다 그려지면 경로 위로 데이터 펄스(점)가 흐른다.
+ * 화살표 머리는 다 그려진 뒤 나타난다.
+ */
+const FlatArrow: React.FC<{
   from: { x: number; y: number };
   to: { x: number; y: number };
   progress: number;
-  accent?: string;
+  accent: string;
   pulseDelay?: number;
-  theme?: VisualTheme;
-}> = ({ from, to, progress, accent, pulseDelay = 0, theme = defaultTheme }) => {
+  theme: VisualTheme;
+}> = ({ from, to, progress, accent, pulseDelay = 0, theme }) => {
   const frame = useCurrentFrame();
-  const strokeColor = accent ?? theme.accent;
-  const control = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 50 };
-  const d = `M ${from.x} ${from.y} Q ${control.x} ${control.y} ${to.x} ${to.y}`;
-  const len = Math.hypot(to.x - from.x, to.y - from.y) * 1.3 + 60;
+  // 노드 반지름만큼 양끝을 물러나게(도형에 안 파묻히게).
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const pad = 96;
+  const p0 = { x: from.x + ux * pad, y: from.y + uy * pad };
+  const p2 = { x: to.x - ux * pad, y: to.y - uy * pad };
+  const control = { x: (p0.x + p2.x) / 2, y: (p0.y + p2.y) / 2 - 40 };
+  const d = `M ${p0.x} ${p0.y} Q ${control.x} ${control.y} ${p2.x} ${p2.y}`;
 
   const pulseActive = progress >= 0.92;
-  const loopFrames = 52;
-  const pulseT = pulseActive ? (((frame + pulseDelay) % loopFrames) / loopFrames) : 0;
-  const pulsePos = quadPoint(from, control, to, pulseT);
+  const loopFrames = 46;
+  const pulseT = pulseActive ? ((frame + pulseDelay) % loopFrames) / loopFrames : 0;
+  const pulsePos = quadPoint(p0, control, p2, pulseT);
   const pulseFade = pulseActive
-    ? interpolate(pulseT, [0, 0.08, 0.9, 1], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    ? interpolate(pulseT, [0, 0.1, 0.9, 1], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
     : 0;
 
   return (
@@ -165,40 +174,37 @@ const IsoArrow: React.FC<{
       <path
         d={d}
         fill="none"
-        stroke={strokeColor}
-        strokeWidth={7}
+        stroke={accent}
+        strokeWidth={6}
         strokeLinecap="round"
-        strokeDasharray={len}
-        strokeDashoffset={len * (1 - progress)}
-        markerEnd={progress > 0.85 ? 'url(#iso-arrowhead)' : undefined}
+        pathLength={1}
+        strokeDasharray={1}
+        strokeDashoffset={1 - progress}
+        markerEnd={progress > 0.9 ? 'url(#flat-arrowhead)' : undefined}
         opacity={progress > 0.02 ? 1 : 0}
       />
       {pulseActive && (
         <>
-          <circle cx={pulsePos.x} cy={pulsePos.y} r={17} fill={strokeColor} opacity={pulseFade * 0.22} />
-          <circle cx={pulsePos.x} cy={pulsePos.y} r={9} fill={strokeColor} opacity={pulseFade} />
+          <circle cx={pulsePos.x} cy={pulsePos.y} r={14} fill={accent} opacity={pulseFade * 0.25} />
+          <circle cx={pulsePos.x} cy={pulsePos.y} r={8} fill={accent} opacity={pulseFade} />
         </>
       )}
     </g>
   );
 };
 
-const ArrowHeadDef: React.FC<{ theme?: VisualTheme }> = ({ theme = defaultTheme }) => (
+const ArrowHeadDef: React.FC<{ theme: VisualTheme }> = ({ theme }) => (
   <defs>
-    <marker id="iso-arrowhead" markerWidth="16" markerHeight="16" refX="9" refY="8" orient="auto">
-      <path d="M0,0 L16,8 L0,16 Z" fill={theme.accent} />
+    <marker id="flat-arrowhead" markerWidth="14" markerHeight="14" refX="8" refY="7" orient="auto">
+      <path d="M0,0 L14,7 L0,14 Z" fill={theme.accent} />
     </marker>
   </defs>
 );
 
 type DiagramLayout = 'conveyor' | 'row' | 'hub' | 'equation' | 'orbit';
-type NodeShape = 'disk' | 'card';
+type NodeShape = 'box' | 'circle';
 
-/**
- * "A, B 가 합쳐져 C 가 된다" 형태(오퍼랜드 2개 이상 → 결과 노드 1개, 그 외 가지 없음)를 감지한다.
- * 이런 정의/공식형 내용(예: Agent = Model + Harness)은 원반+화살표 도식보다
- * 실제 수식처럼 박스+연산자로 보여주는 편이 훨씬 명확하고, 다른 도식과도 확실히 달라 보인다.
- */
+/** "A, B 두 개가 합쳐져 C 하나" 형태(3노드)만 수식으로 감지. */
 function detectEquation(
   nodes: { id: string; label: string }[],
   edges: { from: string; to: string }[],
@@ -217,25 +223,13 @@ function detectEquation(
   }
   const sum = nodes.find((n) => (indeg.get(n.id) ?? 0) >= 2 && (outdeg.get(n.id) ?? 0) === 0);
   if (!sum) return null;
-  const operands = nodes.filter(
-    (n) => n.id !== sum.id && (outdeg.get(n.id) ?? 0) >= 1 && (indeg.get(n.id) ?? 0) === 0,
-  );
-  // 딱 "A, B 두 개가 합쳐져 C 하나가 된다"(3노드) 형태만 수식으로 그린다 — 오퍼랜드가 3개 이상이면
-  // "여러 개가 코어 하나에 붙는" 허브 구조와 그래프 모양이 같아져 오판하기 쉽고(실제로 5노드 허브가
-  // 수식으로 잘못 렌더돼 박스 5개가 화면 밖으로 넘쳐버린 사례가 있었음), 그런 경우는 hub 레이아웃이 맞다.
+  const operands = nodes.filter((n) => n.id !== sum.id && (outdeg.get(n.id) ?? 0) >= 1 && (indeg.get(n.id) ?? 0) === 0);
   if (operands.length !== 2) return null;
-  // 오퍼랜드→합 이외의 곁가지 엣지가 있으면(다른 관계가 섞인 그래프) 수식으로 단순화하지 않는다.
   const allEdgesAreCore = edges.every((e) => e.to === sum.id && operands.some((o) => o.id === e.from));
   if (!allEdgesAreCore || edges.length !== operands.length) return null;
   return { operands, sum };
 }
 
-/**
- * 매번 "원반 + 화살표"만 반복되지 않도록, 노드/엣지 구조와 씬 순번(seed)에 따라 레이아웃을 다르게 고른다.
- * "A+B=C" 형태 정의는 수식(equation)으로, 노드가 정확히 2개면 궤도(orbit, 레퍼런스의 두 원+점선처럼),
- * 한 노드가 나머지 대부분과 연결된 허브 구조는 방사형(hub)으로, 그 외는 seed 로 대각선(conveyor)과
- * 가로 지그재그(row)를 번갈아 쓴다.
- */
 function pickLayout(
   nodes: { id: string; label: string }[],
   edges: { from: string; to: string }[],
@@ -255,12 +249,9 @@ function pickLayout(
   return seed % 2 === 0 ? 'conveyor' : 'row';
 }
 
-/**
- * 노드 모양(원반/카드)도 레이아웃과 다른 주기로 순환시켜 "항상 동그라미"를 벗어난다.
- * 레이아웃 선택(seed%2)과 위상을 어긋나게 하려고 다른 나눗수를 쓴다.
- */
+/** 노드 모양(둥근사각형/원)을 레이아웃과 다른 주기로 순환. */
 function pickShape(seed: number): NodeShape {
-  return Math.floor(seed / 2) % 2 === 0 ? 'disk' : 'card';
+  return Math.floor(seed / 2) % 2 === 0 ? 'box' : 'circle';
 }
 
 function layoutPositions(
@@ -284,33 +275,32 @@ function layoutPositions(
       }
     });
     const others = nodes.map((_, i) => i).filter((i) => i !== hubIdx);
-    const radius = 400;
+    const radius = 420;
     return nodes.map((_, i) => {
       if (i === hubIdx) return { sx: 0, sy: 0 };
       const k = others.indexOf(i);
       const angle = -Math.PI / 2 + (k / others.length) * Math.PI * 2;
-      return { sx: Math.cos(angle) * radius, sy: Math.sin(angle) * radius * 0.72 };
+      return { sx: Math.cos(angle) * radius, sy: Math.sin(angle) * radius * 0.74 };
     });
   }
   if (layout === 'row') {
-    // 가로 일렬 배치 + 살짝 지그재그(완전 일직선은 밋밋해서 위아래로 교대).
     return nodes.map((_, i) => {
       const t = nodes.length <= 1 ? 0.5 : i / (nodes.length - 1);
-      const sx = -680 + t * 1360;
-      const sy = i % 2 === 0 ? -50 : 90;
+      const sx = -700 + t * 1400;
+      const sy = i % 2 === 0 ? -70 : 90;
       return { sx, sy };
     });
   }
-  // conveyor(기본): 대각선 컨베이어 라인.
+  // conveyor(기본): 대각선 흐름.
   return nodes.map((_, i) => {
     const t = nodes.length <= 1 ? 0.5 : i / (nodes.length - 1);
-    const sx = -600 + t * 1200;
-    const sy = -230 + t * 460;
+    const sx = -640 + t * 1280;
+    const sy = -220 + t * 440;
     return { sx, sy };
   });
 }
 
-/** 등각 개념 도식: 구조에 따라 컨베이어/가로/허브/수식/궤도 레이아웃 중 하나로 배치되고 순서대로 떠오르며 연결된다. */
+/** 평면 개념 도식: 구조에 따라 컨베이어/가로/허브/수식/궤도 레이아웃 중 하나로 배치·애니메이션. */
 export const IsoDiagram: React.FC<{
   diagram: Diagram;
   narration: string;
@@ -335,53 +325,51 @@ export const IsoDiagram: React.FC<{
   const revealAt = revealFrames(narration, durationInFrames, nodes.length, { head: 0.04, tail: 0.7 });
   const positions = layoutPositions(nodes, diagram.edges, layout);
   const shape = pickShape(seed);
-
   const idMap = new Map(nodes.map((n, i) => [n.id, i]));
 
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
       <ArrowHeadDef theme={theme} />
-      <g transform={`translate(${W / 2}, ${H / 2 + 30})`}>
-        {/* 화살표 (엣지) */}
+      <g transform={`translate(${W / 2}, ${H / 2 + 20})`}>
         {diagram.edges.map((e, i) => {
           const fi = idMap.get(e.from);
           const ti = idMap.get(e.to);
           if (fi === undefined || ti === undefined) return null;
-          const revealEdgeAt = Math.max(revealAt[fi] ?? 0, revealAt[ti] ?? 0) + 8;
-          const progress = interpolate(frame, [revealEdgeAt, revealEdgeAt + 20], [0, 1], {
+          const revealEdgeAt = Math.max(revealAt[fi] ?? 0, revealAt[ti] ?? 0) + 10;
+          const progress = interpolate(frame, [revealEdgeAt, revealEdgeAt + 22], [0, 1], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
           });
           return (
-            <IsoArrow
+            <FlatArrow
               key={i}
               from={{ x: positions[fi].sx, y: positions[fi].sy }}
               to={{ x: positions[ti].sx, y: positions[ti].sy }}
               progress={progress}
-              pulseDelay={i * 17}
+              accent={theme.accent}
+              pulseDelay={i * 15}
               theme={theme}
             />
           );
         })}
-
-        {/* 노드 (디스크/카드 + 라벨) */}
         {nodes.map((n, i) => {
           const at = revealAt[i] ?? 0;
-          const pop = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-          if (pop <= 0) return null;
-          const bob = Math.sin((frame + i * 40) / 26) * 8;
+          const appear = interpolate(frame, [at, at + 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           const { sx, sy } = positions[i];
-          const scale = 0.7 + pop * 0.3;
-          const fill = i % 2 === 0 ? theme.paper : theme.muted;
           return (
-            <g key={n.id} transform={`translate(${sx}, ${sy}) scale(${scale}) translate(${-sx}, ${-sy})`} opacity={pop}>
-              {shape === 'disk' ? (
-                <IsoDisk cx={sx} cy={sy} bob={bob} fill={fill} theme={theme} />
-              ) : (
-                <IsoCard cx={sx} cy={sy} bob={bob} fill={fill} theme={theme} />
-              )}
-              <LabelChip x={sx} y={sy - 104 + bob} text={n.label} accent={i === nodes.length - 1 ? theme.accent : theme.ink} theme={theme} />
-            </g>
+            <FlatNode
+              key={n.id}
+              cx={sx}
+              cy={sy}
+              label={n.label}
+              shape={shape}
+              accent={theme.accent}
+              emphasize={i === nodes.length - 1}
+              theme={theme}
+              appear={appear}
+              frame={frame}
+              seed={i}
+            />
           );
         })}
       </g>
@@ -389,10 +377,7 @@ export const IsoDiagram: React.FC<{
   );
 };
 
-/**
- * 등각 수식 도식: "A + B = C" 형태 정의를 원반/화살표 대신 실제 수식처럼 박스+연산자로 보여준다.
- * 다른 도식들과 실루엣 자체가 달라 "맨날 같은 도식" 문제를 구조적으로 피한다.
- */
+/** 평면 수식 도식: "A + B = C" 를 박스 + 연산자로. */
 const IsoEquation: React.FC<{
   operands: { id: string; label: string }[];
   sum: { id: string; label: string };
@@ -405,7 +390,6 @@ const IsoEquation: React.FC<{
   const revealAt = revealFrames(narration, durationInFrames, items.length, { head: 0.05, tail: 0.65 });
 
   const boxW = 400;
-  const boxH = 220;
   const opW = 130;
   const gap = 20;
   const slotWidths = items.flatMap((_, i) => (i < items.length - 1 ? [boxW, opW] : [boxW]));
@@ -419,9 +403,6 @@ const IsoEquation: React.FC<{
     else opX.push(cx);
     cursor += w + gap;
   });
-
-  // 안전장치: 혹시 오퍼랜드가 늘어나 폭이 화면을 넘어서면(더 이상 3노드 전용이 아니게 되더라도)
-  // 잘리는 대신 통째로 축소해서 항상 프레임 안에 들어오게 한다.
   const safeScale = Math.min(1, (W - 160) / totalW);
 
   return (
@@ -429,41 +410,23 @@ const IsoEquation: React.FC<{
       <g transform={`translate(${W / 2}, ${H / 2}) scale(${safeScale})`}>
         {items.map((item, i) => {
           const at = revealAt[i] ?? 0;
-          const pop = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const appear = interpolate(frame, [at, at + 18], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           const isSum = i === items.length - 1;
           const cx = boxX[i];
           return (
-            <g key={item.id} opacity={pop} transform={`translate(${cx}, 0) scale(${0.8 + pop * 0.2}) translate(${-cx}, 0)`}>
-              <rect
-                x={cx - boxW / 2}
-                y={-boxH / 2}
-                width={boxW}
-                height={boxH}
-                rx={20}
-                fill={isSum ? theme.paper : theme.paper}
-                stroke={isSum ? theme.accent : theme.ink}
-                strokeWidth={isSum ? 5 : 3.5}
-              />
-              <foreignObject x={cx - boxW / 2 + 16} y={-boxH / 2 + 16} width={boxW - 32} height={boxH - 32}>
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                    fontFamily: PRETENDARD,
-                    fontWeight: 800,
-                    fontSize: 46,
-                    lineHeight: 1.25,
-                    color: isSum ? theme.accent : theme.ink,
-                  }}
-                >
-                  {item.label}
-                </div>
-              </foreignObject>
-            </g>
+            <FlatNode
+              key={item.id}
+              cx={cx}
+              cy={0}
+              label={item.label}
+              shape="box"
+              accent={theme.accent}
+              emphasize={isSum}
+              theme={theme}
+              appear={appear}
+              frame={frame}
+              seed={i}
+            />
           );
         })}
         {opX.map((cx, i) => {
@@ -476,10 +439,10 @@ const IsoEquation: React.FC<{
             <text
               key={i}
               x={cx}
-              y={22}
+              y={26}
               textAnchor="middle"
               opacity={pop}
-              style={{ fontFamily: PRETENDARD, fontWeight: 900, fontSize: 84, fill: theme.muted }}
+              style={{ fontFamily: PRETENDARD, fontWeight: 900, fontSize: 88, fill: theme.sub }}
             >
               {sym}
             </text>
@@ -490,12 +453,7 @@ const IsoEquation: React.FC<{
   );
 };
 
-/**
- * 등각 궤도(orbit) 도식: 노드가 정확히 2개인 관계(레퍼런스 이미지처럼 "A vs B"류 대비/짝 개념)를
- * 속이 꽉 찬 원 2개 + 점선 궤도로 보여준다. 원 채우기/글자색을 theme.ink/theme.paper 로 완전히
- * 반전시켜서(다크 테마면 흰 원+검은 글자, 라이트 테마면 검은 원+흰 글자) "다크/화이트 반전 활용"
- * 요청에 맞춘, 원반·카드·화살표와는 실루엣이 아예 다른 네 번째 도식 어휘.
- */
+/** 평면 궤도: 노드 2개 관계를 원 2개 + 점선 궤도로. */
 const OrbitPair: React.FC<{
   nodes: { id: string; label: string }[];
   narration: string;
@@ -505,11 +463,12 @@ const OrbitPair: React.FC<{
   const frame = useCurrentFrame();
   const pair = nodes.slice(0, 2);
   const revealAt = revealFrames(narration, durationInFrames, pair.length, { head: 0.08, tail: 0.7 });
-  const r = 150;
-  const gap = 70;
+  const r = 130;
+  const gap = 90;
   const centers = [-(r * 2 + gap) / 2, (r * 2 + gap) / 2];
   const ringAt = revealAt[1] ?? 20;
-  const ringPop = interpolate(frame, [ringAt, ringAt + 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const ringProgress = interpolate(frame, [ringAt, ringAt + 26], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const rot = (frame / 8) % 360;
 
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
@@ -518,44 +477,34 @@ const OrbitPair: React.FC<{
           cx={0}
           cy={0}
           rx={r * 2 + gap / 2 + 60}
-          ry={r + 100}
+          ry={r + 90}
           fill="none"
           stroke={theme.sub}
-          strokeWidth={3}
-          strokeDasharray="16 16"
-          opacity={ringPop * 0.85}
+          strokeWidth={4}
+          strokeDasharray="18 18"
+          pathLength={1}
+          strokeDashoffset={1 - ringProgress}
+          opacity={0.85}
+          transform={`rotate(${rot})`}
+          style={{ transformOrigin: 'center' }}
         />
         {pair.map((n, i) => {
           const at = revealAt[i] ?? 0;
-          const pop = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-          if (pop <= 0) return null;
-          const bob = Math.sin((frame + i * 50) / 30) * 6;
-          const cx = centers[i];
+          const appear = interpolate(frame, [at, at + 18], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           return (
-            <g
+            <FlatNode
               key={n.id}
-              opacity={pop}
-              transform={`translate(${cx}, ${bob}) scale(${0.7 + pop * 0.3}) translate(${-cx}, 0)`}
-            >
-              <ellipse cx={cx} cy={r * 0.55} rx={r * 0.8} ry={26} fill="rgba(0,0,0,0.18)" />
-              <circle cx={cx} cy={0} r={r} fill={theme.ink} stroke={theme.accent} strokeWidth={i === pair.length - 1 ? 5 : 0} />
-              <foreignObject x={cx - r + 24} y={-r + 24} width={(r - 24) * 2} height={(r - 24) * 2}>
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 42, lineHeight: 1.25, color: theme.paper }}>
-                    {n.label}
-                  </div>
-                </div>
-              </foreignObject>
-            </g>
+              cx={centers[i]}
+              cy={0}
+              label={n.label}
+              shape="circle"
+              accent={theme.accent}
+              emphasize={i === pair.length - 1}
+              theme={theme}
+              appear={appear}
+              frame={frame}
+              seed={i}
+            />
           );
         })}
       </g>
@@ -563,7 +512,7 @@ const OrbitPair: React.FC<{
   );
 };
 
-/** 등각 좌/우 비교: 두 무리의 원반 스택이 나레이션에 맞춰 쌓이고 가운데 VS 구분선. */
+/** 평면 좌/우 비교: 두 무리의 카드가 나레이션에 맞춰 그려지고 가운데 VS. */
 export const IsoComparison: React.FC<{
   comparison: { leftTitle: string; leftItems: string[]; rightTitle: string; rightItems: string[] };
   narration: string;
@@ -571,7 +520,10 @@ export const IsoComparison: React.FC<{
   theme?: VisualTheme;
 }> = ({ comparison, narration, durationInFrames, theme = defaultTheme }) => {
   const frame = useCurrentFrame();
-  const items = [...comparison.leftItems.map((t) => ({ side: 'l' as const, t })), ...comparison.rightItems.map((t) => ({ side: 'r' as const, t }))];
+  const items = [
+    ...comparison.leftItems.map((t) => ({ side: 'l' as const, t })),
+    ...comparison.rightItems.map((t) => ({ side: 'r' as const, t })),
+  ];
   const revealAt = revealFrames(narration, durationInFrames, items.length, { head: 0.08, tail: 0.75 });
 
   const leftCount = comparison.leftItems.length;
@@ -579,65 +531,76 @@ export const IsoComparison: React.FC<{
 
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
-      <ArrowHeadDef theme={theme} />
       {/* 타이틀 */}
-      <foreignObject x={W / 2 - 900} y={110} width={760} height={100}>
-        <div style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 60, color: theme.ink, textAlign: 'center' }}>
+      <foreignObject x={W / 2 - 900} y={110} width={760} height={110}>
+        <div style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 58, color: theme.ink, textAlign: 'center', wordBreak: 'keep-all' }}>
           {comparison.leftTitle}
         </div>
       </foreignObject>
-      <foreignObject x={W / 2 + 140} y={110} width={760} height={100}>
-        <div style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 60, color: theme.accent2, textAlign: 'center' }}>
+      <foreignObject x={W / 2 + 140} y={110} width={760} height={110}>
+        <div style={{ fontFamily: PRETENDARD, fontWeight: 800, fontSize: 58, color: theme.accent2, textAlign: 'center', wordBreak: 'keep-all' }}>
           {comparison.rightTitle}
         </div>
       </foreignObject>
 
       {/* 가운데 구분선 + VS */}
-      <line x1={W / 2} y1={230} x2={W / 2} y2={920} stroke={theme.muted} strokeWidth={3} strokeDasharray="2 12" />
-      <circle cx={W / 2} cy={565} r={64} fill={theme.ink} />
-      <text x={W / 2} y={582} textAnchor="middle" fontFamily={PRETENDARD} fontWeight={800} fontSize={40} fill={theme.paper}>
+      <line x1={W / 2} y1={250} x2={W / 2} y2={930} stroke={theme.muted} strokeWidth={3} strokeDasharray="2 14" />
+      <circle cx={W / 2} cy={575} r={58} fill={theme.ink} />
+      <text x={W / 2} y={592} textAnchor="middle" fontFamily={PRETENDARD} fontWeight={800} fontSize={38} fill={theme.paper}>
         VS
       </text>
 
       {items.map((it, gi) => {
         const at = revealAt[gi] ?? 0;
-        const pop = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-        if (pop <= 0) return null;
+        const appear = interpolate(frame, [at, at + 18], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+        if (appear <= 0) return null;
         const idx = it.side === 'l' ? comparison.leftItems.indexOf(it.t) : comparison.rightItems.indexOf(it.t);
         const count = it.side === 'l' ? leftCount : rightCount;
-        const colX = it.side === 'l' ? W / 2 - 500 : W / 2 + 500;
-        // 항목 개수와 무관하게 안전한 세로 대역(300~860) 안에 고르게 분배.
-        const bandTop = 320;
-        const bandBottom = 860;
+        const colX = it.side === 'l' ? W / 2 - 470 : W / 2 + 470;
+        const bandTop = 330;
+        const bandBottom = 870;
         const y = count <= 1 ? (bandTop + bandBottom) / 2 : bandTop + (idx / (count - 1)) * (bandBottom - bandTop);
-        const slide = (1 - pop) * (it.side === 'l' ? -70 : 70);
-        const bob = Math.sin((frame + idx * 30) / 30) * 5;
+        const slide = (1 - appear) * (it.side === 'l' ? -70 : 70);
+        const bob = Math.sin((frame + idx * 30) / 28) * 5 * appear;
+        const accent = it.side === 'l' ? theme.ink : theme.accent2;
+        const cardW = 620;
+        const cardH = 128;
+        const fontSize = it.t.length > 18 ? 30 : it.t.length > 12 ? 36 : 42;
 
-        // 긴 문구가 카드 밖으로 잘리지 않도록: nowrap 강제 대신 폭에 맞춰 줄바꿈 + 길이에 따라 폰트를 줄인다.
-        const fontSize = it.t.length > 18 ? 28 : it.t.length > 12 ? 34 : 40;
         return (
-          <g key={`${it.side}-${idx}`} opacity={pop} transform={`translate(${slide}, 0)`}>
-            <IsoDisk cx={colX} cy={y + bob} r={108} depth={22} fill={theme.paper} theme={theme} />
-            <foreignObject x={colX - 340} y={y - 78 + bob} width={680} height={130}>
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                <div
-                  style={{
-                    fontFamily: PRETENDARD,
-                    fontWeight: 700,
-                    fontSize,
-                    lineHeight: 1.25,
-                    color: theme.ink,
-                    background: theme.paper,
-                    border: `3px solid ${it.side === 'l' ? theme.ink : theme.accent2}`,
-                    borderRadius: 16,
-                    padding: '12px 24px',
-                    textAlign: 'center',
-                    maxWidth: 632,
-                    wordBreak: 'keep-all',
-                  }}
-                >
-                  {it.t}
-                </div>
+          <g key={`${it.side}-${idx}`} transform={`translate(${colX + slide}, ${y + bob}) scale(${popScale(appear)})`} opacity={Math.min(1, appear * 1.4)}>
+            <rect
+              x={-cardW / 2}
+              y={-cardH / 2}
+              width={cardW}
+              height={cardH}
+              rx={20}
+              fill={theme.paper}
+              stroke={accent}
+              strokeWidth={5}
+              pathLength={1}
+              strokeDasharray={1}
+              strokeDashoffset={1 - Math.min(1, appear * 1.15)}
+            />
+            <foreignObject x={-cardW / 2 + 24} y={-cardH / 2 + 14} width={cardW - 48} height={cardH - 28}>
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  fontFamily: PRETENDARD,
+                  fontWeight: 700,
+                  fontSize,
+                  lineHeight: 1.25,
+                  color: theme.ink,
+                  wordBreak: 'keep-all',
+                  opacity: interpolate(appear, [0.4, 0.8], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+                }}
+              >
+                {it.t}
               </div>
             </foreignObject>
           </g>
