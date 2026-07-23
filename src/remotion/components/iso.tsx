@@ -43,6 +43,38 @@ const IsoDisk: React.FC<{
   );
 };
 
+/** 등각 카드(다이아몬드 타일) — IsoDisk 의 대안 노드 모양. 원반과 실루엣이 확실히 다르다. */
+const IsoCard: React.FC<{
+  cx: number;
+  cy: number;
+  w?: number;
+  h?: number;
+  depth?: number;
+  fill?: string;
+  bob?: number;
+}> = ({ cx, cy, w = 260, h = 172, depth = 26, fill = '#f1f2f4', bob = 0 }) => {
+  const y = cy + bob;
+  const halfW = w / 2;
+  const halfH = h / 2;
+  const top = [
+    [cx, y - halfH],
+    [cx + halfW, y],
+    [cx, y + halfH],
+    [cx - halfW, y],
+  ];
+  const topPath = `M ${top[0][0]} ${top[0][1]} L ${top[1][0]} ${top[1][1]} L ${top[2][0]} ${top[2][1]} L ${top[3][0]} ${top[3][1]} Z`;
+  const sideLeft = `M ${top[3][0]} ${top[3][1]} L ${top[2][0]} ${top[2][1]} L ${top[2][0]} ${top[2][1] + depth} L ${top[3][0]} ${top[3][1] + depth} Z`;
+  const sideRight = `M ${top[2][0]} ${top[2][1]} L ${top[1][0]} ${top[1][1]} L ${top[1][0]} ${top[1][1] + depth} L ${top[2][0]} ${top[2][1] + depth} Z`;
+  return (
+    <g>
+      <ellipse cx={cx} cy={cy + depth + 12} rx={halfW * 0.85} ry={halfH * 0.32} fill="rgba(30,30,30,0.08)" />
+      <path d={sideLeft} fill="#d7d8dc" stroke={theme.ink} strokeWidth={2.5} />
+      <path d={sideRight} fill="#cfd0d4" stroke={theme.ink} strokeWidth={2.5} />
+      <path d={topPath} fill={fill} stroke={theme.ink} strokeWidth={2.5} />
+    </g>
+  );
+};
+
 /** 노드/항목 위에 뜨는 라벨 칩(카드). 화면 텍스트라 가독성 위해 정면 플랫으로 그림. */
 const LabelChip: React.FC<{ x: number; y: number; text: string; accent?: string }> = ({ x, y, text, accent }) => (
   <g>
@@ -143,14 +175,53 @@ const ArrowHeadDef = () => (
   </defs>
 );
 
-type DiagramLayout = 'conveyor' | 'row' | 'hub';
+type DiagramLayout = 'conveyor' | 'row' | 'hub' | 'equation';
+type NodeShape = 'disk' | 'card';
 
 /**
- * 매번 "대각선 컨베이어 + 원반 + 화살표"만 반복되지 않도록, 노드/엣지 구조와 씬 순번(seed)에
- * 따라 레이아웃을 다르게 고른다. 한 노드가 나머지 대부분과 연결된 허브 구조면 방사형(hub)으로,
- * 아니면 seed 로 대각선(conveyor)과 가로 지그재그(row)를 번갈아 쓴다.
+ * "A, B 가 합쳐져 C 가 된다" 형태(오퍼랜드 2개 이상 → 결과 노드 1개, 그 외 가지 없음)를 감지한다.
+ * 이런 정의/공식형 내용(예: Agent = Model + Harness)은 원반+화살표 도식보다
+ * 실제 수식처럼 박스+연산자로 보여주는 편이 훨씬 명확하고, 다른 도식과도 확실히 달라 보인다.
  */
-function pickLayout(nodes: { id: string }[], edges: { from: string; to: string }[], seed: number): DiagramLayout {
+function detectEquation(
+  nodes: { id: string; label: string }[],
+  edges: { from: string; to: string }[],
+): { operands: { id: string; label: string }[]; sum: { id: string; label: string } } | null {
+  if (nodes.length < 3 || nodes.length > 5) return null;
+  const indeg = new Map<string, number>();
+  const outdeg = new Map<string, number>();
+  nodes.forEach((n) => {
+    indeg.set(n.id, 0);
+    outdeg.set(n.id, 0);
+  });
+  for (const e of edges) {
+    if (!outdeg.has(e.from) || !indeg.has(e.to)) continue;
+    outdeg.set(e.from, (outdeg.get(e.from) ?? 0) + 1);
+    indeg.set(e.to, (indeg.get(e.to) ?? 0) + 1);
+  }
+  const sum = nodes.find((n) => (indeg.get(n.id) ?? 0) >= 2 && (outdeg.get(n.id) ?? 0) === 0);
+  if (!sum) return null;
+  const operands = nodes.filter(
+    (n) => n.id !== sum.id && (outdeg.get(n.id) ?? 0) >= 1 && (indeg.get(n.id) ?? 0) === 0,
+  );
+  if (operands.length < 2) return null;
+  // 오퍼랜드→합 이외의 곁가지 엣지가 있으면(다른 관계가 섞인 그래프) 수식으로 단순화하지 않는다.
+  const allEdgesAreCore = edges.every((e) => e.to === sum.id && operands.some((o) => o.id === e.from));
+  if (!allEdgesAreCore || edges.length !== operands.length) return null;
+  return { operands, sum };
+}
+
+/**
+ * 매번 "원반 + 화살표"만 반복되지 않도록, 노드/엣지 구조와 씬 순번(seed)에 따라 레이아웃을 다르게 고른다.
+ * "A+B=C" 형태 정의는 수식(equation)으로, 한 노드가 나머지 대부분과 연결된 허브 구조는 방사형(hub)으로,
+ * 그 외는 seed 로 대각선(conveyor)과 가로 지그재그(row)를 번갈아 쓴다.
+ */
+function pickLayout(
+  nodes: { id: string; label: string }[],
+  edges: { from: string; to: string }[],
+  seed: number,
+): DiagramLayout {
+  if (detectEquation(nodes, edges)) return 'equation';
   if (nodes.length >= 4) {
     const degree = new Map<string, number>();
     for (const e of edges) {
@@ -161,6 +232,14 @@ function pickLayout(nodes: { id: string }[], edges: { from: string; to: string }
     if (maxDegree >= nodes.length - 1) return 'hub';
   }
   return seed % 2 === 0 ? 'conveyor' : 'row';
+}
+
+/**
+ * 노드 모양(원반/카드)도 레이아웃과 다른 주기로 순환시켜 "항상 동그라미"를 벗어난다.
+ * 레이아웃 선택(seed%2)과 위상을 어긋나게 하려고 다른 나눗수를 쓴다.
+ */
+function pickShape(seed: number): NodeShape {
+  return Math.floor(seed / 2) % 2 === 0 ? 'disk' : 'card';
 }
 
 function layoutPositions(
@@ -210,7 +289,7 @@ function layoutPositions(
   });
 }
 
-/** 등각 개념 도식: 구조에 따라 컨베이어/가로/허브 레이아웃 중 하나로 배치되고 순서대로 떠오르며 화살표로 연결된다. */
+/** 등각 개념 도식: 구조에 따라 컨베이어/가로/허브/수식 레이아웃 중 하나로 배치되고 순서대로 떠오르며 연결된다. */
 export const IsoDiagram: React.FC<{ diagram: Diagram; narration: string; durationInFrames: number; seed?: number }> = ({
   diagram,
   narration,
@@ -219,10 +298,16 @@ export const IsoDiagram: React.FC<{ diagram: Diagram; narration: string; duratio
 }) => {
   const frame = useCurrentFrame();
   const nodes = diagram.nodes.slice(0, 6);
-  const revealAt = revealFrames(narration, durationInFrames, nodes.length, { head: 0.04, tail: 0.7 });
-
   const layout = pickLayout(nodes, diagram.edges, seed);
+
+  if (layout === 'equation') {
+    const eq = detectEquation(nodes, diagram.edges)!;
+    return <IsoEquation operands={eq.operands} sum={eq.sum} narration={narration} durationInFrames={durationInFrames} />;
+  }
+
+  const revealAt = revealFrames(narration, durationInFrames, nodes.length, { head: 0.04, tail: 0.7 });
   const positions = layoutPositions(nodes, diagram.edges, layout);
+  const shape = pickShape(seed);
 
   const idMap = new Map(nodes.map((n, i) => [n.id, i]));
 
@@ -261,9 +346,109 @@ export const IsoDiagram: React.FC<{ diagram: Diagram; narration: string; duratio
           const scale = 0.7 + pop * 0.3;
           return (
             <g key={n.id} transform={`translate(${sx}, ${sy}) scale(${scale}) translate(${-sx}, ${-sy})`} opacity={pop}>
-              <IsoDisk cx={sx} cy={sy} bob={bob} fill={i % 2 === 0 ? '#f1f2f4' : '#e7e8eb'} />
+              {shape === 'disk' ? (
+                <IsoDisk cx={sx} cy={sy} bob={bob} fill={i % 2 === 0 ? '#f1f2f4' : '#e7e8eb'} />
+              ) : (
+                <IsoCard cx={sx} cy={sy} bob={bob} fill={i % 2 === 0 ? '#f1f2f4' : '#e7e8eb'} />
+              )}
               <LabelChip x={sx} y={sy - 104 + bob} text={n.label} accent={i === nodes.length - 1 ? theme.accent : theme.ink} />
             </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+/**
+ * 등각 수식 도식: "A + B = C" 형태 정의를 원반/화살표 대신 실제 수식처럼 박스+연산자로 보여준다.
+ * 다른 도식들과 실루엣 자체가 달라 "맨날 같은 도식" 문제를 구조적으로 피한다.
+ */
+const IsoEquation: React.FC<{
+  operands: { id: string; label: string }[];
+  sum: { id: string; label: string };
+  narration: string;
+  durationInFrames: number;
+}> = ({ operands, sum, narration, durationInFrames }) => {
+  const frame = useCurrentFrame();
+  const items = [...operands, sum];
+  const revealAt = revealFrames(narration, durationInFrames, items.length, { head: 0.05, tail: 0.65 });
+
+  const boxW = 400;
+  const boxH = 220;
+  const opW = 130;
+  const gap = 20;
+  const slotWidths = items.flatMap((_, i) => (i < items.length - 1 ? [boxW, opW] : [boxW]));
+  const totalW = slotWidths.reduce((a, b) => a + b, 0) + gap * (slotWidths.length - 1);
+  let cursor = -totalW / 2;
+  const boxX: number[] = [];
+  const opX: number[] = [];
+  slotWidths.forEach((w, i) => {
+    const cx = cursor + w / 2;
+    if (i % 2 === 0) boxX.push(cx);
+    else opX.push(cx);
+    cursor += w + gap;
+  });
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
+      <g transform={`translate(${W / 2}, ${H / 2})`}>
+        {items.map((item, i) => {
+          const at = revealAt[i] ?? 0;
+          const pop = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const isSum = i === items.length - 1;
+          const cx = boxX[i];
+          return (
+            <g key={item.id} opacity={pop} transform={`translate(${cx}, 0) scale(${0.8 + pop * 0.2}) translate(${-cx}, 0)`}>
+              <rect
+                x={cx - boxW / 2}
+                y={-boxH / 2}
+                width={boxW}
+                height={boxH}
+                rx={20}
+                fill={isSum ? '#fff4ee' : '#ffffff'}
+                stroke={isSum ? theme.accent : theme.ink}
+                strokeWidth={isSum ? 5 : 3.5}
+              />
+              <foreignObject x={cx - boxW / 2 + 16} y={-boxH / 2 + 16} width={boxW - 32} height={boxH - 32}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    fontFamily: PRETENDARD,
+                    fontWeight: 800,
+                    fontSize: 46,
+                    lineHeight: 1.25,
+                    color: isSum ? theme.accent : theme.ink,
+                  }}
+                >
+                  {item.label}
+                </div>
+              </foreignObject>
+            </g>
+          );
+        })}
+        {opX.map((cx, i) => {
+          const isLast = i === opX.length - 1;
+          const sym = isLast ? '=' : '+';
+          const revealIdx = isLast ? items.length - 2 : i + 1;
+          const at = (revealAt[revealIdx] ?? 0) - 6;
+          const pop = interpolate(frame, [at, at + 12], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          return (
+            <text
+              key={i}
+              x={cx}
+              y={22}
+              textAnchor="middle"
+              opacity={pop}
+              style={{ fontFamily: PRETENDARD, fontWeight: 900, fontSize: 84, fill: theme.muted }}
+            >
+              {sym}
+            </text>
           );
         })}
       </g>
