@@ -25,9 +25,9 @@ import { generateBgm } from '../lib/bgm.js';
 import { renderVideo } from '../lib/render.js';
 import { generateIllustrations } from '../lib/illustrate.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
-import { uploadVideo } from '../lib/youtube.js';
+import { uploadVideo, setThumbnail } from '../lib/youtube.js';
 
-type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail';
+type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail' | 'rethumb';
 
 const TAIL_PAD_FRAMES = 18; // 각 씬 끝 여백(약 0.6초)
 
@@ -212,6 +212,24 @@ async function stepThumbnail(): Promise<void> {
   console.log(ok ? '  · 저장: ' + THUMBNAIL_PATH : '  · OPENAI_API_KEY 없음 → 생성 안 함');
 }
 
+/**
+ * (선택) 이미 올라간 기존 영상의 썸네일만 다시 만들어 교체한다 (영상 재렌더/재업로드 없음).
+ * 프롬프트 버그로 썸네일만 잘못 나왔을 때, 스크립트 재생성 비용 없이 저렴하게 고치기 위함.
+ * 대상 videoId/title/topic/headline 은 RETHUMB_* 환경변수로 받는다.
+ */
+async function stepRethumb(): Promise<void> {
+  const videoId = process.env.RETHUMB_VIDEO_ID?.trim();
+  if (!videoId) throw new Error('RETHUMB_VIDEO_ID 환경변수가 필요합니다.');
+  const title = process.env.RETHUMB_TITLE?.trim() || '';
+  const topic = process.env.RETHUMB_TOPIC?.trim() || '';
+  const headline = process.env.RETHUMB_HEADLINE?.trim() || '';
+  console.log('▶ 썸네일 재생성 + 교체:', videoId);
+  const ok = await generateThumbnail({ title, topic, headline, outPath: THUMBNAIL_PATH });
+  if (!ok) throw new Error('썸네일 생성 실패 (OPENAI_API_KEY 확인)');
+  await setThumbnail(videoId, THUMBNAIL_PATH);
+  console.log('  · 교체 완료:', THUMBNAIL_PATH);
+}
+
 /** 4) 유튜브 업로드 */
 async function stepUpload(): Promise<void> {
   console.log('▶ [4/4] 유튜브 업로드');
@@ -241,6 +259,7 @@ async function main() {
     else if (step === 'voice') await stepVoice();
     else if (step === 'render') await stepRender();
     else if (step === 'thumbnail') await stepThumbnail();
+    else if (step === 'rethumb') await stepRethumb();
     else if (step === 'upload') await stepUpload();
   }
 

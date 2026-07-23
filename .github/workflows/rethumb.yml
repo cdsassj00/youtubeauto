@@ -1,0 +1,38 @@
+name: 썸네일만 재생성/교체
+
+on:
+  # 웹앱에서 트리거 (client_payload 로 대상 videoId/제목/주제/후킹문구 전달)
+  repository_dispatch:
+    types: [rethumb-video]
+
+jobs:
+  rethumb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
+      PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
+      THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
+      RETHUMB_VIDEO_ID: ${{ github.event.client_payload.video_id }}
+      RETHUMB_TITLE: ${{ github.event.client_payload.title }}
+      RETHUMB_TOPIC: ${{ github.event.client_payload.topic }}
+      RETHUMB_HEADLINE: ${{ github.event.client_payload.headline }}
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 썸네일 재생성 + 교체
+        run: npm run rethumb

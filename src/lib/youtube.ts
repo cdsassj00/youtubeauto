@@ -76,3 +76,10 @@ export async function uploadVideo(params: {
 
   return videoId;
 }
+
+/** 이미 올라간 영상의 썸네일만 새 이미지로 교체한다 (rethumb 파이프라인 단계용). */
+export async function setThumbnail(videoId: string, thumbnailPath: string): Promise<void> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  await youtube.thumbnails.set({ videoId, media: { body: fs.createReadStream(thumbnailPath) } });
+}

@@ -37,7 +37,7 @@ export async function generateThumbnail(params: {
   const client = new OpenAI({ apiKey });
   // 매 생성마다 포즈·복장을 다르게 (얼굴/안경/헤어 정체성은 유지, 옷과 자세만 변주).
   const variation = pickVariation();
-  const prompt = buildPrompt(headline?.trim() || title, topic, config.thumbnailTone, Boolean(presenter), variation);
+  const prompt = buildPrompt(headline?.trim() || title, topic, title, config.thumbnailTone, Boolean(presenter), variation);
 
   let b64: string | undefined;
   if (presenter) {
@@ -103,6 +103,7 @@ function pickVariation(): { outfit: string; pose: string } {
 function buildPrompt(
   headline: string,
   topic: string,
+  title: string,
   tone: string,
   hasPresenter: boolean,
   variation: { outfit: string; pose: string },
@@ -127,11 +128,14 @@ function buildPrompt(
 
   return [
     'Create a professional, high-CTR YouTube thumbnail image in 16:9 landscape, in the style of top Korean educational tech YouTubers.',
-    `Video topic: "${topic}".`,
+    'IMPORTANT CONTEXT: this channel exclusively covers AI / software engineering / LLM agent topics for developers — never physical hardware, electrical wiring, automotive parts, or manufacturing.',
+    `Video title: "${title}". Video topic: "${topic}".`,
+    'DISAMBIGUATION (read carefully before drawing): Korean tech terms in the topic can have an unrelated everyday industrial meaning — pick the SOFTWARE/AI meaning, never the physical one. ' +
+      'Specifically: if the topic mentions "하네스"(harness), it means an AI AGENT\'S SOFTWARE SCAFFOLDING/RUNTIME (the code+config wrapper around an LLM, like Claude Code or a coding agent) — draw a laptop/terminal window, a flowchart of an agent loop, or a code editor, NEVER a physical wire harness, cable bundle, connector, wiring loom, robot arm, car, or airplane part. Do the same kind of correction for any other term that could be misread as physical/industrial hardware.',
     `Background: ${bg}.`,
     person,
     'On the LEFT and CENTER area, draw a BOLD hand-drawn (marker / Excalidraw sketch) concept diagram that illustrates the topic:',
-    'a few labeled rounded boxes connected by sketchy arrows, plus simple line icons (brain, gear, robot, laptop, cloud, chat bubble, code </>), clearly related to the topic.',
+    'a few labeled rounded boxes connected by sketchy arrows, plus simple line icons (brain, gear, laptop, terminal window, cloud, chat bubble, code </>), clearly related to software/AI — not physical objects.',
     'Use orange (#e8590c), blue (#1971c2) and green (#2f9e44) accents on clean strokes. Lively and clear, NOT cluttered, with real depth.',
     `Add a HUGE, BOLD Korean title, hand-lettered marker style, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
     `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — very large and thick, 1-2 lines, ${inkTitle}, as the clear focal point.`,
