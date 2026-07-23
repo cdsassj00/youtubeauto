@@ -14,6 +14,7 @@ import { theme } from './theme.js';
 import { PRETENDARD } from './pretendard.js';
 import { captionChunks } from './components/beats.js';
 import { IsoDiagram, IsoComparison } from './components/iso.js';
+import { BulletSlide, QuoteSlide } from './components/slides.js';
 
 /**
  * 일러스트 영상: 씬마다 흑백 라인아트 이미지를 흰 배경에 꽉 채워 보여주고(줌인/줌아웃),
@@ -55,7 +56,7 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
     return (
       <AbsoluteFill style={{ opacity: fade }}>
         <AbsoluteFill style={{ transform: `scale(${1 + (zoom - 1) * 0.35}) translate(${panX * 0.3}px, ${panY * 0.3}px)`, transformOrigin: 'center center' }}>
-          <IsoDiagram diagram={scene.diagram} narration={scene.narration} durationInFrames={dur} />
+          <IsoDiagram diagram={scene.diagram} narration={scene.narration} durationInFrames={dur} seed={index} />
         </AbsoluteFill>
         <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
@@ -68,6 +69,23 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
           <IsoComparison comparison={scene.comparison} narration={scene.narration} durationInFrames={dur} />
         </AbsoluteFill>
         <WordCaption narration={scene.narration} durationInFrames={dur} />
+      </AbsoluteFill>
+    );
+  }
+  // bullets/quote 씬도 AI 그림 대신 실제 발표자료 슬라이드로 그린다 — 안 그러면 이 씬들이
+  // 전부 같은 AI 일러스트 한 장 + 줌 패턴으로 렌더돼 영상 전체가 판박이처럼 보인다.
+  if (scene.visual === 'bullets' && scene.bullets.length > 0) {
+    return (
+      <AbsoluteFill style={{ opacity: fade }}>
+        <BulletSlide heading={scene.heading} bullets={scene.bullets} narration={scene.narration} durationInFrames={dur} />
+        <WordCaption narration={scene.narration} durationInFrames={dur} />
+      </AbsoluteFill>
+    );
+  }
+  if (scene.visual === 'quote') {
+    return (
+      <AbsoluteFill style={{ opacity: fade }}>
+        <QuoteSlide text={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
   }

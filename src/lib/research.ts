@@ -34,10 +34,23 @@ function buildQuery(topic?: string): string {
     : '최근 1~2개월 사이 AI 업계에서 화제가 된 모델·제품·논쟁·연구 발표';
 }
 
-const RESEARCH_INSTRUCTIONS =
-  '너는 유튜브 대본 작가를 위한 리서치 어시스턴트다. 반드시 웹 검색으로 실제 최신 정보를 확인한 뒤에만 답하고, 확실하지 않은 내용은 쓰지 않는다.';
+const RESEARCH_INSTRUCTIONS = [
+  '너는 정확성을 최우선으로 하는 팩트체커 겸 리서치 어시스턴트다.',
+  '반드시 web_search 도구를 실제로 호출해서 검색부터 하고, 검색 결과에 명시적으로 나온 내용만 답한다.',
+  '검색 없이 너의 기억(학습 데이터)만으로 날짜·버전·수치·출시일을 답하는 것은 절대 금지다 — 기억은 틀릴 수 있고, 틀린 날짜를 자신있게 말하는 것보다 "확인 안 됨"이 훨씬 낫다.',
+  '각 항목에는 근거가 된 출처(매체명 또는 URL)를 함께 표기한다. 출처를 댈 수 없는 항목은 아예 쓰지 않는다.',
+].join(' ');
 
-/** 저비용 provider: OpenAI Responses API + 내장 web_search 툴 (gpt-4.1-mini 기본값). */
+function researchPrompt(dateLabel: string, query: string): string {
+  return [
+    `오늘은 ${dateLabel} 이다. ${query}를 web_search 도구로 실제 검색해라(검색 없이 답하지 말 것).`,
+    '결과는 영상 대본 작성에 바로 참고할 수 있도록, 핵심 사실·수치·날짜·출처를 8~12개의 한국어 불릿으로 정리해라.',
+    '각 불릿 끝에 (출처: OO) 형식으로 출처를 붙여라.',
+    '검색 결과로 확인 안 되는 내용, 특히 정확한 날짜·버전 번호는 절대 추측해서 쓰지 말고 그냥 제외해라. 항목이 적어도 괜찮다 — 확인된 사실만 남겨라.',
+  ].join(' ');
+}
+
+/** 저비용 provider: OpenAI Responses API + 내장 web_search 툴 (gpt-4.1-mini 기본값). tool_choice 로 검색을 강제한다. */
 async function researchWithOpenAI(params: { dateLabel: string; topic?: string }): Promise<string> {
   const { dateLabel, topic } = params;
   const client = new OpenAI({ apiKey: config.openaiApiKey });
@@ -46,26 +59,22 @@ async function researchWithOpenAI(params: { dateLabel: string; topic?: string })
     const res = await client.responses.create({
       model: config.openaiResearchModel,
       tools: [{ type: 'web_search' }],
+      tool_choice: 'required',
       input: [
         { role: 'system', content: RESEARCH_INSTRUCTIONS },
-        {
-          role: 'user',
-          content: [
-            `오늘은 ${dateLabel} 이다. ${query}를 웹 검색으로 조사해라.`,
-            '결과는 영상 대본 작성에 바로 참고할 수 있도록, 핵심 사실·수치·날짜·출처를 8~12개의 한국어 불릿으로 정리해라.',
-            '검색으로 확인 안 되는 내용은 추측해서 쓰지 말고 제외해라.',
-          ].join(' '),
-        },
+        { role: 'user', content: researchPrompt(dateLabel, query) },
       ],
     });
-    return (res.output_text ?? '').trim();
+    const text = (res.output_text ?? '').trim();
+    console.log(`  · 리서치(OpenAI) 결과 ${text.length}자 — 미리보기: ${text.slice(0, 120).replace(/\n/g, ' ')}...`);
+    return text;
   } catch (e) {
     console.warn('  · 리서치(OpenAI 웹서치) 실패(무시):', (e as Error).message);
     return '';
   }
 }
 
-/** 폴백/대체 provider: Claude + 서버사이드 web_search 툴. */
+/** 폴백/대체 provider: Claude + 서버사이드 web_search 툴. tool_choice 로 검색을 강제한다. */
 async function researchWithClaude(params: { dateLabel: string; topic?: string }): Promise<string> {
   const { dateLabel, topic } = params;
   const client = new Anthropic({ apiKey: config.anthropicApiKey() });
@@ -76,25 +85,19 @@ async function researchWithClaude(params: { dateLabel: string; topic?: string })
       max_tokens: 4000,
       thinking: { type: 'adaptive' },
       tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6 }],
+      tool_choice: { type: 'tool', name: 'web_search' },
       system: RESEARCH_INSTRUCTIONS,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            `오늘은 ${dateLabel} 이다. ${query}를 웹 검색으로 조사해라.`,
-            '결과는 영상 대본 작성에 바로 참고할 수 있도록, 핵심 사실·수치·날짜·출처를 8~12개의 한국어 불릿으로 정리해라.',
-            '검색으로 확인 안 되는 내용은 추측해서 쓰지 말고 제외해라.',
-          ].join(' '),
-        },
-      ],
+      messages: [{ role: 'user', content: researchPrompt(dateLabel, query) }],
     });
 
     if (res.stop_reason === 'refusal') return '';
-    return res.content
+    const text = res.content
       .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
       .map((b) => b.text)
       .join('\n')
       .trim();
+    console.log(`  · 리서치(Claude) 결과 ${text.length}자 — 미리보기: ${text.slice(0, 120).replace(/\n/g, ' ')}...`);
+    return text;
   } catch (e) {
     console.warn('  · 리서치(Claude 웹서치) 실패(무시, 리서치 없이 진행):', (e as Error).message);
     return '';
