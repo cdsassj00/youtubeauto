@@ -38,6 +38,32 @@ export const VisualKind = z.enum([
   'outro', // 마무리/구독 유도
 ]);
 
+/**
+ * title/outro 씬에서 실제로 렌더링되는 평면(flat) 2D 라인 아이콘 목록(생활코딩 스타일 레퍼런스).
+ * 각 아이콘은 특정 개념과 1:1로 대응한다(자물쇠=보안/권한, DB=데이터, 서버=인프라, 시계=시간/지연 등) —
+ * "장식용 아무 아이콘"이 아니라 그 씬이 실제로 설명하는 대상을 가리키도록 대본 생성 시 골라야 한다.
+ */
+export const IconKind = z.enum([
+  'document', // 문서/자료/정의
+  'chat', // 질문/대화/논쟁
+  'search', // 조사/분석/검색
+  'lock', // 보안/권한/잠금
+  'key', // 인증/접근권한
+  'database', // 데이터/저장소
+  'server', // 인프라/백엔드/실행 환경
+  'cloud', // 클라우드/원격 서비스
+  'terminal', // 코드/커맨드/실행
+  'gear', // 설정/구성
+  'link', // 연결/통합/연동
+  'check', // 완료/검증/성공
+  'warning', // 주의/오류/리스크
+  'user', // 개인/사용자
+  'users', // 팀/커뮤니티/여러 사람
+  'clock', // 시간/속도/지연
+  'chart', // 성장/통계/수치
+  'mail', // 알림/커뮤니케이션/전달
+]);
+
 /** visual="code" 씬에 쓰는 실제 파일/코드 예시 한 화면 (에디터 창처럼 렌더링됨). */
 export const CodeExampleSchema = z.object({
   filename: z.string(), // 예: "skills/harness/SKILL.md", "hooks/pre-tool-use.sh"
@@ -50,8 +76,12 @@ export const SceneSchema = z.object({
   heading: z.string(), // 화면 상단 짧은 제목
   narration: z.string(), // 성우가 읽을 나레이션 (해당 언어)
   bullets: z.array(z.string()).max(5).default([]),
-  // 이 씬을 그릴 흑백 라인아트 일러스트의 영어 시각 묘사 (gpt-image-1 입력용).
-  illustration: z.string(),
+  // AI 일러스트용 영어 시각 묘사 — 폴백 전용(icon 이 없을 때만 사용). title/outro 는 기본적으로
+  // 아래 icon 필드로 렌더링되므로 보통 채울 필요 없다.
+  illustration: z.string().default(''),
+  // title/outro 씬에서 실제로 렌더링되는 평면 2D 아이콘. 이 씬이 설명하는 구체적 대상과
+  // 맞는 아이콘을 고른다(예: 보안 얘기면 lock, 데이터 얘기면 database).
+  icon: IconKind.optional(),
   visual: VisualKind,
   diagram: DiagramSchema.optional(),
   comparison: z

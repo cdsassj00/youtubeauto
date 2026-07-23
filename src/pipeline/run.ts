@@ -178,9 +178,10 @@ async function stepRender(): Promise<void> {
       (s.visual === 'comparison' && Boolean(s.comparison)) ||
       (s.visual === 'bullets' && s.bullets.length > 0) ||
       (s.visual === 'code' && Boolean(s.code)) ||
+      ((s.visual === 'title' || s.visual === 'outro') && Boolean(s.icon)) ||
       s.visual === 'quote';
     const needsAiImage = manifest.scenes.filter((s) => !isCodeRendered(s));
-    console.log(`  · 씬별 흑백 일러스트 생성 중... (${needsAiImage.length}/${manifest.scenes.length}, 도식/비교/불릿/인용 씬은 코드 렌더링으로 대체)`);
+    console.log(`  · 씬별 흑백 일러스트 생성 중... (${needsAiImage.length}/${manifest.scenes.length}, 도식/비교/불릿/인용/아이콘 씬은 코드 렌더링으로 대체)`);
     // manifest.theme(다크로 정해졌으면) 에 맞춰 AI 일러스트도 색을 반전해, title/outro 씬만
     // 흰 배경으로 튀지 않고 영상 전체가 한 톤으로 보이게 한다.
     const imgMap = await generateIllustrations(needsAiImage, manifest.theme === 'dark');
