@@ -26,7 +26,8 @@ const STYLE =
   'Instead always depict one concrete, real, specific object or scene tied to the exact subject (an actual laptop screen with a real UI, a physical office desk, ' +
   'a specific labeled diagram, a real tool, a stack of paper documents, a server rack, a phone showing an app). ' +
   'Centered composition with generous white space and soft drop shadows beneath floating elements, 16:9 landscape. ' +
-  'Absolutely NO text, letters, words, captions, numbers, logos, or watermarks anywhere in the image.';
+  'Absolutely NO text, letters, words, captions, numbers, logos, or watermarks anywhere in the image — not even short tags, labels, tabs, or stickers with words on them. ' +
+  'If the concrete object you choose would realistically have text on it (a book, a screen, a sign, a sticky note, a bookmark tab), draw it with blank white space, abstract scribble lines, or a solid color block standing in for the text — never render actual letterforms, and never invent words, since AI-generated text always comes out garbled and unreadable.';
 
 /**
  * 씬별 흑백 라인아트 일러스트를 gpt-image-1 로 생성해 public/img/{id}.png 에 저장한다.
