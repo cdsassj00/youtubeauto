@@ -62,9 +62,10 @@ export const config = {
   youtubeCategoryId: optional('YOUTUBE_CATEGORY_ID', '27'),
   // 모든 영상 설명란 맨 아래에 붙는 고정 안내(줄바꿈은 실제 개행 또는 \n).
   youtubeDescriptionFooter: optional('YOUTUBE_DESC_FOOTER', 'AX전환은 CDSA와 함께\nhttps://cdsa.kr'),
-  // 합성 콘텐츠(AI 음성·AI 합성 썸네일) 공개 표시. YouTube 정책상 미신고 시 3진 아웃(경고→90일 수익화 정지→
-  // 영구 퇴출) 리스크가 있어 기본 true. videos.insert 의 status.containsSyntheticMedia 로 전달된다.
-  containsSyntheticMedia: optional('SYNTHETIC_MEDIA_DISCLOSURE', 'true').toLowerCase() === 'true',
+  // 합성 콘텐츠 공개 표시. YouTube 정책상 "자기 목소리를 복제해 보이스오버/더빙에 쓰는 것"과
+  // "실사가 아닌 완전 애니메이션/일러스트 콘텐츠"는 명시적 예외 대상 — 이 채널(음성 클론 나레이션 +
+  // 흑백 일러스트/등각 그래픽)은 둘 다 해당해 표시 불필요. 필요해지면(실사풍으로 바뀌는 등) true로.
+  containsSyntheticMedia: optional('SYNTHETIC_MEDIA_DISCLOSURE', 'false').toLowerCase() === 'true',
 
   // 콘텐츠
   contentMode: optional('CONTENT_MODE', 'auto'),
