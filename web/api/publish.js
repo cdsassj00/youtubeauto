@@ -16,9 +16,10 @@ export default async function handler(req, res) {
   }
 
   const client_payload = {
-    // 설치 방법처럼 긴 브리핑도 넣을 수 있어야 하므로 넉넉히 허용(200자는 실수로
-    // 브리핑을 잘라버려 "충실 반영" 기능을 무력화시켰음).
-    topic: String(body.topic || '').slice(0, 8000),
+    // 뉴스 스크립트급 긴 브리핑(타임코드별 섹션 + 참고자료 링크 포함)도 안 잘리게 넉넉히 허용
+    // (200자 제한이 "충실 반영" 기능을 무력화시켰던 전례가 있음). GitHub repository_dispatch
+    // client_payload 한도(256KB)에 비하면 여전히 작아 안전하다.
+    topic: String(body.topic || '').slice(0, 20000),
     content_mode: ['auto', 'trend', 'basics'].includes(body.mode) ? body.mode : 'auto',
     content_level: ['basic', 'intermediate', 'expert'].includes(body.level) ? body.level : 'expert',
     do_upload: body.upload ? 'true' : 'false',
