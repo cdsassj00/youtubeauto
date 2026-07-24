@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame } from 'remotion';
-import { theme as defaultTheme, nodeColors, type VisualTheme } from '../theme.js';
+import { theme as defaultTheme, monoRamp, type VisualTheme } from '../theme.js';
 import { PRETENDARD } from '../pretendard.js';
 import { revealFrames } from './beats.js';
 
@@ -71,7 +71,7 @@ const BulletNumberedList: React.FC<SlideInner> = ({ heading, bullets, narration,
             const at = revealAt[i] ?? 0;
             const pop = interpolate(frame, [at, at + 14], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
             if (pop <= 0) return null;
-            const color = nodeColors[i % nodeColors.length];
+            const color = monoRamp(theme, items.length)[i];
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 32, opacity: pop, transform: `translateX(${(1 - pop) * -40}px)` }}>
                 <div
@@ -117,7 +117,7 @@ const BulletGrid: React.FC<SlideInner> = ({ heading, bullets, narration, duratio
             const at = revealAt[i] ?? 0;
             const pop = interpolate(frame, [at, at + 14], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
             if (pop <= 0) return null;
-            const color = nodeColors[i % nodeColors.length];
+            const color = monoRamp(theme, items.length)[i];
             return (
               <div
                 key={i}
@@ -161,7 +161,7 @@ const BulletBigNumber: React.FC<SlideInner> = ({ heading, bullets, narration, du
             const at = revealAt[i] ?? 0;
             const pop = interpolate(frame, [at, at + 14], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
             if (pop <= 0) return null;
-            const color = nodeColors[i % nodeColors.length];
+            const color = monoRamp(theme, items.length)[i];
             return (
               <div
                 key={i}
@@ -202,7 +202,7 @@ const BulletBarCards: React.FC<SlideInner> = ({ heading, bullets, narration, dur
             const at = revealAt[i] ?? 0;
             const pop = interpolate(frame, [at, at + 14], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
             if (pop <= 0) return null;
-            const color = nodeColors[i % nodeColors.length];
+            const color = monoRamp(theme, items.length)[i];
             const w = interpolate(pop, [0, 1], [0.4, 1]);
             return (
               <div

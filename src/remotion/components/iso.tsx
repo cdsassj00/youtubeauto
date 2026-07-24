@@ -1,7 +1,7 @@
 import React from 'react';
 import { interpolate, useCurrentFrame } from 'remotion';
 import type { Diagram } from '../../schema.js';
-import { theme as defaultTheme, type VisualTheme } from '../theme.js';
+import { theme as defaultTheme, monoRamp, type VisualTheme } from '../theme.js';
 import { PRETENDARD } from '../pretendard.js';
 import { revealFrames } from './beats.js';
 
@@ -201,7 +201,7 @@ const ArrowHeadDef: React.FC<{ theme: VisualTheme }> = ({ theme }) => (
   </defs>
 );
 
-type DiagramLayout = 'conveyor' | 'row' | 'hub' | 'equation' | 'orbit' | 'timeline' | 'cycle';
+type DiagramLayout = 'conveyor' | 'row' | 'hub' | 'equation' | 'orbit' | 'timeline' | 'cycle' | 'layers' | 'matrix';
 type NodeShape = 'box' | 'circle';
 
 /** 모든 노드가 한 줄 방향 사슬(a→b→c→d)을 이루는지 — 순서대로 정렬된 인덱스 반환, 아니면 null. */
@@ -293,6 +293,8 @@ function pickLayout(
   if (detectEquation(nodes, edges)) return 'equation';
   if (nodes.length === 2) return 'orbit';
   if (detectCycle(nodes, edges)) return 'cycle';
+  // 엣지가 거의 없는 독립 4개 항목(관계 아닌 병렬 분류) → 2×2 매트릭스.
+  if (nodes.length === 4 && edges.length <= 1) return 'matrix';
   if (nodes.length >= 4) {
     const degree = new Map<string, number>();
     for (const e of edges) {
@@ -302,10 +304,10 @@ function pickLayout(
     const maxDegree = Math.max(0, ...degree.values());
     if (maxDegree >= nodes.length - 1) return 'hub';
   }
-  // 한 줄 사슬(순차 단계)이면 conveyor/row/timeline 을 seed 로 번갈아 — 같은 흐름도 매번 다르게.
+  // 한 줄 사슬(순차 단계)이면 conveyor/timeline/row/layers 를 seed 로 번갈아 — 같은 흐름도 매번 다르게.
   if (detectChain(nodes, edges)) {
-    const pick = seed % 3;
-    return pick === 0 ? 'conveyor' : pick === 1 ? 'timeline' : 'row';
+    const pick = seed % 4;
+    return pick === 0 ? 'conveyor' : pick === 1 ? 'timeline' : pick === 2 ? 'layers' : 'row';
   }
   return seed % 2 === 0 ? 'conveyor' : 'row';
 }
@@ -389,6 +391,13 @@ export const IsoDiagram: React.FC<{
   if (layout === 'cycle') {
     const order = detectCycle(nodes, diagram.edges)!;
     return <CycleDiagram nodes={order.map((i) => nodes[i])} narration={narration} durationInFrames={durationInFrames} theme={theme} />;
+  }
+  if (layout === 'layers') {
+    const order = detectChain(nodes, diagram.edges) ?? nodes.map((_, i) => i);
+    return <LayersDiagram nodes={order.map((i) => nodes[i])} narration={narration} durationInFrames={durationInFrames} theme={theme} />;
+  }
+  if (layout === 'matrix') {
+    return <MatrixDiagram nodes={nodes} narration={narration} durationInFrames={durationInFrames} theme={theme} />;
   }
 
   const revealAt = revealFrames(narration, durationInFrames, nodes.length, { head: 0.04, tail: 0.7 });
@@ -742,6 +751,139 @@ const CycleDiagram: React.FC<{
               frame={frame}
               seed={i}
             />
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+/**
+ * 레이어(계층) 도식: 순차/누적 단계를 아래에서 위로 쌓이는 가로 막대로 그린다. 밑에서부터
+ * 하나씩 쌓여 올라가는 애니메이션이라 "토대 위에 얹는" 구조(사전학습→튜닝→정렬 등)에 잘 맞고,
+ * 타임라인/컨베이어와 실루엣이 또 다르다.
+ */
+const LayersDiagram: React.FC<{
+  nodes: { id: string; label: string }[];
+  narration: string;
+  durationInFrames: number;
+  theme: VisualTheme;
+}> = ({ nodes, narration, durationInFrames, theme }) => {
+  const frame = useCurrentFrame();
+  const layers = nodes.slice(0, 6);
+  const n = layers.length;
+  // 아래(마지막) → 위(첫) 순서로 쌓는 게 자연스러운 경우가 많지만, 나레이션 순서대로 등장시키되
+  // 배치는 첫 항목이 맨 위가 되게 한다(사슬 순서 = 위에서 아래로 읽힘).
+  const revealAt = revealFrames(narration, durationInFrames, n, { head: 0.06, tail: 0.72 });
+  const barW = 1180;
+  const barH = 108;
+  const gap = 26;
+  const totalH = n * barH + (n - 1) * gap;
+  const top = -totalH / 2;
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
+      <g transform={`translate(${W / 2}, ${H / 2})`}>
+        {layers.map((node, i) => {
+          const at = revealAt[i] ?? 0;
+          const appear = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          if (appear <= 0) return null;
+          const y = top + i * (barH + gap);
+          // 계단식 들여쓰기(피라미드 느낌): 위층일수록 살짝 좁게.
+          const shrink = (n - 1 - i) * 26;
+          const w = barW - shrink;
+          const x = -w / 2;
+          const emphasize = i === n - 1;
+          const color = emphasize ? theme.accent : theme.ink;
+          const slide = (1 - appear) * 40;
+          return (
+            <g key={node.id} opacity={Math.min(1, appear * 1.4)} transform={`translate(0, ${slide})`}>
+              <rect x={x} y={y} width={w} height={barH} rx={16} fill={theme.paper} stroke={color} strokeWidth={emphasize ? 6 : 4} />
+              <rect x={x} y={y} width={12} height={barH} rx={0} fill={color} opacity={0.85} />
+              <foreignObject x={x + 34} y={y} width={w - 60} height={barH}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontFamily: PRETENDARD,
+                    fontWeight: 700,
+                    fontSize: node.label.length > 16 ? 38 : 46,
+                    color: theme.ink,
+                    wordBreak: 'keep-all',
+                  }}
+                >
+                  {node.label}
+                </div>
+              </foreignObject>
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+/**
+ * 2×2 매트릭스: 관계(엣지)가 아니라 병렬 분류 4개를 사분면에 배치. 축이 있는 비교/분류
+ * (예: 중요도×긴급도, 학습형×실행형)에 어울리며 노드+화살표와 완전히 다른 그림.
+ */
+const MatrixDiagram: React.FC<{
+  nodes: { id: string; label: string }[];
+  narration: string;
+  durationInFrames: number;
+  theme: VisualTheme;
+}> = ({ nodes, narration, durationInFrames, theme }) => {
+  const frame = useCurrentFrame();
+  const cells = nodes.slice(0, 4);
+  const revealAt = revealFrames(narration, durationInFrames, cells.length, { head: 0.06, tail: 0.72 });
+  const cw = 520;
+  const ch = 300;
+  const gap = 40;
+  const centers = [
+    { x: -(cw + gap) / 2, y: -(ch + gap) / 2 },
+    { x: (cw + gap) / 2, y: -(ch + gap) / 2 },
+    { x: -(cw + gap) / 2, y: (ch + gap) / 2 },
+    { x: (cw + gap) / 2, y: (ch + gap) / 2 },
+  ];
+  const axis = interpolate(frame, [0, 24], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
+      <g transform={`translate(${W / 2}, ${H / 2})`}>
+        <line x1={0} y1={-(ch + gap / 2 + 30) * axis} x2={0} y2={(ch + gap / 2 + 30) * axis} stroke={theme.muted} strokeWidth={4} />
+        <line x1={-(cw + gap / 2 + 30) * axis} y1={0} x2={(cw + gap / 2 + 30) * axis} y2={0} stroke={theme.muted} strokeWidth={4} />
+        {cells.map((node, i) => {
+          const at = revealAt[i] ?? 0;
+          const appear = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          if (appear <= 0) return null;
+          const c = centers[i];
+          const color = monoRamp(theme, 4)[i % 4];
+          return (
+            <g key={node.id} opacity={Math.min(1, appear * 1.4)} transform={`translate(${c.x}, ${c.y}) scale(${popScale(appear)}) translate(${-c.x}, ${-c.y})`}>
+              <rect x={c.x - cw / 2} y={c.y - ch / 2} width={cw} height={ch} rx={20} fill={theme.paper} stroke={color} strokeWidth={5} />
+              <foreignObject x={c.x - cw / 2 + 28} y={c.y - ch / 2 + 20} width={cw - 56} height={ch - 40}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    fontFamily: PRETENDARD,
+                    fontWeight: 800,
+                    fontSize: node.label.length > 14 ? 40 : 50,
+                    color: theme.ink,
+                    lineHeight: 1.25,
+                    wordBreak: 'keep-all',
+                  }}
+                >
+                  {node.label}
+                </div>
+              </foreignObject>
+            </g>
           );
         })}
       </g>
