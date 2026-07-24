@@ -87,7 +87,7 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
   if (scene.visual === 'bullets' && scene.bullets.length > 0) {
     return (
       <AbsoluteFill style={{ opacity: fade }}>
-        <BulletSlide heading={scene.heading} bullets={scene.bullets} narration={scene.narration} durationInFrames={dur} theme={theme} />
+        <BulletSlide heading={scene.heading} bullets={scene.bullets} narration={scene.narration} durationInFrames={dur} theme={theme} seed={index} />
         <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
@@ -109,7 +109,7 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
   if (scene.visual === 'quote') {
     return (
       <AbsoluteFill style={{ opacity: fade }}>
-        <QuoteSlide text={scene.narration} durationInFrames={dur} theme={theme} />
+        <QuoteSlide text={scene.narration} durationInFrames={dur} theme={theme} seed={index} />
       </AbsoluteFill>
     );
   }
