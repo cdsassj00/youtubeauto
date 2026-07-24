@@ -22,6 +22,10 @@ on:
         description: '유튜브 업로드 여부 (true | false)'
         required: false
         default: 'true'
+      channel:
+        description: '업로드 채널 (default | ch2)'
+        required: false
+        default: 'default'
   # 웹앱/외부에서 트리거 (client_payload 로 topic 전달)
   repository_dispatch:
     types: [publish-video]
@@ -43,6 +47,16 @@ jobs:
       YOUTUBE_PRIVACY_STATUS: ${{ vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
       YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
+      # ── 두 번째 채널(ch2) 자격증명 — TARGET_CHANNEL=ch2 일 때 사용. 새 채널 OAuth 후 아래 시크릿을 등록. ──
+      # (client id/secret 은 같은 OAuth 앱을 공유하면 위 기본값으로 폴백되므로 refresh token 만 필수)
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_CATEGORY_ID_CH2: ${{ vars.YOUTUBE_CATEGORY_ID_CH2 }}
+      YOUTUBE_DESC_FOOTER_CH2: ${{ vars.YOUTUBE_DESC_FOOTER_CH2 }}
+      YOUTUBE_PRIVACY_STATUS_CH2: ${{ vars.YOUTUBE_PRIVACY_STATUS_CH2 }}
+      # 업로드 대상 채널 선택 (default | ch2). 웹앱/수동 실행에서 전달.
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'default' }}
       # 합성 콘텐츠 공개 표시 — 목소리 클론 나레이션 + 비실사 일러스트는 YouTube 명시적 예외 대상이라 기본 false.
       SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'false' }}
       TOPIC: ${{ github.event.inputs.topic || github.event.client_payload.topic || '' }}

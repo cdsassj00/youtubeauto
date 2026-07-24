@@ -172,6 +172,13 @@
               <option value="expert" selected>전문가용(깊이있게)</option>
             </select>
           </div>
+          <div>
+            <label for="channel">채널</label>
+            <select id="channel">
+              <option value="default" selected>기본 채널</option>
+              <option value="ch2">두 번째 채널</option>
+            </select>
+          </div>
         </div>
 
         <div class="switch">
@@ -250,7 +257,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               topic, mode: $('mode').value, minutes: Number($('minutes').value),
-              level: $('level').value,
+              level: $('level').value, channel: $('channel').value,
               upload: $('upload').checked, password: $('pw').value,
             }),
           });

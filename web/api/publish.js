@@ -24,6 +24,8 @@ export default async function handler(req, res) {
     content_level: ['basic', 'intermediate', 'expert'].includes(body.level) ? body.level : 'expert',
     do_upload: body.upload ? 'true' : 'false',
     target_minutes: String(Math.max(2, Math.min(20, Number(body.minutes) || 10))),
+    // 업로드 대상 채널 (default | ch2). 알 수 없는 값은 default 로 안전 처리.
+    channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
   };
 
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
