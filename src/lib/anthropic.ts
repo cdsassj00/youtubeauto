@@ -3,6 +3,9 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { config } from '../config.js';
 import { ScriptSchema, type Script } from '../schema.js';
 
+/** 출력 길이 초과로 JSON 이 도중에 잘렸을 때의 표식 — 이 메시지로 재시도 여부를 판단한다. */
+const TRUNCATED_MSG = '대본 JSON 이 출력 도중 잘렸습니다(출력 길이 초과).';
+
 /**
  * Claude(Opus 4.8) 로 이번 회차 영상 대본을 생성한다.
  * 구조화 출력(Structured Outputs)으로 ScriptSchema 형태의 JSON 을 강제하고,
@@ -140,16 +143,29 @@ export async function generateScript(params: {
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: user + extraUserNote }];
     const stream = client.messages.stream({
       model: config.claudeModel,
-      max_tokens: 32000,
+      // 사고(thinking) 토큰도 이 예산을 함께 쓴다. 32000 이면 긴 브리핑 + 30여 개 씬을 쓰다가
+      // JSON 이 중간에서 잘려("Unterminated string in JSON") 파이프라인 전체가 죽었다.
+      // Opus 4.8 은 최대 128K 출력이라 넉넉히 잡아 둔다.
+      max_tokens: 64000,
       thinking: { type: 'adaptive' },
       output_config: { format: zodOutputFormat(ScriptSchema) },
       system,
       messages,
     });
-    const final = await stream.finalMessage();
+    // SDK 가 구조화 출력을 즉시 파싱하므로, 출력이 잘리면 여기서 파싱 오류로 터진다.
+    // 원인을 알 수 없는 스택트레이스 대신 무엇이 잘못됐는지 알려주고 위쪽에서 재시도하게 한다.
+    let final: Anthropic.Message;
+    try {
+      final = await stream.finalMessage();
+    } catch (e) {
+      const msg = (e as Error).message || '';
+      if (/parse structured output/i.test(msg)) throw new Error(TRUNCATED_MSG);
+      throw e;
+    }
     if (final.stop_reason === 'refusal') {
       throw new Error('Claude 가 대본 생성을 거부했습니다(안전상). 주제를 바꿔 다시 시도하세요.');
     }
+    if (final.stop_reason === 'max_tokens') throw new Error(TRUNCATED_MSG);
     const textBlock = final.content.find((b) => b.type === 'text');
     const text = textBlock && 'text' in textBlock ? textBlock.text : '';
     if (!text) {
@@ -164,9 +180,23 @@ export async function generateScript(params: {
     return ScriptSchema.parse(json);
   }
 
+  /** 출력이 잘려 JSON 이 깨진 경우 한 번만 더 시도한다(부가 필드를 짧게 쓰도록 지시). */
+  async function runOnceResilient(extraUserNote: string): Promise<Script> {
+    try {
+      return await runOnce(extraUserNote);
+    } catch (e) {
+      if ((e as Error).message !== TRUNCATED_MSG) throw e;
+      console.warn('[대본] 출력이 잘려 재시도 — 부가 필드를 짧게 쓰도록 지시');
+      return runOnce(
+        extraUserNote +
+          '\n\n※ 직전 시도는 출력이 너무 길어 JSON 이 도중에 잘렸다. 나레이션 총량은 그대로 지키되, illustrationPrompt 는 한 줄(60자 이내)로 짧게 쓰고 description 도 간결하게 줄여라.',
+      );
+    }
+  }
+
   const totalChars = (s: Script) => s.scenes.reduce((sum, sc) => sum + (sc.narration?.length ?? 0), 0);
 
-  let script = await runOnce('');
+  let script = await runOnceResilient('');
   let chars = totalChars(script);
   console.log(`[대본] 나레이션 총 ${chars}자 / 목표 ${targetChars}자 (씬 ${script.scenes.length}개)`);
 
@@ -175,7 +205,7 @@ export async function generateScript(params: {
   if (chars < targetChars * 0.82) {
     console.log(`[대본] 분량 미달 → 더 길게 재생성 시도`);
     try {
-      const retry = await runOnce(
+      const retry = await runOnceResilient(
         `\n\n[중요·재작성 지시] 직전 시도가 총 ${chars}자로 목표(${targetChars}자)의 절반 수준밖에 안 돼 영상이 너무 짧다. 이번엔 씬 수를 ${isBrief ? 30 : 32}개 이상으로 늘리고 각 씬 나레이션을 2~4문장(120~200자)으로 충분히 써서 총 ${targetChars}자 이상을 반드시 채워라. (quote 씬만 짧게.)`,
       );
       const retryChars = totalChars(retry);

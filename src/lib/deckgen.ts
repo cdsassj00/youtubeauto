@@ -118,13 +118,16 @@ export async function generateDeck(params: {
 
   const stream = client.messages.stream({
     model: config.claudeModel,
-    max_tokens: 32000,
+    // 사고(thinking) 토큰도 이 예산을 함께 쓴다 — 32000 이면 긴 리서치 + 20여 장 슬라이드에서
+    // JSON 이 중간에 잘려 파싱이 깨진다. Opus 4.8 은 최대 128K 출력.
+    max_tokens: 64000,
     thinking: { type: 'adaptive' },
     system,
     messages: [{ role: 'user', content: user }],
   });
   const final = await stream.finalMessage();
   if (final.stop_reason === 'refusal') throw new Error('Claude 가 대본 생성을 거부했습니다(안전상).');
+  if (final.stop_reason === 'max_tokens') throw new Error('deck JSON 이 출력 도중 잘렸습니다(출력 길이 초과). 주제/브리핑을 줄이거나 다시 시도하세요.');
   const block = final.content.find((b) => b.type === 'text');
   let text = block && 'text' in block ? block.text.trim() : '';
   if (!text) throw new Error('deck 생성 실패: 텍스트 출력 없음');
