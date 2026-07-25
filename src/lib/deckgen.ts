@@ -28,7 +28,7 @@ const SIGNAL_SPEC = `
               steps:[{node:0,say:"..."},{node:1,say:"..."}] }  // 카메라가 단계별로 강조하며 진행
   · points 의 x,y 는 0~100 백분율 좌표. 3~5개 노드를 화면에 고르게 배치.
   · nodes 는 steps 각각이 하나의 나레이션 비트가 된다(steps 에만 say/spoken 을 쓴다).
-규칙: 화면에 요소를 적게 — 숫자와 짧은 라벨 위주. 장식 금지. 12~16개 슬라이드.
+규칙: 화면에 요소를 적게 — 숫자와 짧은 라벨 위주. 장식 금지.
 `;
 
 const DECK3D_SPEC = `
@@ -40,8 +40,20 @@ const DECK3D_SPEC = `
           // 카메라가 노드를 하나씩 따라간다. nodes 각각이 나레이션 비트.
 - cmp   : { type:"cmp", kicker, head, left:["제목","항목","항목"], right:["제목","항목","항목"] }
 - quote : { type:"quote", quote:"한 문장 임팩트(\\n 로 2줄)" }
-규칙: 12~16개 슬라이드. 같은 타입 3연속 금지. flow 는 2개 이상 넣어 카메라 추적을 살린다.
+규칙: 같은 타입 3연속 금지. flow 는 2개 이상 넣어 카메라 추적을 살린다.
 `;
+
+/** 슬라이드(및 steps)의 say 글자 수 합계 — 분량 검증용. */
+function countSay(slides: DeckSlide[]): number {
+  let n = 0;
+  for (const s of slides) {
+    const say = (s as { say?: string }).say;
+    if (typeof say === 'string') n += say.length;
+    const steps = (s as { steps?: { say?: string }[] }).steps;
+    if (Array.isArray(steps)) for (const st of steps) if (typeof st.say === 'string') n += st.say.length;
+  }
+  return n;
+}
 
 export async function generateDeck(params: {
   topic: string;
@@ -53,8 +65,9 @@ export async function generateDeck(params: {
   const { topic, style, targetMinutes, dateLabel, research } = params;
   const client = new Anthropic({ apiKey: config.anthropicApiKey() });
 
-  // 한국어 나레이션은 초당 약 7자 → 목표 분량(자)
-  const targetChars = Math.round(targetMinutes * 460);
+  // 한국어 나레이션은 초당 약 7자(분당 약 460자). 배속을 올리면 같은 시간에 더 많이 읽으므로
+  // 목표 글자 수도 배속만큼 늘려야 실제 영상 길이가 맞는다.
+  const targetChars = Math.round(targetMinutes * 460 * config.narrationSpeed);
 
   const system = [
     '너는 데이터 중심 설명 영상의 수석 작가다. 화면은 슬라이드로, 목소리는 나레이션으로 나간다.',
@@ -69,7 +82,11 @@ export async function generateDeck(params: {
     '',
     style === 'deck3d' ? DECK3D_SPEC : SIGNAL_SPEC,
     '',
-    `오늘은 ${dateLabel} 이다. 나레이션 합계 글자 수는 약 ${targetChars}자 이상이어야 ${targetMinutes}분이 나온다 — 반드시 채워라.`,
+    `오늘은 ${dateLabel} 이다.`,
+    `★분량이 가장 흔한 실패다★ 모든 슬라이드(및 각 steps)의 say 를 합친 글자 수가 반드시 ${targetChars}자 이상이어야 ${targetMinutes}분 영상이 된다.`,
+    `이를 위해 슬라이드를 ${Math.max(18, Math.round(targetMinutes * 2.2))}개 이상 만들고, 각 say 를 2~4문장(120~220자)으로 충분히 길게 써라.`,
+    '한 슬라이드에 한 사실만 담고, 사실 → 근거 수치 → 그래서 사용자에게 뭐가 달라지는지(체감)까지 이어서 말한다.',
+    '내용이 부족하면 배경·비교·사례·한계·활용법·주의점 같은 각도를 더 다뤄 분량을 채워라. 같은 말 반복은 금지.',
     '출력은 JSON 하나만. 설명·마크다운·코드펜스 금지.',
     '형식: {"meta":{"title":"영상 제목(40자 이내)","description":"유튜브 설명(줄바꿈 포함)","tags":["키워드", ...8~15개],',
     '"thumbnailHeadline":"썸네일 문구(15~25자, 대상이 분명하게)"},',
@@ -106,6 +123,8 @@ export async function generateDeck(params: {
   if (!slides.length) throw new Error('deck 에 slides 가 비어 있습니다');
 
   const meta = parsed.meta || {};
+  const totalChars = countSay(slides);
+  console.log(`  · deck 나레이션 ${totalChars}자 / 목표 ${targetChars}자 (슬라이드 ${slides.length}개)`);
   return {
     meta: {
       title: String(meta.title || topic).slice(0, 100),

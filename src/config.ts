@@ -130,6 +130,9 @@ export const config = {
   //  signal3d    : signal 디자인 + 3D 깊이 카메라(텍스트는 DOM 이라 선명)
   //  web3d/remotion : 구버전 엔진
   videoEngine: optional('VIDEO_ENGINE', 'illustrated').toLowerCase(),
+  // 나레이션 속도 배속(1=원속). 빠르게 하면 같은 시간에 더 많은 내용이 들어가므로
+  // 대본 목표 글자 수도 이 비율만큼 늘려야 목표 길이가 맞는다.
+  narrationSpeed: Math.max(0.5, Math.min(2, Number(optional('NARRATION_SPEED', '1')))),
 
   // 동작
   doUpload: optional('DO_UPLOAD', 'false').toLowerCase() === 'true',

@@ -30,6 +30,8 @@ export default async function handler(req, res) {
     privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : '',
     // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
     style: ['illustrated', 'deck3d', 'signal', 'signal3d'].includes(body.style) ? body.style : '',
+    // 나레이션 배속(0.8~1.4). 비우면 워크플로 기본값.
+    speed: body.speed ? String(Math.max(0.8, Math.min(1.4, Number(body.speed) || 1))) : '',
   };
 
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {

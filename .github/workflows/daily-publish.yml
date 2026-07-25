@@ -74,6 +74,8 @@ jobs:
       CONTENT_LEVEL: ${{ github.event.inputs.content_level || github.event.client_payload.content_level || vars.CONTENT_LEVEL || 'expert' }}
       TARGET_MINUTES: ${{ github.event.client_payload.target_minutes || vars.TARGET_MINUTES || '10' }}
       CONTENT_LANGUAGE: ${{ vars.CONTENT_LANGUAGE || 'ko' }}
+      # 나레이션 배속(1=원속). 조금 빠르게 읽어 정보 밀도를 높인다.
+      NARRATION_SPEED: ${{ github.event.client_payload.speed || vars.NARRATION_SPEED || '1.12' }}
       DO_UPLOAD: ${{ github.event.inputs.do_upload || github.event.client_payload.do_upload || 'true' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}

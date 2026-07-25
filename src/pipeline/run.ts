@@ -224,6 +224,7 @@ function renderDeckVideo(): Promise<void> {
         W: String(WIDTH),
         H: String(HEIGHT),
         FPS: String(FPS),
+        NARRATION_SPEED: String(config.narrationSpeed),
         NODE_PATH: [process.env.NODE_PATH, '/opt/node22/lib/node_modules'].filter(Boolean).join(path.delimiter),
       },
     });

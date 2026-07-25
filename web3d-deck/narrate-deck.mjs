@@ -12,9 +12,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const FFMPEG = require('ffmpeg-static');
-const CHROME = process.env.CHROME_BIN || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const SANDBOX_CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+// CI(GitHub Actions)는 Playwright 기본 캐시에 설치되므로 executablePath 를 강제하면 안 된다.
+const CHROME = process.env.CHROME_BIN || (fs.existsSync(SANDBOX_CHROME) ? SANDBOX_CHROME : '');
 const FPS = Number(process.env.FPS || 24), W = Number(process.env.W || 1920), H = Number(process.env.H || 1080);
 const PAD = 0.5;
+const SPEED = Math.max(0.5, Math.min(2, Number(process.env.NARRATION_SPEED || 1)));  // 나레이션 속도 배속
 const MODEL = process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2';
 const KEY = process.env.ELEVENLABS_API_KEY, VOICE = process.env.ELEVENLABS_VOICE_ID;
 
@@ -57,8 +60,14 @@ for (let i = 0; i < beats.length; i++) {
     body: JSON.stringify({ text: b.spoken || b.say, model_id: MODEL }),
   });
   if (!res.ok) { console.error('TTS 실패', res.status, (await res.text()).slice(0, 200)); process.exit(1); }
-  const clip = path.join(work, `c${String(i).padStart(3, '0')}.mp3`);
+  let clip = path.join(work, `c${String(i).padStart(3, '0')}.mp3`);
   fs.writeFileSync(clip, Buffer.from(await res.arrayBuffer()));
+  if (SPEED !== 1) {
+    // atempo 는 피치를 유지한 채 속도만 바꾼다. 가속 후 길이를 다시 재서 화면 타이밍에 쓴다.
+    const fast = path.join(work, `f${String(i).padStart(3, '0')}.mp3`);
+    const rr = spawnSync(FFMPEG, ['-hide_banner', '-y', '-i', clip, '-filter:a', `atempo=${SPEED}`, fast], { encoding: 'utf8' });
+    if (rr.status === 0) clip = fast;
+  }
   const d = ffDuration(clip) || Math.max(2, b.say.length / 6.6);
   b.obj.dur = d + PAD;
   clips.push({ clip, dur: d });
@@ -106,7 +115,7 @@ if (ENGINE === 'signal') {
 const htmlPath = path.join(work, 'deck.html'); fs.writeFileSync(htmlPath, html);
 
 // 4) 프레임을 디스크에 안 쌓고 ffmpeg stdin 으로 스트리밍 + 나레이션 mux
-const browser = await chromium.launch({ headless: true, executablePath: CHROME, args: ['--use-gl=angle', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--force-color-profile=srgb'] });
+const browser = await chromium.launch({ headless: true, ...(CHROME ? { executablePath: CHROME } : {}), args: ['--use-gl=angle', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--force-color-profile=srgb'] });
 const page = await (await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 })).newPage();
 page.on('pageerror', e => console.log('PAGEERR', e.message));
 await page.goto('file://' + htmlPath, { waitUntil: 'load' });
