@@ -4,6 +4,32 @@ on:
   # 웹앱에서 트리거 (client_payload 로 대상 videoId/제목/주제/후킹문구 전달)
   repository_dispatch:
     types: [rethumb-video]
+  # 수동 실행 — 문구/배지만 바꿔가며 썸네일을 튜닝할 때.
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: '대상 videoId'
+        required: true
+      headline:
+        description: '썸네일 문구 (8~14자, 짧고 세게)'
+        required: false
+        default: ''
+      badge:
+        description: '구석 배지 (제품·회사명, 예: Claude Opus 5)'
+        required: false
+        default: ''
+      topic:
+        description: '주제(그림 소재 판단용)'
+        required: false
+        default: ''
+      title:
+        description: '영상 제목'
+        required: false
+        default: ''
+      dramatic:
+        description: '파격 모드 (true | false)'
+        required: false
+        default: 'true'
 
 jobs:
   rethumb:
@@ -17,13 +43,13 @@ jobs:
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
-      RETHUMB_VIDEO_ID: ${{ github.event.client_payload.video_id }}
-      RETHUMB_TITLE: ${{ github.event.client_payload.title }}
-      RETHUMB_TOPIC: ${{ github.event.client_payload.topic }}
-      RETHUMB_HEADLINE: ${{ github.event.client_payload.headline }}
+      RETHUMB_VIDEO_ID: ${{ github.event.inputs.video_id || github.event.client_payload.video_id }}
+      RETHUMB_TITLE: ${{ github.event.inputs.title || github.event.client_payload.title }}
+      RETHUMB_TOPIC: ${{ github.event.inputs.topic || github.event.client_payload.topic }}
+      RETHUMB_HEADLINE: ${{ github.event.inputs.headline || github.event.client_payload.headline }}
       # 주체 배지(제품·회사명) — 문구를 짧게 쓰는 대신 구석에 작게 박아 "무슨 영상인지"를 남긴다.
-      RETHUMB_BADGE: ${{ github.event.client_payload.badge }}
-      RETHUMB_DRAMATIC: ${{ github.event.client_payload.dramatic }}
+      RETHUMB_BADGE: ${{ github.event.inputs.badge || github.event.client_payload.badge }}
+      RETHUMB_DRAMATIC: ${{ github.event.inputs.dramatic || github.event.client_payload.dramatic }}
     steps:
       - name: 체크아웃
         uses: actions/checkout@v4
