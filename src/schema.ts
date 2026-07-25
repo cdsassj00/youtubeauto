@@ -102,8 +102,10 @@ export const ScriptSchema = z.object({
   description: z.string(), // 유튜브 설명란
   tags: z.array(z.string()).max(15),
   topic: z.string(), // 이번 회차 주제
-  // 썸네일용 짧고 강한 후킹 문구 (예: "헷갈리는 클로드 5분 완벽정리"). 제목보다 짧고 임팩트.
+  // 썸네일에 크게 박을 후킹 문구 (8~14자). 설명문이 아니라 "긴장"이 있는 한 방.
   thumbnailHeadline: z.string(),
+  // 문구를 짧게 쓰는 대신 "무엇에 대한 영상인지"를 남기는 구석 배지 (제품·회사명). 없으면 배지 생략.
+  thumbnailBadge: z.string().optional().default(''),
   scenes: z.array(SceneSchema).min(6),
 });
 

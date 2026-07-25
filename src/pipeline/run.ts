@@ -44,7 +44,7 @@ type VideoMeta = { title: string; description: string; tags: string[]; topic: st
 async function loadMeta(): Promise<VideoMeta> {
   if (isDeckEngine()) return (await readJson(DECK_META_PATH)) as VideoMeta;
   const s = ScriptSchema.parse(await readJson(SCRIPT_PATH));
-  return { title: s.title, description: s.description, tags: s.tags, topic: s.topic, thumbnailHeadline: s.thumbnailHeadline };
+  return { title: s.title, description: s.description, tags: s.tags, topic: s.topic, thumbnailHeadline: s.thumbnailHeadline, thumbnailBadge: s.thumbnailBadge };
 }
 
 const TAIL_PAD_FRAMES = 18; // 각 씬 끝 여백(약 0.6초)
