@@ -20,11 +20,13 @@ export async function generateThumbnail(params: {
   title: string;
   topic: string;
   headline?: string; // 썸네일용 짧고 강한 문구(없으면 title 사용)
+  /** 주체 배지 — 문구를 짧게 유지하는 대신 "무엇에 대한 영상인지"를 구석에 작게 박는다. */
+  badge?: string;
   outPath: string;
   /** 파격 모드 — 사건형/충격 트렌드 뉴스일 때 긴장감 있는 강렬한 구도로. (기초 영상은 false 로 차분하게.) */
   dramatic?: boolean;
 }): Promise<boolean> {
-  const { title, topic, headline, outPath, dramatic = false } = params;
+  const { title, topic, headline, badge, outPath, dramatic = false } = params;
   const apiKey = config.openaiApiKey;
   if (!apiKey) return false;
 
@@ -39,7 +41,7 @@ export async function generateThumbnail(params: {
   const client = new OpenAI({ apiKey });
   // 매 생성마다 포즈·복장을 다르게 (얼굴/안경/헤어 정체성은 유지, 옷과 자세만 변주).
   const variation = pickVariation();
-  const prompt = buildPrompt(headline?.trim() || title, topic, title, config.thumbnailTone, Boolean(presenter), variation, dramatic);
+  const prompt = buildPrompt(headline?.trim() || title, topic, title, config.thumbnailTone, Boolean(presenter), variation, dramatic, badge?.trim() || '');
 
   let b64: string | undefined;
   if (presenter) {
@@ -110,6 +112,7 @@ function buildPrompt(
   hasPresenter: boolean,
   variation: { outfit: string; pose: string },
   dramatic: boolean,
+  badge: string,
 ): string {
   // 파격 모드: 사건형 뉴스에 어울리는 강렬·긴장 구도(빨강 경고 액센트, 극적 조명/비네트, 초대형 글자,
   // 진지·놀란 표정). 톤은 무조건 어두운 배경으로 대비를 극대화한다.
@@ -142,19 +145,28 @@ function buildPrompt(
       'Specifically: if the topic mentions "하네스"(harness), it means an AI AGENT\'S SOFTWARE SCAFFOLDING/RUNTIME (the code+config wrapper around an LLM, like Claude Code or a coding agent) — draw a laptop/terminal window, a flowchart of an agent loop, or a code editor, NEVER a physical wire harness, cable bundle, connector, wiring loom, robot arm, car, or airplane part. Do the same kind of correction for any other term that could be misread as physical/industrial hardware.',
     `Background: ${bg}${dramatic ? ', with a subtle dark vignette and a dramatic spotlight glow behind the man for cinematic tension' : ''}.`,
     person,
-    'On the LEFT and CENTER area, draw a BOLD hand-drawn (marker / Excalidraw sketch) concept diagram that illustrates the topic:',
-    'a few labeled rounded boxes connected by sketchy arrows, plus simple line icons (brain, gear, laptop, terminal window, cloud, chat bubble, code </>), clearly related to software/AI — not physical objects.',
+    // ★ 썸네일은 인포그래픽이 아니다 ★ 예전엔 "라벨 붙은 박스 여러 개 + 화살표"를 요구해서
+    // 깨알 글씨가 8~10개씩 박힌 정보 덤프가 나왔다 — 폰 썸네일에선 아무것도 안 읽히고 제목만 가린다.
+    // 큰 상징 하나로 제한해 제목이 주인공이 되게 한다.
+    'On the LEFT/CENTER, draw ONE single bold hand-drawn symbol that captures the idea at a glance',
+    '(for example: a giant up-arrow, a price tag, a balance scale, a rocket, a brain, a padlock, a stopwatch — whichever fits the topic).',
+    `CRITICAL: do NOT draw a diagram, flowchart, or multiple labeled boxes. Do NOT add small explanatory text, bullet lists, checkmark lists, or captions anywhere${badge ? ' (the one corner badge described below is the only exception)' : ''}.`,
+    'At most 2 extra tiny icons. Everything else stays EMPTY — negative space makes the title readable at phone size.',
     dramatic
       ? 'Give it a breaking-news, high-alert feeling: a strong RED (#e03131) alert accent — e.g. a bold red warning triangle/exclamation, a red circle-and-slash, or a red cracked/broken outline around one box — combined with orange (#e8590c) and cool blue (#1971c2). High drama and urgency, but still clean and readable, NOT cluttered.'
       : 'Use orange (#e8590c), blue (#1971c2) and green (#2f9e44) accents on clean strokes. Lively and clear, NOT cluttered, with real depth.',
     `Add a HUGE, BOLD Korean title, hand-lettered marker style, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
     `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — ${dramatic ? 'enormous and ultra-thick, dominating the frame, 1-2 lines' : 'very large and thick, 1-2 lines'}, ${inkTitle}, as the clear focal point.`,
     'Keep ALL text fully inside the frame with a safe margin — never let letters touch or get cut off by any edge.',
-    dramatic
-      ? 'You may add ONE small red accent sticker (a warning "!" or "STOP"-style badge), but it must NOT contain any of the title words and must not overlap the title text.'
-      : 'You may add ONE tiny round accent sticker (a checkmark or a star), but it must NOT contain any of the title words and must not overlap the title text.',
+    // 문구를 8~14자로 짧게 쓰게 하는 대신, "무엇에 대한 영상인지"는 이 작은 배지가 책임진다.
+    badge
+      ? `In the TOP-LEFT corner, add ONE small flat rectangular badge (about 1/8 of the frame width) filled with ${dramatic ? 'red (#e03131)' : 'orange (#e8590c)'}, containing ONLY this short text in clean white letters, spelled exactly: "${badge}". Keep it small and secondary — it must never compete with or overlap the big title.`
+      : dramatic
+        ? 'You may add ONE small red accent sticker (a warning "!" or "STOP"-style badge), but it must NOT contain any of the title words and must not overlap the title text.'
+        : 'You may add ONE tiny round accent sticker (a checkmark or a star), but it must NOT contain any of the title words and must not overlap the title text.',
     dramatic
       ? 'Overall: dramatic, cinematic, maximum contrast and tension like a top breaking-news tech thumbnail; the title must be legible even as a tiny phone thumbnail. No watermark, no extra logos.'
       : 'Overall: energetic, high contrast, strong visual hierarchy; the title must be legible even as a tiny phone thumbnail. No watermark, no extra logos.',
+    'FINAL CHECK: the Korean title must occupy roughly 40% of the frame and be the first thing the eye lands on. If any element competes with it, remove that element.',
   ].join(' ');
 }

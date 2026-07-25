@@ -40,7 +40,7 @@ const DECK_ENGINES = ['signal', 'signal3d', 'deck3d'];
 const isDeckEngine = () => DECK_ENGINES.includes(config.videoEngine);
 
 /** 업로드/썸네일이 쓰는 메타 — 엔진에 따라 script.json 또는 deck-meta.json 에서 읽는다. */
-type VideoMeta = { title: string; description: string; tags: string[]; topic: string; thumbnailHeadline: string };
+type VideoMeta = { title: string; description: string; tags: string[]; topic: string; thumbnailHeadline: string; thumbnailBadge?: string };
 async function loadMeta(): Promise<VideoMeta> {
   if (isDeckEngine()) return (await readJson(DECK_META_PATH)) as VideoMeta;
   const s = ScriptSchema.parse(await readJson(SCRIPT_PATH));
@@ -288,6 +288,7 @@ async function makeThumbnail(): Promise<void> {
       title: meta.title,
       topic: meta.topic,
       headline: meta.thumbnailHeadline,
+      badge: meta.thumbnailBadge,
       outPath: THUMBNAIL_PATH,
       dramatic: resolveTopicMode() === 'trend',
     });
@@ -320,7 +321,8 @@ async function stepRethumb(): Promise<void> {
   const topic = process.env.RETHUMB_TOPIC?.trim() || '';
   const headline = process.env.RETHUMB_HEADLINE?.trim() || '';
   console.log('▶ 썸네일 재생성 + 교체:', videoId);
-  const ok = await generateThumbnail({ title, topic, headline, outPath: THUMBNAIL_PATH, dramatic: process.env.RETHUMB_DRAMATIC === 'true' });
+  const badge = process.env.RETHUMB_BADGE?.trim() || '';
+  const ok = await generateThumbnail({ title, topic, headline, badge, outPath: THUMBNAIL_PATH, dramatic: process.env.RETHUMB_DRAMATIC === 'true' });
   if (!ok) throw new Error('썸네일 생성 실패 (OPENAI_API_KEY 확인)');
   await setThumbnail(videoId, THUMBNAIL_PATH);
   console.log('  · 교체 완료:', THUMBNAIL_PATH);

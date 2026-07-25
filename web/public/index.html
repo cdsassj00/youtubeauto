@@ -254,7 +254,8 @@
           <div class="rvsub">공개 전에 영상과 썸네일을 확인하세요. 문제 없으면 발행, 아니면 수정할 수 있어요. (미등록 상태라 링크 있는 사람만 볼 수 있어요)</div>
           <div class="vid"><iframe id="rviframe" allow="fullscreen; encrypted-media" src="about:blank"></iframe></div>
           <div class="thumb"><img id="rvthumb" alt="썸네일 미리보기" /><div class="cap">썸네일 (반영에 1~2분 걸릴 수 있어요)</div></div>
-          <input id="rehead" class="rehead" type="text" placeholder="새 썸네일 문구(선택) — 비우면 자동 생성" />
+          <input id="rehead" class="rehead" type="text" placeholder="새 썸네일 문구(선택, 8~14자로 짧고 세게) — 비우면 자동 생성" />
+          <input id="rebadge" class="rehead" type="text" placeholder="구석 배지(선택) — 예: Claude Opus 5" />
           <div class="acts">
             <button id="btnPublish" class="pub">✅ 발행 (공개)</button>
             <button id="btnRethumb">🖼️ 썸네일만 수정</button>
@@ -562,11 +563,14 @@
 
       $('btnRethumb').addEventListener('click', async () => {
         const r = window.__review; if (!r) return;
-        const head = $('rehead');
-        if (head.style.display !== 'block') { head.style.display = 'block'; head.focus(); rvtoast('썸네일 문구를 입력(또는 비워두고) 다시 눌러주세요.', 'info'); return; }
+        const head = $('rehead'); const badge = $('rebadge');
+        if (head.style.display !== 'block') {
+          head.style.display = 'block'; badge.style.display = 'block'; head.focus();
+          rvtoast('썸네일 문구를 입력(또는 비워두고) 다시 눌러주세요.', 'info'); return;
+        }
         const btn = $('btnRethumb'); btn.disabled = true; btn.textContent = '썸네일 재생성 중…';
         try {
-          await post('/api/rethumb', { videoId: r.videoId, topic: $('topic').value.trim(), headline: head.value.trim(), password: $('pw').value });
+          await post('/api/rethumb', { videoId: r.videoId, topic: $('topic').value.trim(), headline: head.value.trim(), badge: badge.value.trim(), password: $('pw').value });
           rvtoast('🖼️ 썸네일 재생성 요청됨! 1~2분 뒤 자동 새로고침됩니다.', 'info');
           setTimeout(() => { $('rvthumb').src = 'https://i.ytimg.com/vi/' + r.videoId + '/hqdefault.jpg?t=' + Date.now(); btn.disabled = false; btn.textContent = '🖼️ 썸네일만 수정'; }, 90000);
         } catch (e) { rvtoast('⚠️ ' + e.message, 'err'); btn.disabled = false; btn.textContent = '🖼️ 썸네일만 수정'; }

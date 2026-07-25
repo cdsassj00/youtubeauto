@@ -25,6 +25,9 @@ export default async function handler(req, res) {
     title: String(body.title || '').slice(0, 200),
     topic: String(body.topic || '').slice(0, 500),
     headline: String(body.headline || '').slice(0, 60),
+    // 주체 배지(제품·회사명). 비우면 배지 없이 문구만 들어간다.
+    badge: String(body.badge || '').slice(0, 24),
+    dramatic: body.dramatic ? 'true' : 'false',
   };
 
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {

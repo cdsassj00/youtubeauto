@@ -21,6 +21,9 @@ jobs:
       RETHUMB_TITLE: ${{ github.event.client_payload.title }}
       RETHUMB_TOPIC: ${{ github.event.client_payload.topic }}
       RETHUMB_HEADLINE: ${{ github.event.client_payload.headline }}
+      # 주체 배지(제품·회사명) — 문구를 짧게 쓰는 대신 구석에 작게 박아 "무슨 영상인지"를 남긴다.
+      RETHUMB_BADGE: ${{ github.event.client_payload.badge }}
+      RETHUMB_DRAMATIC: ${{ github.event.client_payload.dramatic }}
     steps:
       - name: 체크아웃
         uses: actions/checkout@v4

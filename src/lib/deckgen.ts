@@ -13,7 +13,7 @@ import { config } from '../config.js';
 
 export type DeckSlide = Record<string, unknown>;
 export interface GeneratedDeck {
-  meta: { title: string; description: string; tags: string[]; thumbnailHeadline: string; topic: string };
+  meta: { title: string; description: string; tags: string[]; thumbnailHeadline: string; thumbnailBadge: string; topic: string };
   deck: { engine: string; space3d?: boolean; header: string; accent?: string; palette?: string; slides: DeckSlide[] };
 }
 
@@ -89,7 +89,22 @@ export async function generateDeck(params: {
     '내용이 부족하면 배경·비교·사례·한계·활용법·주의점 같은 각도를 더 다뤄 분량을 채워라. 같은 말 반복은 금지.',
     '출력은 JSON 하나만. 설명·마크다운·코드펜스 금지.',
     '형식: {"meta":{"title":"영상 제목(40자 이내)","description":"유튜브 설명(줄바꿈 포함)","tags":["키워드", ...8~15개],',
-    '"thumbnailHeadline":"썸네일 문구(15~25자, 대상이 분명하게)"},',
+    '"thumbnailHeadline":"썸네일 문구","thumbnailBadge":"주체 배지(제품·회사명 2~12자, 예: Claude Opus 5)"},',
+    '',
+    '★thumbnailHeadline 이 조회수를 좌우한다 — 설명문을 쓰지 마라★',
+    '- 길이: 8~14자. 폰 화면에서 0.5초 만에 읽혀야 한다. 길면 아무도 안 읽는다.',
+    '- 반드시 다음 넷 중 하나의 "긴장"을 담아라:',
+    '  (1) 대비 — 상식과 어긋나는 두 가지를 붙인다. 예: "같은 값, 2배 실력"',
+    '  (2) 의외성 — 예상을 깬 사실을 선언한다. 예: "이번엔 값을 안 올렸다"',
+    '  (3) 궁금증 — 답이 궁금해지는 질문. 예: "왜 값을 안 올렸을까"',
+    '  (4) 이득 선언 — 시청자가 얻는 것을 단정한다. 예: "공짜로 2배 빨라졌다"',
+    '- 금지: "~를 공개했습니다", "~가 오른 제품명" 같은 밋밋한 서술문. 사실 나열도 금지.',
+    '- 금지: "그거", "이거", "이것" 처럼 대상이 사라지는 낚시. 무엇에 대한 영상인지는 남아야 한다.',
+    '  (제품명은 문구에 못 넣어도 된다 — 썸네일 이미지에 작은 배지로 따로 들어간다.)',
+    '- 과장·거짓 금지. 자료에 있는 사실을 "가장 세게 말하는 방식"을 찾는 것이지 없는 말을 짓는 게 아니다.',
+    '나쁜 예: "가격 그대로, 성능만 2배 오른 Opus 5" (설명문·너무 길다)',
+    '좋은 예: "같은 값, 2배 실력" / "이번엔 값을 안 올렸다" / "공짜로 2배 빨라졌다"',
+    '',
     '"deck":{"header":"화면 좌상단에 계속 뜨는 머리글(짧게)","slides":[ ...슬라이드... ]}}',
   ].join('\n');
 
@@ -131,6 +146,8 @@ export async function generateDeck(params: {
       description: String(meta.description || ''),
       tags: Array.isArray(meta.tags) ? (meta.tags as string[]).map(String).slice(0, 15) : [],
       thumbnailHeadline: String(meta.thumbnailHeadline || meta.title || topic).slice(0, 60),
+      // 문구에서 제품명을 뺀 대신, 무엇에 대한 영상인지 알려주는 작은 배지(썸네일 구석에 들어감).
+      thumbnailBadge: String(meta.thumbnailBadge || '').slice(0, 24),
       topic,
     },
     deck: {
