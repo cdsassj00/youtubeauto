@@ -225,6 +225,10 @@ function renderDeckVideo(): Promise<void> {
         H: String(HEIGHT),
         FPS: String(FPS),
         NARRATION_SPEED: String(config.narrationSpeed),
+        // 워크플로 변수(ELEVENLABS_VOICE_ID)가 비어 있어도 config 의 기본값이 적용되도록 명시 전달.
+        ELEVENLABS_API_KEY: config.elevenLabsApiKey(),
+        ELEVENLABS_VOICE_ID: config.elevenLabsVoiceId,
+        ELEVENLABS_MODEL_ID: config.elevenLabsModelId,
         NODE_PATH: [process.env.NODE_PATH, '/opt/node22/lib/node_modules'].filter(Boolean).join(path.delimiter),
       },
     });

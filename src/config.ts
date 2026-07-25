@@ -78,7 +78,9 @@ export const config = {
   // ElevenLabs
   elevenLabsApiKey: () => required('ELEVENLABS_API_KEY'),
   // ssjvoice (사용자 지정 목소리). 필요 시 ELEVENLABS_VOICE_ID 로 덮어쓸 수 있음.
-  elevenLabsVoiceId: optional('ELEVENLABS_VOICE_ID', 'dChkTgjs2tPbb8OYH4OX'),
+  // 기본값은 현재 계정의 ssjvoice — 예전 ID(dChkTgjs2tPbb8OYH4OX)는 계정이 바뀌며 사라져
+  // 404(voice_not_found)가 났다. GitHub 변수가 비어 있어도 동작하도록 유효한 값을 기본으로 둔다.
+  elevenLabsVoiceId: optional('ELEVENLABS_VOICE_ID', 'zXF1qpTynfgd9dv4R300'),
   elevenLabsModelId: optional('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2'),
 
   // YouTube (채널별 자격증명 지원 — chRequired/chOptional 로 TARGET_CHANNEL 에 맞는 값을 고름)
