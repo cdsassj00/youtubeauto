@@ -47,8 +47,10 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-4-8' }}
       ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-      ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
-      ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2' }}
+      # 음성ID는 Variables/Secrets 어느 쪽에 넣어도 잡히게 둘 다 본다.
+      # (키는 secrets 에, 음성ID는 vars 에서만 읽고 있어서 시크릿에 넣은 값이 무시되던 문제)
+      ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID || secrets.ELEVENLABS_VOICE_ID }}
+      ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || secrets.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2' }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
