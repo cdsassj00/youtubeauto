@@ -24,6 +24,12 @@ export default async function handler(req, res) {
     content_level: ['basic', 'intermediate', 'expert'].includes(body.level) ? body.level : 'expert',
     do_upload: body.upload ? 'true' : 'false',
     target_minutes: String(Math.max(2, Math.min(20, Number(body.minutes) || 10))),
+    // 업로드 대상 채널 (default | ch2). 알 수 없는 값은 default 로 안전 처리.
+    channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
+    // 공개 상태. 리뷰 흐름은 'unlisted'(미등록)로 올려 확인 후 발행. 빈 값이면 워크플로 기본값.
+    privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : '',
+    // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
+    style: ['illustrated', 'deck3d', 'signal', 'signal3d'].includes(body.style) ? body.style : '',
   };
 
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {

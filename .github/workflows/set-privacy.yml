@@ -1,0 +1,58 @@
+name: 공개상태 전환 (미리보기→발행)
+
+# 웹앱 "발행" 버튼: 이미 unlisted 로 올라간 미리보기 영상을 public 등으로 전환.
+on:
+  repository_dispatch:
+    types: [set-privacy]
+
+jobs:
+  setprivacy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      # 두 번째 채널 자격증명(TARGET_CHANNEL=ch2 일 때)
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      TARGET_CHANNEL: ${{ github.event.client_payload.channel || 'default' }}
+      SETPRIVACY_VIDEO_ID: ${{ github.event.client_payload.video_id }}
+      SETPRIVACY_STATUS: ${{ github.event.client_payload.status || 'public' }}
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 공개상태 전환
+        run: npm run setprivacy
+
+      - name: 결과 파싱
+        id: result
+        if: always()
+        run: |
+          if [ -f out/upload-result.json ]; then
+            echo "vid=$(jq -r .videoId out/upload-result.json)" >> "$GITHUB_OUTPUT"
+            echo "pv=$(jq -r .privacyStatus out/upload-result.json)" >> "$GITHUB_OUTPUT"
+            echo "has=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 리뷰용 결과 아티팩트(전환 후 상태 반영)
+        if: always() && steps.result.outputs.has == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: result__vid-${{ steps.result.outputs.vid }}__pv-${{ steps.result.outputs.pv }}
+          path: out/upload-result.json
+          if-no-files-found: ignore
+          retention-days: 7

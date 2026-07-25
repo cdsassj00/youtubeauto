@@ -22,6 +22,18 @@ on:
         description: '유튜브 업로드 여부 (true | false)'
         required: false
         default: 'true'
+      channel:
+        description: '업로드 채널 (default | ch2)'
+        required: false
+        default: 'default'
+      privacy:
+        description: '공개 상태 (public | unlisted | private). 리뷰 흐름은 unlisted 로 올려 확인 후 발행.'
+        required: false
+        default: ''
+      style:
+        description: '영상 스타일 (illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D)'
+        required: false
+        default: ''
   # 웹앱/외부에서 트리거 (client_payload 로 topic 전달)
   repository_dispatch:
     types: [publish-video]
@@ -40,9 +52,20 @@ jobs:
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      YOUTUBE_PRIVACY_STATUS: ${{ vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
+      # 공개 상태: 리뷰 흐름은 웹앱이 unlisted 로 전달 → 확인 후 발행(public)으로 전환. 스케줄은 vars 기본값.
+      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || github.event.client_payload.privacy || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
       YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
+      # ── 두 번째 채널(ch2) 자격증명 — TARGET_CHANNEL=ch2 일 때 사용. 새 채널 OAuth 후 아래 시크릿을 등록. ──
+      # (client id/secret 은 같은 OAuth 앱을 공유하면 위 기본값으로 폴백되므로 refresh token 만 필수)
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_CATEGORY_ID_CH2: ${{ vars.YOUTUBE_CATEGORY_ID_CH2 }}
+      YOUTUBE_DESC_FOOTER_CH2: ${{ vars.YOUTUBE_DESC_FOOTER_CH2 }}
+      YOUTUBE_PRIVACY_STATUS_CH2: ${{ vars.YOUTUBE_PRIVACY_STATUS_CH2 }}
+      # 업로드 대상 채널 선택 (default | ch2). 웹앱/수동 실행에서 전달.
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'default' }}
       # 합성 콘텐츠 공개 표시 — 목소리 클론 나레이션 + 비실사 일러스트는 YouTube 명시적 예외 대상이라 기본 false.
       SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'false' }}
       TOPIC: ${{ github.event.inputs.topic || github.event.client_payload.topic || '' }}
@@ -61,7 +84,7 @@ jobs:
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
       # 영상 엔진: illustrated(AI 흑백 일러스트) | web3d(3D 웹녹화) | remotion(손그림). 기본 illustrated.
-      VIDEO_ENGINE: ${{ vars.VIDEO_ENGINE || 'illustrated' }}
+      VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.style || vars.VIDEO_ENGINE || 'illustrated' }}
     steps:
       - name: 체크아웃
         uses: actions/checkout@v4
@@ -114,5 +137,31 @@ jobs:
             out/thumbnail.png
             out/script.json
             out/manifest.json
+            out/deck.json
+            out/deck-meta.json
+            out/upload-result.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # ── 업로드 전 리뷰 흐름 ── 결과(videoId·공개상태)를 아티팩트 "이름"에 인코딩해
+      # 웹앱이 zip 다운로드 없이 목록 조회만으로 미리보기(임베드)·발행 버튼을 띄우게 한다.
+      - name: 업로드 결과 파싱
+        id: result
+        if: always()
+        run: |
+          if [ -f out/upload-result.json ]; then
+            echo "vid=$(jq -r .videoId out/upload-result.json)" >> "$GITHUB_OUTPUT"
+            echo "pv=$(jq -r .privacyStatus out/upload-result.json)" >> "$GITHUB_OUTPUT"
+            echo "has=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 리뷰용 결과 아티팩트
+        if: always() && steps.result.outputs.has == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: result__vid-${{ steps.result.outputs.vid }}__pv-${{ steps.result.outputs.pv }}
+          path: out/upload-result.json
           if-no-files-found: ignore
           retention-days: 7

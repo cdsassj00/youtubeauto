@@ -1,7 +1,7 @@
 import React from 'react';
 import { interpolate, useCurrentFrame } from 'remotion';
 import type { Diagram } from '../../schema.js';
-import { theme as defaultTheme, type VisualTheme } from '../theme.js';
+import { theme as defaultTheme, monoRamp, type VisualTheme } from '../theme.js';
 import { PRETENDARD } from '../pretendard.js';
 import { revealFrames } from './beats.js';
 
@@ -201,8 +201,63 @@ const ArrowHeadDef: React.FC<{ theme: VisualTheme }> = ({ theme }) => (
   </defs>
 );
 
-type DiagramLayout = 'conveyor' | 'row' | 'hub' | 'equation' | 'orbit';
+type DiagramLayout = 'conveyor' | 'row' | 'hub' | 'equation' | 'orbit' | 'timeline' | 'cycle' | 'layers' | 'matrix';
 type NodeShape = 'box' | 'circle';
+
+/** 모든 노드가 한 줄 방향 사슬(a→b→c→d)을 이루는지 — 순서대로 정렬된 인덱스 반환, 아니면 null. */
+function detectChain(nodes: { id: string }[], edges: { from: string; to: string }[]): number[] | null {
+  if (nodes.length < 3 || edges.length !== nodes.length - 1) return null;
+  const idx = new Map(nodes.map((n, i) => [n.id, i]));
+  const indeg = new Array(nodes.length).fill(0);
+  const outdeg = new Array(nodes.length).fill(0);
+  const next = new Array(nodes.length).fill(-1);
+  for (const e of edges) {
+    const f = idx.get(e.from);
+    const t = idx.get(e.to);
+    if (f === undefined || t === undefined) return null;
+    outdeg[f]++;
+    indeg[t]++;
+    next[f] = t;
+  }
+  // 시작점(indeg 0) 정확히 1개여야 한 줄 사슬.
+  const starts = indeg.map((d, i) => (d === 0 ? i : -1)).filter((i) => i >= 0);
+  if (starts.length !== 1) return null;
+  const order: number[] = [];
+  let cur = starts[0];
+  const seen = new Set<number>();
+  while (cur !== -1 && !seen.has(cur)) {
+    order.push(cur);
+    seen.add(cur);
+    cur = next[cur];
+  }
+  return order.length === nodes.length ? order : null;
+}
+
+/** 모든 노드가 하나의 닫힌 순환(a→b→c→a)을 이루는지 — 순서 인덱스 반환, 아니면 null. */
+function detectCycle(nodes: { id: string }[], edges: { from: string; to: string }[]): number[] | null {
+  if (nodes.length < 3 || edges.length !== nodes.length) return null;
+  const idx = new Map(nodes.map((n, i) => [n.id, i]));
+  const next = new Array(nodes.length).fill(-1);
+  const indeg = new Array(nodes.length).fill(0);
+  for (const e of edges) {
+    const f = idx.get(e.from);
+    const t = idx.get(e.to);
+    if (f === undefined || t === undefined) return null;
+    if (next[f] !== -1) return null; // 각 노드 outdeg 정확히 1
+    next[f] = t;
+    indeg[t]++;
+  }
+  if (!indeg.every((d) => d === 1)) return null;
+  const order: number[] = [];
+  const seen = new Set<number>();
+  let cur = 0;
+  while (cur !== -1 && !seen.has(cur)) {
+    order.push(cur);
+    seen.add(cur);
+    cur = next[cur];
+  }
+  return order.length === nodes.length ? order : null;
+}
 
 /** "A, B 두 개가 합쳐져 C 하나" 형태(3노드)만 수식으로 감지. */
 function detectEquation(
@@ -237,6 +292,9 @@ function pickLayout(
 ): DiagramLayout {
   if (detectEquation(nodes, edges)) return 'equation';
   if (nodes.length === 2) return 'orbit';
+  if (detectCycle(nodes, edges)) return 'cycle';
+  // 엣지가 거의 없는 독립 4개 항목(관계 아닌 병렬 분류) → 2×2 매트릭스.
+  if (nodes.length === 4 && edges.length <= 1) return 'matrix';
   if (nodes.length >= 4) {
     const degree = new Map<string, number>();
     for (const e of edges) {
@@ -245,6 +303,11 @@ function pickLayout(
     }
     const maxDegree = Math.max(0, ...degree.values());
     if (maxDegree >= nodes.length - 1) return 'hub';
+  }
+  // 한 줄 사슬(순차 단계)이면 conveyor/timeline/row/layers 를 seed 로 번갈아 — 같은 흐름도 매번 다르게.
+  if (detectChain(nodes, edges)) {
+    const pick = seed % 4;
+    return pick === 0 ? 'conveyor' : pick === 1 ? 'timeline' : pick === 2 ? 'layers' : 'row';
   }
   return seed % 2 === 0 ? 'conveyor' : 'row';
 }
@@ -320,6 +383,21 @@ export const IsoDiagram: React.FC<{
   }
   if (layout === 'orbit') {
     return <OrbitPair nodes={nodes} narration={narration} durationInFrames={durationInFrames} theme={theme} />;
+  }
+  if (layout === 'timeline') {
+    const order = detectChain(nodes, diagram.edges)!;
+    return <TimelineDiagram nodes={order.map((i) => nodes[i])} narration={narration} durationInFrames={durationInFrames} theme={theme} />;
+  }
+  if (layout === 'cycle') {
+    const order = detectCycle(nodes, diagram.edges)!;
+    return <CycleDiagram nodes={order.map((i) => nodes[i])} narration={narration} durationInFrames={durationInFrames} theme={theme} />;
+  }
+  if (layout === 'layers') {
+    const order = detectChain(nodes, diagram.edges) ?? nodes.map((_, i) => i);
+    return <LayersDiagram nodes={order.map((i) => nodes[i])} narration={narration} durationInFrames={durationInFrames} theme={theme} />;
+  }
+  if (layout === 'matrix') {
+    return <MatrixDiagram nodes={nodes} narration={narration} durationInFrames={durationInFrames} theme={theme} />;
   }
 
   const revealAt = revealFrames(narration, durationInFrames, nodes.length, { head: 0.04, tail: 0.7 });
@@ -505,6 +583,307 @@ const OrbitPair: React.FC<{
               frame={frame}
               seed={i}
             />
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+/**
+ * 타임라인 도식: 순차 단계(a→b→c→d)를 가로 기준선 + 등간격 마디로 그린다. 마디는 원, 라벨은
+ * 위/아래로 교대. "박스+화살표"와 실루엣이 완전히 달라 같은 흐름도 다른 그림으로 보인다.
+ */
+const TimelineDiagram: React.FC<{
+  nodes: { id: string; label: string }[];
+  narration: string;
+  durationInFrames: number;
+  theme: VisualTheme;
+}> = ({ nodes, narration, durationInFrames, theme }) => {
+  const frame = useCurrentFrame();
+  const n = nodes.length;
+  const revealAt = revealFrames(narration, durationInFrames, n, { head: 0.05, tail: 0.72 });
+  const lineY = 0;
+  const x0 = -760;
+  const x1 = 760;
+  const xs = nodes.map((_, i) => (n <= 1 ? 0 : x0 + (i / (n - 1)) * (x1 - x0)));
+  const lineProgress = interpolate(frame, [revealAt[0] ?? 0, (revealAt[n - 1] ?? 0) + 20], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
+      <g transform={`translate(${W / 2}, ${H / 2})`}>
+        {/* 기준선 (그어지는 애니메이션) */}
+        <line
+          x1={x0}
+          y1={lineY}
+          x2={x0 + (x1 - x0) * lineProgress}
+          y2={lineY}
+          stroke={theme.sub}
+          strokeWidth={6}
+          strokeLinecap="round"
+        />
+        {nodes.map((node, i) => {
+          const at = revealAt[i] ?? 0;
+          const appear = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          if (appear <= 0) return null;
+          const cx = xs[i];
+          const above = i % 2 === 0;
+          const emphasize = i === n - 1;
+          const dotR = 20 * popScale(appear);
+          const labelY = above ? -60 : 60;
+          const tickTop = above ? -34 : 34;
+          const bob = Math.sin((frame + i * 40) / 28) * 4 * appear;
+          return (
+            <g key={node.id} opacity={Math.min(1, appear * 1.4)}>
+              <line x1={cx} y1={lineY} x2={cx} y2={tickTop} stroke={theme.muted} strokeWidth={3} strokeDasharray="1 7" strokeLinecap="round" />
+              <circle cx={cx} cy={lineY} r={dotR} fill={emphasize ? theme.accent : theme.paper} stroke={emphasize ? theme.accent : theme.ink} strokeWidth={5} />
+              {emphasize && <circle cx={cx} cy={lineY} r={dotR + 10 + (Math.sin(frame / 9) + 1) * 5} fill="none" stroke={theme.accent} strokeWidth={3} opacity={0.4} />}
+              <foreignObject x={cx - 160} y={(above ? labelY - 90 : labelY) + bob} width={320} height={110}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: above ? 'flex-end' : 'flex-start',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    fontFamily: PRETENDARD,
+                    fontWeight: 800,
+                    fontSize: node.label.length > 8 ? 34 : 42,
+                    color: emphasize ? theme.accent : theme.ink,
+                    lineHeight: 1.2,
+                    wordBreak: 'keep-all',
+                  }}
+                >
+                  {node.label}
+                </div>
+              </foreignObject>
+              <text x={cx} y={above ? 8 : 8} textAnchor="middle" style={{ fontFamily: PRETENDARD, fontWeight: 900, fontSize: 20, fill: emphasize ? '#fff' : theme.sub }}>
+                {i + 1}
+              </text>
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+/**
+ * 순환 도식: 닫힌 루프(a→b→c→a)를 원형으로 배치하고 곡선 화살표가 시계방향으로 돈다.
+ * 판단→실행→관찰 루프 같은 "반복되는 순환"에 딱 맞고, 다른 도식과 구도가 완전히 다르다.
+ */
+const CycleDiagram: React.FC<{
+  nodes: { id: string; label: string }[];
+  narration: string;
+  durationInFrames: number;
+  theme: VisualTheme;
+}> = ({ nodes, narration, durationInFrames, theme }) => {
+  const frame = useCurrentFrame();
+  const n = nodes.length;
+  const revealAt = revealFrames(narration, durationInFrames, n, { head: 0.05, tail: 0.68 });
+  const R = 330;
+  const pos = nodes.map((_, i) => {
+    const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
+    return { x: Math.cos(a) * R, y: Math.sin(a) * R };
+  });
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
+      <ArrowHeadDef theme={theme} />
+      <g transform={`translate(${W / 2}, ${H / 2})`}>
+        {nodes.map((_, i) => {
+          const j = (i + 1) % n;
+          const at = Math.max(revealAt[i] ?? 0, revealAt[j] ?? 0) + 8;
+          const progress = interpolate(frame, [at, at + 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          // 원호를 따라 살짝 바깥으로 부푼 곡선.
+          const p0 = pos[i];
+          const p2 = pos[j];
+          const mid = { x: (p0.x + p2.x) / 2, y: (p0.y + p2.y) / 2 };
+          const mlen = Math.hypot(mid.x, mid.y) || 1;
+          const bulge = 1.28;
+          const ctrl = { x: (mid.x / mlen) * R * bulge, y: (mid.y / mlen) * R * bulge };
+          // 노드 반지름만큼 물러나게.
+          const a0 = Math.atan2(ctrl.y - p0.y, ctrl.x - p0.x);
+          const a2 = Math.atan2(ctrl.y - p2.y, ctrl.x - p2.x);
+          const pad = 96;
+          const s = { x: p0.x + Math.cos(a0) * pad, y: p0.y + Math.sin(a0) * pad };
+          const e = { x: p2.x + Math.cos(a2) * pad, y: p2.y + Math.sin(a2) * pad };
+          const d = `M ${s.x} ${s.y} Q ${ctrl.x} ${ctrl.y} ${e.x} ${e.y}`;
+          const len = 400;
+          const pulseActive = progress >= 0.9;
+          const pulseT = pulseActive ? ((frame + i * 12) % 46) / 46 : 0;
+          const pp = quadPoint(s, ctrl, e, pulseT);
+          const pf = pulseActive ? interpolate(pulseT, [0, 0.1, 0.9, 1], [0, 1, 1, 0]) : 0;
+          return (
+            <g key={i}>
+              <path
+                d={d}
+                fill="none"
+                stroke={theme.accent}
+                strokeWidth={6}
+                strokeLinecap="round"
+                strokeDasharray={len}
+                strokeDashoffset={len * (1 - progress)}
+                markerEnd={progress > 0.9 ? 'url(#flat-arrowhead)' : undefined}
+              />
+              {pulseActive && <circle cx={pp.x} cy={pp.y} r={8} fill={theme.accent} opacity={pf} />}
+            </g>
+          );
+        })}
+        {nodes.map((node, i) => {
+          const at = revealAt[i] ?? 0;
+          const appear = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          return (
+            <FlatNode
+              key={node.id}
+              cx={pos[i].x}
+              cy={pos[i].y}
+              label={node.label}
+              shape="circle"
+              accent={theme.accent}
+              emphasize={false}
+              theme={theme}
+              appear={appear}
+              frame={frame}
+              seed={i}
+            />
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+/**
+ * 레이어(계층) 도식: 순차/누적 단계를 아래에서 위로 쌓이는 가로 막대로 그린다. 밑에서부터
+ * 하나씩 쌓여 올라가는 애니메이션이라 "토대 위에 얹는" 구조(사전학습→튜닝→정렬 등)에 잘 맞고,
+ * 타임라인/컨베이어와 실루엣이 또 다르다.
+ */
+const LayersDiagram: React.FC<{
+  nodes: { id: string; label: string }[];
+  narration: string;
+  durationInFrames: number;
+  theme: VisualTheme;
+}> = ({ nodes, narration, durationInFrames, theme }) => {
+  const frame = useCurrentFrame();
+  const layers = nodes.slice(0, 6);
+  const n = layers.length;
+  // 아래(마지막) → 위(첫) 순서로 쌓는 게 자연스러운 경우가 많지만, 나레이션 순서대로 등장시키되
+  // 배치는 첫 항목이 맨 위가 되게 한다(사슬 순서 = 위에서 아래로 읽힘).
+  const revealAt = revealFrames(narration, durationInFrames, n, { head: 0.06, tail: 0.72 });
+  const barW = 1180;
+  const barH = 108;
+  const gap = 26;
+  const totalH = n * barH + (n - 1) * gap;
+  const top = -totalH / 2;
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
+      <g transform={`translate(${W / 2}, ${H / 2})`}>
+        {layers.map((node, i) => {
+          const at = revealAt[i] ?? 0;
+          const appear = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          if (appear <= 0) return null;
+          const y = top + i * (barH + gap);
+          // 계단식 들여쓰기(피라미드 느낌): 위층일수록 살짝 좁게.
+          const shrink = (n - 1 - i) * 26;
+          const w = barW - shrink;
+          const x = -w / 2;
+          const emphasize = i === n - 1;
+          const color = emphasize ? theme.accent : theme.ink;
+          const slide = (1 - appear) * 40;
+          return (
+            <g key={node.id} opacity={Math.min(1, appear * 1.4)} transform={`translate(0, ${slide})`}>
+              <rect x={x} y={y} width={w} height={barH} rx={16} fill={theme.paper} stroke={color} strokeWidth={emphasize ? 6 : 4} />
+              <rect x={x} y={y} width={12} height={barH} rx={0} fill={color} opacity={0.85} />
+              <foreignObject x={x + 34} y={y} width={w - 60} height={barH}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontFamily: PRETENDARD,
+                    fontWeight: 700,
+                    fontSize: node.label.length > 16 ? 38 : 46,
+                    color: theme.ink,
+                    wordBreak: 'keep-all',
+                  }}
+                >
+                  {node.label}
+                </div>
+              </foreignObject>
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+};
+
+/**
+ * 2×2 매트릭스: 관계(엣지)가 아니라 병렬 분류 4개를 사분면에 배치. 축이 있는 비교/분류
+ * (예: 중요도×긴급도, 학습형×실행형)에 어울리며 노드+화살표와 완전히 다른 그림.
+ */
+const MatrixDiagram: React.FC<{
+  nodes: { id: string; label: string }[];
+  narration: string;
+  durationInFrames: number;
+  theme: VisualTheme;
+}> = ({ nodes, narration, durationInFrames, theme }) => {
+  const frame = useCurrentFrame();
+  const cells = nodes.slice(0, 4);
+  const revealAt = revealFrames(narration, durationInFrames, cells.length, { head: 0.06, tail: 0.72 });
+  const cw = 520;
+  const ch = 300;
+  const gap = 40;
+  const centers = [
+    { x: -(cw + gap) / 2, y: -(ch + gap) / 2 },
+    { x: (cw + gap) / 2, y: -(ch + gap) / 2 },
+    { x: -(cw + gap) / 2, y: (ch + gap) / 2 },
+    { x: (cw + gap) / 2, y: (ch + gap) / 2 },
+  ];
+  const axis = interpolate(frame, [0, 24], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
+      <g transform={`translate(${W / 2}, ${H / 2})`}>
+        <line x1={0} y1={-(ch + gap / 2 + 30) * axis} x2={0} y2={(ch + gap / 2 + 30) * axis} stroke={theme.muted} strokeWidth={4} />
+        <line x1={-(cw + gap / 2 + 30) * axis} y1={0} x2={(cw + gap / 2 + 30) * axis} y2={0} stroke={theme.muted} strokeWidth={4} />
+        {cells.map((node, i) => {
+          const at = revealAt[i] ?? 0;
+          const appear = interpolate(frame, [at, at + 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          if (appear <= 0) return null;
+          const c = centers[i];
+          const color = monoRamp(theme, 4)[i % 4];
+          return (
+            <g key={node.id} opacity={Math.min(1, appear * 1.4)} transform={`translate(${c.x}, ${c.y}) scale(${popScale(appear)}) translate(${-c.x}, ${-c.y})`}>
+              <rect x={c.x - cw / 2} y={c.y - ch / 2} width={cw} height={ch} rx={20} fill={theme.paper} stroke={color} strokeWidth={5} />
+              <foreignObject x={c.x - cw / 2 + 28} y={c.y - ch / 2 + 20} width={cw - 56} height={ch - 40}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    fontFamily: PRETENDARD,
+                    fontWeight: 800,
+                    fontSize: node.label.length > 14 ? 40 : 50,
+                    color: theme.ink,
+                    lineHeight: 1.25,
+                    wordBreak: 'keep-all',
+                  }}
+                >
+                  {node.label}
+                </div>
+              </foreignObject>
+            </g>
           );
         })}
       </g>

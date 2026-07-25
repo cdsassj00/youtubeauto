@@ -22,7 +22,9 @@ export function createOAuthClient() {
  */
 export async function uploadVideo(params: {
   videoPath: string;
-  script: Script;
+  // 제목·설명·태그만 있으면 되므로 Script 전체가 아니라 메타 형태를 받는다
+  // (deck 기반 엔진은 Script 스키마를 쓰지 않는다).
+  script: { title: string; description: string; tags: string[] };
   thumbnailPath?: string;
 }): Promise<string> {
   const { videoPath, script, thumbnailPath } = params;
@@ -82,4 +84,24 @@ export async function setThumbnail(videoId: string, thumbnailPath: string): Prom
   const auth = createOAuthClient();
   const youtube = google.youtube({ version: 'v3', auth });
   await youtube.thumbnails.set({ videoId, media: { body: fs.createReadStream(thumbnailPath) } });
+}
+
+/**
+ * 이미 올라간 영상의 공개 상태를 바꾼다 (미리보기 unlisted → 발행 public 등).
+ * "업로드 전 리뷰" 흐름의 승인 단계에서 사용.
+ */
+export async function setPrivacy(videoId: string, privacyStatus: 'public' | 'unlisted' | 'private'): Promise<void> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  await youtube.videos.update({
+    part: ['status'],
+    requestBody: {
+      id: videoId,
+      status: {
+        privacyStatus,
+        selfDeclaredMadeForKids: false,
+        containsSyntheticMedia: config.containsSyntheticMedia,
+      } as never,
+    },
+  });
 }

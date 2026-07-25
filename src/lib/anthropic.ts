@@ -62,8 +62,12 @@ export async function generateScript(params: {
       ? ''
       : '리서치 결과가 없다(웹서치 실패 또는 확인된 정보 없음). 이 경우 날짜·버전·수치 등 최근 사실을 단정적으로 지어내지 말고, 검증 가능한 일반 개념 설명 위주로 써라.';
 
-  // 분량 가이드: 10분 ≈ 약 8,500자 한국어 나레이션.
-  const targetChars = Math.round(targetMinutes * 850);
+  // 분량 가이드: 실측 결과 한국어 ElevenLabs 나레이션은 초당 약 7자(≈ 분당 420자)로 읽힌다.
+  // 이전엔 850자/분으로 잡아 목표가 실제의 두 배였고, 게다가 "씬당 1~2문장 짧게" 지침과 충돌해
+  // 모델이 총량을 무시하고 씬당 ~90자만 써서 10분 목표가 4분대로 나오는 심각한 미달이 있었다.
+  // 여유를 둬 분당 460자로 잡고(≈ 10분이면 4,600자), 아래 요구사항에서 이 총량을 "반드시 채워야 하는
+  // 하한"으로 강하게 못박는다.
+  const targetChars = Math.round(targetMinutes * 460);
 
   // 대본 난이도/전문성 (CONTENT_LEVEL). "너무 쉽게만 풀어줘서 전문적인 영상이 안 나온다"는
   // 피드백에 따라 기본값(expert)은 실무자 대상으로 깊이 있게 쓴다.
@@ -102,14 +106,12 @@ export async function generateScript(params: {
     researchBlock,
     '',
     '요구사항:',
-    isBrief
-      ? `- 전체 나레이션 합계 글자 수는 약 ${targetChars}자를 "최소 기준"으로 삼되, 브리핑 내용을 다 담기 위해 필요하면 더 길게 써도 된다(분량보다 완전 반영 우선).`
-      : `- 전체 나레이션 합계 글자 수는 약 ${targetChars}자(±15%)를 목표로 한다. 이 정도가 ${targetMinutes}분 분량이다.`,
-    isBrief
-      ? '- 씬(scenes)은 브리핑 내용을 다 담는 데 필요한 만큼 충분히 만든다(단계형 내용은 단계당 1씬). 한 씬의 narration 은 1~2문장으로 짧게(한 화면에 자막이 너무 길게 지나가지 않도록).'
-      : '- 씬(scenes)은 18~26개로 잘게 나눈다. 한 씬의 narration 은 1~2문장으로 짧게(한 화면에 자막이 너무 길게 지나가지 않도록).',
+    `- ★가장 흔한 실패 = 분량 미달★ 전체 나레이션 합계 글자 수(공백 포함)는 반드시 약 ${targetChars}자 이상이어야 한다. 한국어 나레이션은 초당 약 7자로 읽혀서 ${targetChars}자라야 ${targetMinutes}분이 나온다. 이보다 짧게 쓰면 영상이 목표의 절반짜리로 나와 완전히 실패다 — 씬 수를 충분히 늘리고 각 씬 나레이션을 충분히 길게 써서 이 총량을 반드시 채워라.${isBrief ? ' 브리핑 내용이 많으면 이보다 더 길어도 좋다(분량보다 완전 반영 우선).' : ''}`,
+    `- 씬(scenes)은 ${isBrief ? '26~40' : '28~40'}개로 잘게 나눈다(단계형 내용은 단계당 1씬). 씬이 적으면 위 총 글자수를 못 채운다.`,
+    '- 한 씬의 narration 은 2~4문장, 대략 120~200자로 충분히 쓴다 — 한 문장만 달랑 쓰면 영상이 짧아지는 주된 원인이 된다. (예외: quote 씬만은 한 문장 임팩트로 짧게 쓴다.)',
     '- 첫 씬은 visual="title" 로 후킹 도입(왜 이 주제가 중요한지)을 담는다. visual="title" 은 이 영상 전체에서 딱 이 첫 씬 한 번만 쓴다 — 중간에 장/화제를 전환하고 싶어도 title 을 또 쓰지 마라(그러면 그 씬마다 AI 그림 한 장 + 줌 효과가 반복돼 영상 전체가 "맨날 같은 그림"처럼 보이는 가장 큰 원인이 된다). 장 전환이 필요하면 quote(소제목이나 전환 문장을 강조 문구로) 또는 bullets 를 대신 써라.',
     '- 중간 씬은 bullets / diagram / comparison / quote / code 다섯 가지만으로 구성한다(title 은 위에서 말했듯 중간에 쓰지 않는다). 한 영상에 한두 타입만 반복되지 않게 다섯 가지를 고루 번갈아 쓰고, 다루는 내용에 실제 파일/코드가 있으면 code 를, 여러 항목이 하나에 모이거나 퍼지는 관계면 diagram 을 적극 활용해라.',
+    '- ★단조로움 방지(반드시 지켜라)★ bullets 씬은 전체 중간 씬의 1/3(약 30%)을 넘기지 마라 — 직전 영상은 절반 이상이 bullets라 밋밋했다. 대신 다음 최소 개수를 반드시 채운다: diagram 최소 3개, comparison 최소 2개, quote 2~4개, code 최소 1개(소재가 있으면 2개 이상). 같은 타입이 세 씬 연속으로 오지 않게 번갈아 배치한다. 설명을 "여러 항목 나열"로 처리하고 싶을 때 습관적으로 bullets 를 쓰지 말고, 관계·흐름이면 diagram, 두 대상이면 comparison 으로 바꿔라.',
     '- visual="code" 는 이 대본에서 가장 중요한 "구체성" 장치다 — 다룰 대상에 실제로 존재하는 파일/설정/코드가 있다면(예: 스킬 정의 파일, 훅 스크립트, 플러그인 매니페스트, 설정 파일, API 요청 예시, 커맨드 한 줄) 말로 설명만 하지 말고 반드시 code 씬으로 화면에 그대로 보여준다. code 필드에 filename(실제 있을 법한 경로), language, code(실제 동작할 법한 8~14줄짜리 최소 예시, 지어내되 현실적이고 정확한 문법으로)를 채운다. 이런 소재가 있는 대본이면 최소 1개 이상 반드시 넣는다.',
     '- visual="bullets" 인 씬은 bullets 배열에 짧은 항목을 반드시 2~5개 채운다(빈 배열 금지). 각 항목은 한 화면에 큰 글씨로 뜨는 문구이므로 8~16자 정도로 짧게.',
     '- visual="quote" 인 씬은 narration 자체가 화면에 크게 뜨는 한 문장 임팩트 인용구가 되므로, narration 을 다른 씬보다 짧고 단호한 한 문장으로 쓴다(주석문/설명 붙이지 말고 그 자체로 완결된 명제).',
@@ -121,37 +123,66 @@ export async function generateScript(params: {
     '- icon 선택 원칙: 반드시 그 씬이 실제로 설명하는 대상과 의미가 통하는 것을 골라라 — 장식으로 아무거나 고르면 안 된다. 예: "용어 정의"를 다루면 document나 search, "보안/권한 얘기"면 lock이나 key, "데이터/저장"이면 database, "실행 환경/인프라"면 server나 cloud, "코드/커맨드 예시"면 terminal, "설정값 얘기"면 gear, "여러 도구가 연동됨"이면 link, "결론/맞다"면 check, "위험 경고"면 warning, "숫자/트렌드"면 chart. heading·narration 을 보고 가장 뜻이 맞는 것 하나를 고른다. 애매하면 문서/개념 정의를 뜻하는 document 를 기본값으로.',
     '- 같은 영상 안에서 title 과 outro 가 같은 icon 을 또 쓰지 마라(둘은 보통 다른 국면 — 도입 vs 결론 — 이므로 서로 다른 icon 이 자연스럽다).',
     '- title(제목)은 클릭하고 싶되 정확한 40자 이내.',
-    '- thumbnailHeadline: 썸네일에 크게 박을 문구. 가장 중요한 원칙은 "직관적이고 설명적일 것" — 무엇에 대한 영상인지 썸네일만 보고 즉시 알 수 있어야 한다. 반드시 영상의 핵심 대상(제품명/주제명/용어)을 문구 안에 그대로 넣어라. 좋은 예: "제미나이 3.6 플래시 출시가 주는 메시지", "하네스 엔지니어링, 알고 보면 그냥 설정", "RAG가 검색을 바꾸는 방식". 길이는 15~25자 정도로, 제목을 살짝 다듬은 설명형이면 충분하다.',
+    '- thumbnailHeadline: 썸네일에 크게 박을 문구. 가장 중요한 원칙은 "직관적이고 설명적일 것" — 무엇에 대한 영상인지 썸네일만 보고 즉시 알 수 있어야 한다. 반드시 영상의 핵심 대상(제품명/주제명/용어)을 문구 안에 그대로 넣어라. 좋은 예: "제미나이 3.6 플래시 출시가 주는 메시지", "하네스 엔지니어링, 알고 보면 그냥 설정", "RAG가 검색을 바꾸는 방식". 길이는 15~25자 정도.',
+    '- 단, 사건 자체가 실제로 충격적인 트렌드 뉴스라면 문구도 그 긴장감을 살려 강하고 파격적으로 써라(밋밋한 설명체보다 사건형이 더 좋다). 조건은 딱 둘 — (1) 대상(회사·모델·사건)이 문구에 분명히 드러날 것, (2) 지어내지 않은 사실일 것. 좋은 예: "OpenAI가 자기 AI를 멈춰 세웠다", "AI가 스스로 통제를 벗어났다". 이 조건만 지키면 세게 가도 된다.',
     '- 절대 하지 말 것: 대상 없이 감탄사/단정만 던지는 낚시성 문구("주력이 됐다", "이게 진짜다", "그거 설정이다" 처럼 무엇에 대한 얘긴지 안 보이는 것). "그거", "이거" 같은 지시대명사로 시작하는 것. "~완벽정리", "~진짜 원리" 같은 뻔한 클리셰. — 짧고 강하게 만들려다 대상이 사라지면 실패다. 짧음보다 "무슨 영상인지 바로 아는 것"이 우선이다.',
     '- description(설명란)은 실제 줄바꿈(\\n)으로 문단을 나눈다: 먼저 3~5문장 요약, 그다음 빈 줄, 그다음 "다루는 내용:" 아래에 항목마다 줄바꿈해 나열한다. (한 덩어리로 붙여쓰지 말 것)',
     '- tags 는 검색 최적화된 한국어/영어 키워드 8~15개.',
   ].join('\n');
 
-  const stream = client.messages.stream({
-    model: config.claudeModel,
-    max_tokens: 32000,
-    thinking: { type: 'adaptive' },
-    output_config: { format: zodOutputFormat(ScriptSchema) },
-    system,
-    messages: [{ role: 'user', content: user }],
-  });
-
-  const final = await stream.finalMessage();
-  if (final.stop_reason === 'refusal') {
-    throw new Error('Claude 가 대본 생성을 거부했습니다(안전상). 주제를 바꿔 다시 시도하세요.');
+  // 한 번 생성해서 Script 로 파싱하는 내부 실행기(분량 미달 시 재시도에 재사용).
+  async function runOnce(extraUserNote: string): Promise<Script> {
+    const messages: Anthropic.MessageParam[] = [{ role: 'user', content: user + extraUserNote }];
+    const stream = client.messages.stream({
+      model: config.claudeModel,
+      max_tokens: 32000,
+      thinking: { type: 'adaptive' },
+      output_config: { format: zodOutputFormat(ScriptSchema) },
+      system,
+      messages,
+    });
+    const final = await stream.finalMessage();
+    if (final.stop_reason === 'refusal') {
+      throw new Error('Claude 가 대본 생성을 거부했습니다(안전상). 주제를 바꿔 다시 시도하세요.');
+    }
+    const textBlock = final.content.find((b) => b.type === 'text');
+    const text = textBlock && 'text' in textBlock ? textBlock.text : '';
+    if (!text) {
+      throw new Error(`Claude 대본 생성 실패: 텍스트 출력 없음 (stop_reason=${final.stop_reason}).`);
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error('Claude 응답을 JSON 으로 파싱하지 못했습니다.');
+    }
+    return ScriptSchema.parse(json);
   }
 
-  const textBlock = final.content.find((b) => b.type === 'text');
-  const text = textBlock && 'text' in textBlock ? textBlock.text : '';
-  if (!text) {
-    throw new Error(`Claude 대본 생성 실패: 텍스트 출력 없음 (stop_reason=${final.stop_reason}).`);
+  const totalChars = (s: Script) => s.scenes.reduce((sum, sc) => sum + (sc.narration?.length ?? 0), 0);
+
+  let script = await runOnce('');
+  let chars = totalChars(script);
+  console.log(`[대본] 나레이션 총 ${chars}자 / 목표 ${targetChars}자 (씬 ${script.scenes.length}개)`);
+
+  // 분량 미달(목표의 70% 미만) 방지 — 모델이 "짧게" 지침에 과반응해 총량을 놓치는 흔한 실패를
+  // 한 번의 재생성으로 교정한다. 더 긴 쪽을 채택(재생성이 오히려 짧으면 첫 결과를 유지).
+  if (chars < targetChars * 0.82) {
+    console.log(`[대본] 분량 미달 → 더 길게 재생성 시도`);
+    try {
+      const retry = await runOnce(
+        `\n\n[중요·재작성 지시] 직전 시도가 총 ${chars}자로 목표(${targetChars}자)의 절반 수준밖에 안 돼 영상이 너무 짧다. 이번엔 씬 수를 ${isBrief ? 30 : 32}개 이상으로 늘리고 각 씬 나레이션을 2~4문장(120~200자)으로 충분히 써서 총 ${targetChars}자 이상을 반드시 채워라. (quote 씬만 짧게.)`,
+      );
+      const retryChars = totalChars(retry);
+      console.log(`[대본] 재생성 결과 총 ${retryChars}자 (씬 ${retry.scenes.length}개)`);
+      if (retryChars > chars) {
+        script = retry;
+        chars = retryChars;
+      }
+    } catch (e) {
+      console.warn('[대본] 재생성 실패, 첫 결과 유지:', e instanceof Error ? e.message : e);
+    }
   }
 
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error('Claude 응답을 JSON 으로 파싱하지 못했습니다.');
-  }
-  return ScriptSchema.parse(json);
+  return script;
 }

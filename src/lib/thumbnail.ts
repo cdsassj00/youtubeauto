@@ -21,8 +21,10 @@ export async function generateThumbnail(params: {
   topic: string;
   headline?: string; // 썸네일용 짧고 강한 문구(없으면 title 사용)
   outPath: string;
+  /** 파격 모드 — 사건형/충격 트렌드 뉴스일 때 긴장감 있는 강렬한 구도로. (기초 영상은 false 로 차분하게.) */
+  dramatic?: boolean;
 }): Promise<boolean> {
-  const { title, topic, headline, outPath } = params;
+  const { title, topic, headline, outPath, dramatic = false } = params;
   const apiKey = config.openaiApiKey;
   if (!apiKey) return false;
 
@@ -37,7 +39,7 @@ export async function generateThumbnail(params: {
   const client = new OpenAI({ apiKey });
   // 매 생성마다 포즈·복장을 다르게 (얼굴/안경/헤어 정체성은 유지, 옷과 자세만 변주).
   const variation = pickVariation();
-  const prompt = buildPrompt(headline?.trim() || title, topic, title, config.thumbnailTone, Boolean(presenter), variation);
+  const prompt = buildPrompt(headline?.trim() || title, topic, title, config.thumbnailTone, Boolean(presenter), variation, dramatic);
 
   let b64: string | undefined;
   if (presenter) {
@@ -107,8 +109,11 @@ function buildPrompt(
   tone: string,
   hasPresenter: boolean,
   variation: { outfit: string; pose: string },
+  dramatic: boolean,
 ): string {
-  const cream = tone !== 'dark';
+  // 파격 모드: 사건형 뉴스에 어울리는 강렬·긴장 구도(빨강 경고 액센트, 극적 조명/비네트, 초대형 글자,
+  // 진지·놀란 표정). 톤은 무조건 어두운 배경으로 대비를 극대화한다.
+  const cream = dramatic ? false : tone !== 'dark';
   const bg = cream
     ? 'warm cream textured paper background (#efe9dc) filling the whole frame, like a hand-drawn notebook'
     : 'dark chalkboard background (near-black charcoal) with subtle chalk texture filling the whole frame';
@@ -116,11 +121,14 @@ function buildPrompt(
     ? 'the key phrase in bold ORANGE (#e8590c) marker and the rest in near-black ink'
     : 'the key phrase in bold ORANGE (#e8590c) and the rest in bright WHITE chalk';
 
+  const expression = dramatic
+    ? 'a serious, tense, slightly shocked expression (wide eyes, brows raised) fitting a breaking-news moment'
+    : 'a confident friendly expression';
   const person = hasPresenter
     ? [
         'You are given a photo of a real Korean man wearing black-framed glasses.',
         'Cleanly REMOVE his green/plain background and place the SAME man on the RIGHT side of the thumbnail, from chest up, turned slightly toward the center,',
-        `with a confident friendly expression, ${variation.pose}.`,
+        `with ${expression}, ${variation.pose}.`,
         `Dress him in ${variation.outfit}.`,
         'CRITICAL: keep his real face, glasses, hairstyle and skin natural and clearly recognizable — do NOT beautify or change his identity; only his outfit and pose may differ. Add subtle rim lighting so he pops from the background.',
       ].join(' ')
@@ -132,15 +140,21 @@ function buildPrompt(
     `Video title: "${title}". Video topic: "${topic}".`,
     'DISAMBIGUATION (read carefully before drawing): Korean tech terms in the topic can have an unrelated everyday industrial meaning — pick the SOFTWARE/AI meaning, never the physical one. ' +
       'Specifically: if the topic mentions "하네스"(harness), it means an AI AGENT\'S SOFTWARE SCAFFOLDING/RUNTIME (the code+config wrapper around an LLM, like Claude Code or a coding agent) — draw a laptop/terminal window, a flowchart of an agent loop, or a code editor, NEVER a physical wire harness, cable bundle, connector, wiring loom, robot arm, car, or airplane part. Do the same kind of correction for any other term that could be misread as physical/industrial hardware.',
-    `Background: ${bg}.`,
+    `Background: ${bg}${dramatic ? ', with a subtle dark vignette and a dramatic spotlight glow behind the man for cinematic tension' : ''}.`,
     person,
     'On the LEFT and CENTER area, draw a BOLD hand-drawn (marker / Excalidraw sketch) concept diagram that illustrates the topic:',
     'a few labeled rounded boxes connected by sketchy arrows, plus simple line icons (brain, gear, laptop, terminal window, cloud, chat bubble, code </>), clearly related to software/AI — not physical objects.',
-    'Use orange (#e8590c), blue (#1971c2) and green (#2f9e44) accents on clean strokes. Lively and clear, NOT cluttered, with real depth.',
+    dramatic
+      ? 'Give it a breaking-news, high-alert feeling: a strong RED (#e03131) alert accent — e.g. a bold red warning triangle/exclamation, a red circle-and-slash, or a red cracked/broken outline around one box — combined with orange (#e8590c) and cool blue (#1971c2). High drama and urgency, but still clean and readable, NOT cluttered.'
+      : 'Use orange (#e8590c), blue (#1971c2) and green (#2f9e44) accents on clean strokes. Lively and clear, NOT cluttered, with real depth.',
     `Add a HUGE, BOLD Korean title, hand-lettered marker style, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
-    `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — very large and thick, 1-2 lines, ${inkTitle}, as the clear focal point.`,
+    `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — ${dramatic ? 'enormous and ultra-thick, dominating the frame, 1-2 lines' : 'very large and thick, 1-2 lines'}, ${inkTitle}, as the clear focal point.`,
     'Keep ALL text fully inside the frame with a safe margin — never let letters touch or get cut off by any edge.',
-    'You may add ONE tiny round accent sticker (a checkmark or a star), but it must NOT contain any of the title words and must not overlap the title text.',
-    'Overall: energetic, high contrast, strong visual hierarchy; the title must be legible even as a tiny phone thumbnail. No watermark, no extra logos.',
+    dramatic
+      ? 'You may add ONE small red accent sticker (a warning "!" or "STOP"-style badge), but it must NOT contain any of the title words and must not overlap the title text.'
+      : 'You may add ONE tiny round accent sticker (a checkmark or a star), but it must NOT contain any of the title words and must not overlap the title text.',
+    dramatic
+      ? 'Overall: dramatic, cinematic, maximum contrast and tension like a top breaking-news tech thumbnail; the title must be legible even as a tiny phone thumbnail. No watermark, no extra logos.'
+      : 'Overall: energetic, high contrast, strong visual hierarchy; the title must be legible even as a tiny phone thumbnail. No watermark, no extra logos.',
   ].join(' ');
 }

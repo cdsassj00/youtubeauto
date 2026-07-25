@@ -1,0 +1,8 @@
+{"title":"RAG 원리","theme":"blueprint","slides":[
+  {"type":"title","kicker":"RETRIEVAL AUGMENTED","title":"RAG는\n검색을 어떻게 바꾸나","lead":"모델이 모르는 걸 찾아서 답한다."},
+  {"type":"stat","kicker":"왜 쓰나","head":"세 가지 이점","stats":[["최신","학습 이후 정보도"],["근거","출처를 제시"],["저비용","재학습 불필요"]]},
+  {"type":"flow","kicker":"파이프라인","head":"질문에서 답까지","nodes":["질문","임베딩","검색","생성"],"hot":2},
+  {"type":"cmp","kicker":"대비","head":"순수 LLM vs RAG","left":["순수 LLM","학습된 지식만","환각 위험"],"right":["RAG","외부 문서 근거","최신·정확"]},
+  {"type":"quote","quote":"모델을 키우지 말고,\n검색을 붙여라."},
+  {"type":"title","kicker":"THE END","title":"정리하면","lead":"검색 품질이 곧 답 품질이다."}
+]}

@@ -14,6 +14,12 @@ export const SCRIPT_PATH = path.join(OUT_DIR, 'script.json');
 export const MANIFEST_PATH = path.join(OUT_DIR, 'manifest.json');
 export const VIDEO_PATH = path.join(OUT_DIR, 'video.mp4');
 export const THUMBNAIL_PATH = path.join(OUT_DIR, 'thumbnail.png');
+// 업로드 결과(videoId·공개상태 등) — "업로드 전 리뷰" 흐름에서 웹앱이 읽어 미리보기/발행 제어에 씀.
+export const UPLOAD_RESULT_PATH = path.join(OUT_DIR, 'upload-result.json');
+// deck 기반 엔진(signal / deck3d)용 산출물 — 슬라이드 데이터와 업로드 메타(제목·설명·태그).
+export const DECK_PATH = path.join(OUT_DIR, 'deck.json');
+export const DECK_META_PATH = path.join(OUT_DIR, 'deck-meta.json');
+export const WEB3D_DIR = path.join(ROOT, 'web3d-deck');
 // 썸네일 인물 합성용 진행자 사진 (그린스크린/투명 모두 가능). CI 에선 저장소에 커밋하거나 URL 로 제공.
 export const ASSETS_DIR = path.join(ROOT, 'assets');
 export const PRESENTER_IMAGE_PATH = path.join(ASSETS_DIR, 'presenter.png');
@@ -43,7 +49,28 @@ function optional(name: string, fallback: string): string {
   return v == null || v.trim() === '' ? fallback : v;
 }
 
+// ── 업로드 대상 채널 선택 ────────────────────────────────────────────────
+// TARGET_CHANNEL 이 'default' 가 아니면(예: 'ch2') 해당 채널 전용 환경변수(_SUFFIX)를
+// 먼저 찾고, 없으면 기본 변수로 폴백한다. 채널마다 refresh token/카테고리/설명 푸터를
+// 따로 둘 수 있어 한 파이프라인으로 여러 채널에 업로드 가능(기본값은 기존 동작 그대로).
+const TARGET_CHANNEL = optional('TARGET_CHANNEL', 'default').trim().toLowerCase();
+const CH_SUFFIX = TARGET_CHANNEL && TARGET_CHANNEL !== 'default' ? '_' + TARGET_CHANNEL.toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+/** 채널별 우선 조회 후 기본으로 폴백하는 optional. */
+function chOptional(base: string, fallback: string): string {
+  return optional(base + CH_SUFFIX, optional(base, fallback));
+}
+/** 채널별 우선 조회 후 기본으로 폴백하는 required. */
+function chRequired(base: string): string {
+  const v = process.env[base + CH_SUFFIX] ?? process.env[base];
+  if (!v || v.trim() === '') {
+    throw new Error(`환경변수 ${base + CH_SUFFIX} (또는 ${base}) 이(가) 설정되지 않았습니다. 채널(${TARGET_CHANNEL}) 자격증명을 확인하세요.`);
+  }
+  return v;
+}
+
 export const config = {
+  // 현재 업로드 대상 채널 키 ('default' | 그 외 채널 키).
+  targetChannel: TARGET_CHANNEL,
   // Anthropic
   anthropicApiKey: () => required('ANTHROPIC_API_KEY'),
   claudeModel: optional('CLAUDE_MODEL', 'claude-opus-4-8'),
@@ -54,14 +81,17 @@ export const config = {
   elevenLabsVoiceId: optional('ELEVENLABS_VOICE_ID', 'dChkTgjs2tPbb8OYH4OX'),
   elevenLabsModelId: optional('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2'),
 
-  // YouTube
-  youtubeClientId: () => required('YOUTUBE_CLIENT_ID'),
-  youtubeClientSecret: () => required('YOUTUBE_CLIENT_SECRET'),
-  youtubeRefreshToken: () => required('YOUTUBE_REFRESH_TOKEN'),
-  youtubePrivacyStatus: optional('YOUTUBE_PRIVACY_STATUS', 'private'),
-  youtubeCategoryId: optional('YOUTUBE_CATEGORY_ID', '27'),
-  // 모든 영상 설명란 맨 아래에 붙는 고정 안내(줄바꿈은 실제 개행 또는 \n).
-  youtubeDescriptionFooter: optional('YOUTUBE_DESC_FOOTER', 'AX전환은 CDSA와 함께\nhttps://cdsa.kr'),
+  // YouTube (채널별 자격증명 지원 — chRequired/chOptional 로 TARGET_CHANNEL 에 맞는 값을 고름)
+  // client id/secret 는 보통 한 OAuth 앱을 공유하므로 기본값으로 폴백되지만, 채널별로 따로
+  // 두고 싶으면 _SUFFIX 변수를 주면 된다.
+  youtubeClientId: () => chRequired('YOUTUBE_CLIENT_ID'),
+  youtubeClientSecret: () => chRequired('YOUTUBE_CLIENT_SECRET'),
+  // refresh token 은 채널(=계정)마다 다르므로 반드시 채널별로 발급받아 넣는다.
+  youtubeRefreshToken: () => chRequired('YOUTUBE_REFRESH_TOKEN'),
+  youtubePrivacyStatus: chOptional('YOUTUBE_PRIVACY_STATUS', 'private'),
+  youtubeCategoryId: chOptional('YOUTUBE_CATEGORY_ID', '27'),
+  // 모든 영상 설명란 맨 아래에 붙는 고정 안내(줄바꿈은 실제 개행 또는 \n). 채널별로 다르게 가능.
+  youtubeDescriptionFooter: chOptional('YOUTUBE_DESC_FOOTER', 'AX전환은 CDSA와 함께\nhttps://cdsa.kr'),
   // 합성 콘텐츠 공개 표시. YouTube 정책상 "자기 목소리를 복제해 보이스오버/더빙에 쓰는 것"과
   // "실사가 아닌 완전 애니메이션/일러스트 콘텐츠"는 명시적 예외 대상 — 이 채널(음성 클론 나레이션 +
   // 흑백 일러스트/등각 그래픽)은 둘 다 해당해 표시 불필요. 필요해지면(실사풍으로 바뀌는 등) true로.
@@ -93,7 +123,12 @@ export const config = {
   researchProvider: optional('RESEARCH_PROVIDER', 'openai').toLowerCase(),
   openaiResearchModel: optional('OPENAI_RESEARCH_MODEL', 'gpt-4.1-mini'),
 
-  // 영상 엔진: 'illustrated'(AI 흑백 일러스트) | 'web3d'(3D 웹녹화) | 'remotion'(손그림). 기본 illustrated.
+  // 영상 엔진(=화면 스타일):
+  //  illustrated : 2D AI 흑백 일러스트 + 코드 도식 (기본, 기존 채널 스타일)
+  //  deck3d      : 3D 기하학 도형 공간에서 카메라가 이동하며 설명 (web3d-deck/deck-timed.js)
+  //  signal      : 딥블랙 + 단일 액센트 + 큰 숫자의 데이터 중심 화면 (web3d-deck/deck-signal.js)
+  //  signal3d    : signal 디자인 + 3D 깊이 카메라(텍스트는 DOM 이라 선명)
+  //  web3d/remotion : 구버전 엔진
   videoEngine: optional('VIDEO_ENGINE', 'illustrated').toLowerCase(),
 
   // 동작

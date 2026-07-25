@@ -132,6 +132,27 @@
       .pill.fail { background: #331a1a; color: #ff6b6b; }
       .rt { color: var(--sub); font-size: 12px; }
       .mine { color: var(--accent2); }
+
+      /* ── 업로드 전 리뷰 패널 ── */
+      .review { margin-top: 22px; border: 1px solid var(--line); border-radius: 18px; padding: 20px; background: #0f1420; display: none; }
+      .review.show { display: block; }
+      .review h3 { margin: 0 0 4px; font-size: 18px; }
+      .review .rvsub { color: var(--sub); font-size: 13px; margin-bottom: 14px; }
+      .review .vid { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--line); }
+      .review .vid iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+      .review .thumb { margin-top: 12px; }
+      .review .thumb img { width: 100%; border-radius: 12px; border: 1px solid var(--line); display: block; }
+      .review .thumb .cap { font-size: 12px; color: var(--sub); margin: 6px 2px 0; }
+      .pv { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; }
+      .pv.public { background: #14311c; color: #51cf66; }
+      .pv.unlisted { background: #2b2718; color: #ffd43b; }
+      .pv.private { background: #2a2530; color: #b0a8c0; }
+      .review .rehead { width: 100%; margin-top: 12px; display: none; }
+      .review .acts { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+      .review .acts button { flex: 1; min-width: 130px; padding: 13px; border-radius: 12px; border: 1px solid var(--line); background: #141824; color: var(--ink); font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; }
+      .review .acts button.pub { background: linear-gradient(135deg, var(--ok), #37b24d); border: none; }
+      .review .acts button:active { transform: scale(0.99); }
+      .review .acts button:disabled { opacity: 0.5; cursor: not-allowed; }
     </style>
   </head>
   <body>
@@ -139,7 +160,7 @@
       <header>
         <span class="badge">🎬 AI 영상 자동 발행 스튜디오</span>
         <h1>주제만 던지면, 유튜브까지</h1>
-        <p>대본 · 나레이션 · 손그림 애니메이션 · 업로드를 한 번에</p>
+        <p>대본 · 나레이션 · 애니메이션 · 미리보기 확인 후 발행</p>
       </header>
 
       <div class="card">
@@ -172,18 +193,34 @@
               <option value="expert" selected>전문가용(깊이있게)</option>
             </select>
           </div>
+          <div>
+            <label for="channel">채널</label>
+            <select id="channel">
+              <option value="default" selected>기본 채널</option>
+              <option value="ch2">두 번째 채널</option>
+            </select>
+          </div>
+          <div>
+            <label for="style">영상 스타일</label>
+            <select id="style">
+              <option value="illustrated" selected>2D 벡터 일러스트</option>
+              <option value="deck3d">3D 기하학 도형</option>
+              <option value="signal">시그널(데이터 중심)</option>
+              <option value="signal3d">시그널 + 3D 공간</option>
+            </select>
+          </div>
         </div>
 
         <div class="switch">
           <input id="upload" type="checkbox" checked />
-          <label for="upload" style="margin: 0">완성 후 유튜브 업로드 (끄면 렌더만)</label>
+          <label for="upload" style="margin: 0">완성 후 미리보기 업로드(미등록) — 확인 후 발행 · 끄면 렌더만</label>
         </div>
 
         <label for="pw">앱 비밀번호 (설정한 경우)</label>
         <input id="pw" type="password" placeholder="선택 사항" autocomplete="off" />
 
-        <button id="go" class="go">🚀 발행 시작</button>
-        <div class="hint">발행에는 몇 분 걸립니다. GitHub Actions에서 렌더·업로드가 진행됩니다.</div>
+        <button id="go" class="go">🚀 미리보기 제작</button>
+        <div class="hint">제작에는 몇 분 걸려요. 완성되면 아래에서 미리보기 영상·썸네일을 확인하고 발행/수정할 수 있어요.</div>
         <div id="toast" class="toast"></div>
 
         <!-- 라이브 제작 패널 -->
@@ -209,6 +246,21 @@
           </div>
 
           <div class="result" id="result"></div>
+        </div>
+
+        <!-- 업로드 전 리뷰: 미리보기 영상 + 썸네일 확인 → 발행 / 썸네일 수정 / 영상 다시 -->
+        <div id="review" class="review">
+          <h3>미리보기 확인 <span id="pvbadge" class="pv unlisted">미등록</span></h3>
+          <div class="rvsub">공개 전에 영상과 썸네일을 확인하세요. 문제 없으면 발행, 아니면 수정할 수 있어요. (미등록 상태라 링크 있는 사람만 볼 수 있어요)</div>
+          <div class="vid"><iframe id="rviframe" allow="fullscreen; encrypted-media" src="about:blank"></iframe></div>
+          <div class="thumb"><img id="rvthumb" alt="썸네일 미리보기" /><div class="cap">썸네일 (반영에 1~2분 걸릴 수 있어요)</div></div>
+          <input id="rehead" class="rehead" type="text" placeholder="새 썸네일 문구(선택) — 비우면 자동 생성" />
+          <div class="acts">
+            <button id="btnPublish" class="pub">✅ 발행 (공개)</button>
+            <button id="btnRethumb">🖼️ 썸네일만 수정</button>
+            <button id="btnRevideo">🎬 영상 다시</button>
+          </div>
+          <div id="rvtoast" class="toast"></div>
         </div>
 
         <div class="runlist" id="runlist"></div>
@@ -250,8 +302,11 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               topic, mode: $('mode').value, minutes: Number($('minutes').value),
-              level: $('level').value,
+              level: $('level').value, channel: $('channel').value,
               upload: $('upload').checked, password: $('pw').value,
+              style: $('style').value,
+              // 업로드를 켜면 먼저 '미등록(unlisted)'으로 올려 확인 후 발행하는 리뷰 흐름.
+              privacy: $('upload').checked ? 'unlisted' : '',
             }),
           });
           const data = await res.json();
@@ -261,12 +316,12 @@
           setLive('queued', { stage: '실행을 준비하고 있어요', sub: '잠시 후 GitHub Actions가 시작됩니다' });
           toast('✅ 발행 요청을 보냈어요! 아래에서 제작 과정이 실시간으로 보여요.', 'info');
           btn.textContent = '요청됨 · 실행 대기…';
-          setTimeout(() => { btn.disabled = false; btn.textContent = '🚀 발행 시작'; }, COOLDOWN_MS);
+          setTimeout(() => { btn.disabled = false; btn.textContent = '🚀 미리보기 제작'; }, COOLDOWN_MS);
           startPolling(1200);
         } catch (e) {
           toast('⚠️ ' + e.message, 'err');
           btn.disabled = false;
-          btn.textContent = '🚀 발행 시작';
+          btn.textContent = '🚀 미리보기 제작';
         }
       }
 
@@ -406,7 +461,8 @@
           stage.textContent = '영상 제작 완료 🎉';
           sub.textContent = opt.title ? String(opt.title).slice(0, 40) : '';
           result.className = 'result show';
-          result.innerHTML = '🎉 완성됐어요! 위 실행 로그에서 아티팩트(영상)를 확인하거나, 업로드를 켰다면 유튜브 채널을 확인하세요.';
+          result.innerHTML = '🎉 제작 완료! 아래에서 미리보기 영상과 썸네일을 확인하세요.';
+          loadReview();
         } else if (mode === 'failed') {
           dot.style.display = 'none';
           label.textContent = '⚠️ 중단됨'; label.style.color = '#ff8787';
@@ -466,6 +522,61 @@
             <a href="${r.html_url}" target="_blank">로그 ↗</a></div>`;
         }).join('');
       }
+
+      // ── 업로드 전 리뷰 ──
+      const rvtoast = (msg, kind = 'info') => { const t = $('rvtoast'); t.textContent = msg; t.className = 'toast ' + (kind === 'err' ? 'err' : 'info'); };
+      const PVLABEL = { public: ['공개', 'public'], unlisted: ['미등록', 'unlisted'], private: ['비공개', 'private'] };
+
+      async function loadReview() {
+        try {
+          const res = await fetch('/api/result');
+          const d = await res.json();
+          if (!d.found) return; // 아직 업로드 결과 없음(렌더만 한 경우 등)
+          window.__review = { videoId: d.videoId, privacy: d.privacyStatus };
+          $('rviframe').src = d.embedUrl;
+          $('rvthumb').src = d.thumbnailUrl + (d.thumbnailUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+          const [label, cls] = PVLABEL[d.privacyStatus] || [d.privacyStatus, 'unlisted'];
+          const b = $('pvbadge'); b.textContent = label; b.className = 'pv ' + cls;
+          $('btnPublish').disabled = d.privacyStatus === 'public';
+          $('btnPublish').textContent = d.privacyStatus === 'public' ? '✓ 공개됨' : '✅ 발행 (공개)';
+          $('review').classList.add('show');
+        } catch (e) { /* 조용히 무시 */ }
+      }
+
+      async function post(url, body) {
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error((d.error || '요청 실패') + (d.detail ? ' — ' + d.detail : ''));
+        return d;
+      }
+
+      $('btnPublish').addEventListener('click', async () => {
+        const r = window.__review; if (!r) return;
+        const btn = $('btnPublish'); btn.disabled = true; btn.textContent = '발행 중…';
+        try {
+          await post('/api/setprivacy', { videoId: r.videoId, status: 'public', channel: $('channel').value, password: $('pw').value });
+          rvtoast('🚀 발행 요청됨! 잠시 후 공개로 바뀝니다.', 'info');
+          setTimeout(loadReview, 12000); // 전환 워크플로 반영 대기
+        } catch (e) { rvtoast('⚠️ ' + e.message, 'err'); btn.disabled = false; btn.textContent = '✅ 발행 (공개)'; }
+      });
+
+      $('btnRethumb').addEventListener('click', async () => {
+        const r = window.__review; if (!r) return;
+        const head = $('rehead');
+        if (head.style.display !== 'block') { head.style.display = 'block'; head.focus(); rvtoast('썸네일 문구를 입력(또는 비워두고) 다시 눌러주세요.', 'info'); return; }
+        const btn = $('btnRethumb'); btn.disabled = true; btn.textContent = '썸네일 재생성 중…';
+        try {
+          await post('/api/rethumb', { videoId: r.videoId, topic: $('topic').value.trim(), headline: head.value.trim(), password: $('pw').value });
+          rvtoast('🖼️ 썸네일 재생성 요청됨! 1~2분 뒤 자동 새로고침됩니다.', 'info');
+          setTimeout(() => { $('rvthumb').src = 'https://i.ytimg.com/vi/' + r.videoId + '/hqdefault.jpg?t=' + Date.now(); btn.disabled = false; btn.textContent = '🖼️ 썸네일만 수정'; }, 90000);
+        } catch (e) { rvtoast('⚠️ ' + e.message, 'err'); btn.disabled = false; btn.textContent = '🖼️ 썸네일만 수정'; }
+      });
+
+      $('btnRevideo').addEventListener('click', () => {
+        if (!confirm('영상을 다시 만들까요? 새 미리보기가 생성됩니다(이전 미등록 영상은 유튜브 스튜디오에서 지우면 됩니다).')) return;
+        $('review').classList.remove('show');
+        publish();
+      });
 
       $('go').addEventListener('click', publish);
       // 여러 줄 입력이므로 Enter 는 줄바꿈, Ctrl/Cmd+Enter 로 발행.

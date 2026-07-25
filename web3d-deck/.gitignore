@@ -1,0 +1,5 @@
+# 렌더 산출물은 커밋하지 않음
+frames/
+*.mp4
+*.webm
+out.html
