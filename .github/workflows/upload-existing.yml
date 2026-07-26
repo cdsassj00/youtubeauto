@@ -1,0 +1,99 @@
+name: 이미 만든 영상 업로드(재렌더 없음)
+
+# 렌더까지 끝났는데 업로드만 안 된 실행을 구제한다.
+# (DO_UPLOAD=false 로 돌아 20분짜리 렌더를 마치고도 업로드가 안 된 사례가 있었다.)
+# 지난 실행의 아티팩트(out/*)를 그대로 내려받아 유튜브 업로드 단계만 다시 실행하므로
+# 대본·나레이션·렌더 비용이 전혀 들지 않는다.
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: '영상이 들어 있는 실행 ID (Actions 주소 끝 숫자)'
+        required: true
+      privacy:
+        description: '공개 상태 (unlisted | private | public)'
+        required: false
+        default: 'unlisted'
+      engine:
+        description: '그 영상을 만든 엔진 (signal3d | signal | deck3d | illustrated)'
+        required: false
+        default: 'signal3d'
+      channel:
+        description: '업로드 채널 (default | ch2)'
+        required: false
+        default: 'default'
+  repository_dispatch:
+    types: [upload-existing]
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # 다른 실행의 아티팩트를 내려받으려면 actions:read 가 필요하다.
+    permissions:
+      actions: read
+      contents: read
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
+      YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
+      SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'false' }}
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'default' }}
+      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || github.event.client_payload.privacy || 'unlisted' }}
+      # 메타를 script.json 에서 읽을지 deck-meta.json 에서 읽을지 결정하므로 반드시 원래 엔진과 맞춰야 한다.
+      VIDEO_ENGINE: ${{ github.event.inputs.engine || github.event.client_payload.engine || 'signal3d' }}
+      DO_UPLOAD: 'true'
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 지난 실행의 산출물 내려받기
+        uses: actions/download-artifact@v4
+        with:
+          name: video-output
+          path: out
+          run-id: ${{ github.event.inputs.source_run_id || github.event.client_payload.source_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: 내려받은 산출물 확인
+        run: |
+          ls -la out
+          test -s out/video.mp4 || { echo "::error::out/video.mp4 가 없습니다 — 그 실행은 렌더까지 가지 못했습니다."; exit 1; }
+          echo "영상 크기: $(du -h out/video.mp4 | cut -f1)"
+
+      - name: 유튜브 업로드
+        run: npm run upload
+
+      - name: 리뷰용 결과 아티팩트
+        id: result
+        if: always()
+        run: |
+          if [ -f out/upload-result.json ]; then
+            echo "vid=$(jq -r .videoId out/upload-result.json)" >> "$GITHUB_OUTPUT"
+            echo "pv=$(jq -r .privacyStatus out/upload-result.json)" >> "$GITHUB_OUTPUT"
+            echo "has=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 결과 업로드(웹앱 리뷰 패널용)
+        if: always() && steps.result.outputs.has == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: result__vid-${{ steps.result.outputs.vid }}__pv-${{ steps.result.outputs.pv }}
+          path: out/upload-result.json
+          retention-days: 7
