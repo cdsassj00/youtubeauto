@@ -322,7 +322,8 @@ async function stepRethumb(): Promise<void> {
   const headline = process.env.RETHUMB_HEADLINE?.trim() || '';
   console.log('▶ 썸네일 재생성 + 교체:', videoId);
   const badge = process.env.RETHUMB_BADGE?.trim() || '';
-  const ok = await generateThumbnail({ title, topic, headline, badge, outPath: THUMBNAIL_PATH, dramatic: process.env.RETHUMB_DRAMATIC === 'true' });
+  const productIcons = process.env.RETHUMB_ICONS?.trim() || '';
+  const ok = await generateThumbnail({ title, topic, headline, badge, productIcons, outPath: THUMBNAIL_PATH, dramatic: process.env.RETHUMB_DRAMATIC === 'true' });
   if (!ok) throw new Error('썸네일 생성 실패 (OPENAI_API_KEY 확인)');
   await setThumbnail(videoId, THUMBNAIL_PATH);
   console.log('  · 교체 완료:', THUMBNAIL_PATH);

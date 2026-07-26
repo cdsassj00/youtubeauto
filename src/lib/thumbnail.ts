@@ -22,11 +22,13 @@ export async function generateThumbnail(params: {
   headline?: string; // 썸네일용 짧고 강한 문구(없으면 title 사용)
   /** 주체 배지 — 문구를 짧게 유지하는 대신 "무엇에 대한 영상인지"를 구석에 작게 박는다. */
   badge?: string;
+  /** 여러 제품을 함께 다루는 회차용 — 배지 대신 제품 심볼을 한 줄로 나열한다. (예: 'ChatGPT, Claude, Gemini, Grok') */
+  productIcons?: string;
   outPath: string;
   /** 파격 모드 — 사건형/충격 트렌드 뉴스일 때 긴장감 있는 강렬한 구도로. (기초 영상은 false 로 차분하게.) */
   dramatic?: boolean;
 }): Promise<boolean> {
-  const { title, topic, headline, badge, outPath, dramatic = false } = params;
+  const { title, topic, headline, badge, productIcons, outPath, dramatic = false } = params;
   const apiKey = config.openaiApiKey;
   if (!apiKey) return false;
 
@@ -41,7 +43,7 @@ export async function generateThumbnail(params: {
   const client = new OpenAI({ apiKey });
   // 매 생성마다 포즈·복장을 다르게 (얼굴/안경/헤어 정체성은 유지, 옷과 자세만 변주).
   const variation = pickVariation();
-  const prompt = buildPrompt(headline?.trim() || title, topic, title, config.thumbnailTone, Boolean(presenter), variation, dramatic, badge?.trim() || '');
+  const prompt = buildPrompt(headline?.trim() || title, topic, title, config.thumbnailTone, Boolean(presenter), variation, dramatic, badge?.trim() || '', productIcons?.trim() || '');
 
   let b64: string | undefined;
   if (presenter) {
@@ -160,6 +162,7 @@ function buildPrompt(
   variation: Variation,
   dramatic: boolean,
   badge: string,
+  productIcons: string,
 ): string {
   const layout = variation.layout;
   // 파격 모드: 사건형 뉴스에 어울리는 강렬·긴장 구도(빨강 경고 액센트, 극적 조명/비네트, 초대형 글자,
@@ -200,7 +203,7 @@ function buildPrompt(
     layout.title,
     `${layout.symbol} It must be ONE single bold hand-drawn symbol that captures the idea at a glance`,
     '(for example: a giant up-arrow, a price tag, a balance scale, a rocket, a brain, a padlock, a stopwatch — whichever fits the topic).',
-    `CRITICAL: do NOT draw a diagram, flowchart, or multiple labeled boxes. Do NOT add small explanatory text, bullet lists, checkmark lists, or captions anywhere${badge ? ' (the one corner badge described below is the only exception)' : ''}.`,
+    `CRITICAL: do NOT draw a diagram, flowchart, or multiple labeled boxes. Do NOT add small explanatory text, bullet lists, checkmark lists, or captions anywhere${productIcons ? ' (the one row of small product symbols described below is the only exception)' : badge ? ' (the one corner badge described below is the only exception)' : ''}.`,
     'At most 2 extra tiny icons. Everything else stays EMPTY — negative space makes the title readable at phone size.',
     dramatic
       ? 'Give it a breaking-news, high-alert feeling: a strong RED (#e03131) alert accent — e.g. a bold red warning triangle/exclamation, a red circle-and-slash, or a red cracked/broken outline around one box — combined with orange (#e8590c) and cool blue (#1971c2). High drama and urgency, but still clean and readable, NOT cluttered.'
@@ -208,8 +211,15 @@ function buildPrompt(
     `Add a HUGE, BOLD Korean title, hand-lettered marker style, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
     `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — ${dramatic ? 'enormous and ultra-thick, dominating the frame' : 'very large and thick'}, broken into lines as described in the layout above, ${inkTitle}, as the clear focal point.`,
     'Keep ALL text fully inside the frame with a safe margin — never let letters touch or get cut off by any edge.',
+    // 여러 제품을 비교·종합하는 회차는 이름 나열(배지)보다 심볼이 한눈에 읽힌다.
+    // 로고를 정밀 복제하는 게 아니라 칠판 분필 느낌으로 단순화해 그린다(왜곡된 글자 방지).
+    productIcons
+      ? `Along the ${layout.badge.includes('TOP') ? 'TOP' : 'BOTTOM'} edge, draw a single neat row of ${productIcons.split(',').length} SMALL simple chalk-style symbols representing these AI products: ${productIcons}. ` +
+        'Draw them as simplified iconic marks (a simple flower/asterisk burst, a rounded starburst, a four-pointed spark, a stylized X) — clean geometric chalk drawings, all the same small size, evenly spaced, each about 1/14 of the frame width. ' +
+        'Do NOT write the product names as text next to them, and do NOT let them overlap the title or the person. They are a quiet accent row, not a focal point.'
+      : '',
     // 문구를 8~14자로 짧게 쓰게 하는 대신, "무엇에 대한 영상인지"는 이 작은 배지가 책임진다.
-    badge
+    badge && !productIcons
       ? `In the ${layout.badge} corner, add ONE small flat rectangular badge (about 1/8 of the frame width) filled with ${dramatic ? 'red (#e03131)' : 'orange (#e8590c)'}, containing ONLY this short text in clean white letters, spelled exactly: "${badge}". Keep it small and secondary — it must never compete with or overlap the big title or the person.`
       : dramatic
         ? 'You may add ONE small red accent sticker (a warning "!" or "STOP"-style badge), but it must NOT contain any of the title words and must not overlap the title text.'
