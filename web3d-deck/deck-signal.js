@@ -62,6 +62,42 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1;
 .nodes svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .nodes line{stroke:rgba(255,255,255,.13);stroke-width:1}
 
+/* ── 도식(설명형) ── SIGNAL 은 원래 숫자 슬라이드만 있어서 "구조를 그려 설명"하는 장면이 없었다.
+   장식은 그대로 금지하고, 선·박스·화살표만으로 구조를 보여주는 네 가지를 추가한다. */
+
+/* 파이프라인: 좌 → 우 단계 흐름 */
+.pipe{display:flex;align-items:stretch;justify-content:center;width:100%;max-width:1620px}
+.pipe .pn{border:1px solid var(--line);background:#0f0f0f;border-radius:16px;padding:34px 30px;
+ min-width:250px;text-align:center;display:flex;flex-direction:column;justify-content:center}
+.pipe .pn .t{font-size:38px;font-weight:700;letter-spacing:-.02em;line-height:1.22}
+.pipe .pn .s{font-size:17px;color:var(--faint);margin-top:14px;letter-spacing:.03em}
+.pipe .ar{display:flex;align-items:center;color:var(--faint);font-size:32px;padding:0 22px}
+
+/* 계층 스택: 아래에서 위로 쌓인 구조 */
+.stack{display:flex;flex-direction:column;gap:18px;width:100%;max-width:1180px}
+.stack .sl{border:1px solid var(--line);background:var(--card);border-radius:16px;
+ padding:30px 40px;display:flex;align-items:baseline;gap:26px}
+.stack .sl .n{font-size:17px;color:var(--faint);letter-spacing:.1em;min-width:40px}
+.stack .sl .t{font-size:44px;font-weight:700;letter-spacing:-.025em}
+.stack .sl .s{font-size:22px;color:var(--dim);margin-left:auto;text-align:right}
+
+/* 좌우 비교 */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:38px;width:100%;max-width:1500px}
+.cmp .col{border:1px solid var(--line);background:var(--card);border-radius:18px;padding:40px 44px}
+.cmp .col .h{font-size:19px;letter-spacing:.16em;color:var(--faint);font-weight:700;margin-bottom:28px}
+.cmp .col.hi{border-color:${AC}33}
+.cmp .col.hi .h{color:var(--ac)}
+.cmp .col .li{font-size:33px;line-height:1.75;color:var(--ink);display:flex;gap:16px}
+.cmp .col .li::before{content:'—';color:var(--faint)}
+.cmp .col.hi .li::before{color:var(--ac)}
+
+/* 격자(분류/요소 나열) */
+.grid{display:grid;gap:24px;width:100%;max-width:1560px}
+.grid .c{border:1px solid var(--line);background:var(--card);border-radius:16px;padding:32px 34px}
+.grid .c .n{font-size:16px;color:var(--ac);letter-spacing:.12em;font-weight:700}
+.grid .c .t{font-size:36px;font-weight:700;margin-top:14px;letter-spacing:-.02em}
+.grid .c .s{font-size:22px;color:var(--dim);margin-top:14px;line-height:1.55}
+
 /* 진술/타이틀 */
 .claim{font-size:78px;font-weight:800;letter-spacing:-.035em;line-height:1.18;text-align:center;max-width:1100px}
 .claim em{font-style:normal;color:var(--ac)}
@@ -89,10 +125,15 @@ function splitCap(s) {
   return out;
 }
 
+// 단계별로 하나씩 짚어가며 설명하는 도식들 — 타입마다 강조할 요소의 셀렉터가 다르다.
+// (steps 가 있으면 각 단계가 독립된 나레이션 비트가 되고, 카메라 대신 강조가 옮겨간다.)
+const STEPPED = { nodes: '.nd', pipeline: '.pn', stack: '.sl' };
+const isStepped = s => !!STEPPED[s.type] && Array.isArray(s.steps) && s.steps.length > 0;
+
 // ── 비트 타임라인 ──
 const beats = [];
 DECK.forEach((s, si) => {
-  if (s.type === 'nodes' && s.steps) s.steps.forEach((st2, ni) => beats.push({ si, ni, dur: st2.dur || estDur(st2.say) }));
+  if (isStepped(s)) s.steps.forEach((st2, ni) => beats.push({ si, ni, dur: st2.dur || estDur(st2.say) }));
   else beats.push({ si, ni: -1, dur: s.dur || estDur(s.say) });
 });
 let acc = 0; beats.forEach(b => { b.t0 = acc; acc += b.dur; b.t1 = acc; });
@@ -131,6 +172,32 @@ function buildScene(s) {
     d.innerHTML = `${s.kicker ? `<div class="kick el">${esc(s.kicker)}</div>` : ''}
       <div class="nodes"><svg>${lines}</svg>
       ${pts.map((p, i) => `<div class="nd el" data-i="${i}" style="left:${p.x}%;top:${p.y}%">${esc(p.label)}</div>`).join('')}</div>`;
+  } else if (s.type === 'pipeline') {
+    const ns = s.nodes || [];
+    d.innerHTML = `${s.kicker ? `<div class="kick el">${esc(s.kicker)}</div>` : ''}
+      <div class="pipe">${ns.map((n, i) => `${i ? '<div class="ar el mono">&rarr;</div>' : ''}
+        <div class="pn el" data-i="${i}"><div class="t">${esc(n.label)}</div>${n.sub ? `<div class="s mono">${esc(n.sub)}</div>` : ''}</div>`).join('')}</div>
+      ${s.lead ? `<div class="lead el">${esc(s.lead)}</div>` : ''}`;
+  } else if (s.type === 'stack') {
+    const ls = s.layers || [];
+    d.innerHTML = `${s.kicker ? `<div class="kick el">${esc(s.kicker)}</div>` : ''}
+      <div class="stack">${ls.map((l, i) => `<div class="sl el" data-i="${i}">
+        <span class="n mono">${String(ls.length - i).padStart(2, '0')}</span>
+        <span class="t">${esc(l.label)}</span>${l.sub ? `<span class="s">${esc(l.sub)}</span>` : ''}</div>`).join('')}</div>
+      ${s.lead ? `<div class="lead el">${esc(s.lead)}</div>` : ''}`;
+  } else if (s.type === 'cmp') {
+    const col = (c, hi) => `<div class="col el${hi ? ' hi' : ''}"><div class="h mono">${esc((c || [])[0])}</div>
+      ${(c || []).slice(1).map(x => `<div class="li">${esc(x)}</div>`).join('')}</div>`;
+    d.innerHTML = `${s.kicker ? `<div class="kick el">${esc(s.kicker)}</div>` : ''}
+      <div class="cmp">${col(s.left, false)}${col(s.right, true)}</div>
+      ${s.lead ? `<div class="lead el">${esc(s.lead)}</div>` : ''}`;
+  } else if (s.type === 'grid') {
+    const cs = s.cells || [];
+    const cols = Math.min(4, Math.max(2, Number(s.cols) || (cs.length > 4 ? 3 : 2)));
+    d.innerHTML = `${s.kicker ? `<div class="kick el">${esc(s.kicker)}</div>` : ''}
+      <div class="grid" style="grid-template-columns:repeat(${cols},1fr)">${cs.map((c, i) => `<div class="c el">
+        <div class="n mono">${String(i + 1).padStart(2, '0')}</div><div class="t">${esc(c.label)}</div>
+        ${c.sub ? `<div class="s">${esc(c.sub)}</div>` : ''}</div>`).join('')}</div>`;
   } else { // claim / title
     d.innerHTML = `${s.kicker ? `<div class="kick el">${esc(s.kicker)}</div>` : ''}
       <div class="claim el">${s.claim || esc(s.title)}</div>
@@ -196,20 +263,24 @@ window.__setTime = function (t) {
     });
   });
 
-  // nodes: 활성 노드 강조를 부드럽게 보간
-  if (s.type === 'nodes' && b.ni >= 0) {
-    const hi = (s.steps[b.ni] || {}).node;
-    const g = ease(clamp(0, 1, u / 0.25));                                     // 비트 시작 후 0.25초에 걸쳐 점등
-    scenes[b.si].querySelectorAll('.nd').forEach((n, i2) => {
+  // 단계형 도식(nodes/pipeline/stack): 현재 단계 요소만 점등하고 나머지는 가라앉힌다.
+  if (isStepped(s) && b.ni >= 0) {
+    const step = s.steps[b.ni] || {};
+    const hi = step.node != null ? step.node : b.ni;                            // node 를 안 주면 단계 순서대로
+    const g = ease(clamp(0, 1, u / 0.25));                                      // 비트 시작 후 0.25초에 걸쳐 점등
+    scenes[b.si].querySelectorAll(STEPPED[s.type]).forEach((n, i2) => {
       const on = i2 === hi ? g : 0;
       n.style.borderColor = `rgba(46,232,122,${(0.08 + on * 0.45).toFixed(3)})`;
       n.style.color = on > 0.5 ? AC : '';
       n.style.boxShadow = on > 0.02 ? `0 0 ${(26 * on).toFixed(0)}px rgba(46,232,122,${(0.18 * on).toFixed(3)})` : 'none';
+      // 지나간/아직 안 온 단계는 살짝 흐려 현재 단계가 눈에 먼저 들어오게.
+      const dim = i2 === hi ? 1 : 1 - 0.42 * g;
+      n.style.filter = dim < 0.999 ? `opacity(${dim.toFixed(3)})` : '';
     });
   }
 
   // 자막(청크 한 줄) — 청크 전환도 짧게 페이드
-  const say = (s.type === 'nodes' && b.ni >= 0) ? (s.steps[b.ni].say || '') : (s.say || '');
+  const say = (isStepped(s) && b.ni >= 0) ? (s.steps[b.ni].say || '') : (s.say || '');
   if (b._caps === undefined) b._caps = splitCap(say);
   const caps = b._caps;
   if (!caps.length) { capEl.textContent = ''; capEl.style.opacity = '0'; }

@@ -25,10 +25,29 @@ const SIGNAL_SPEC = `
 - convert : { type:"convert", kicker, from:"이전값", fromLabel:"모노 라벨", to:"이후값", toLabel:"모노 라벨", lead }
 - metrics : { type:"metrics", kicker, items:[["항목명","값","영문 모노 설명"], ... 3~4개] }
 - nodes   : { type:"nodes", kicker, points:[{label:"단계",x:10,y:50}, ...], links:[[0,1],[1,2]],
-              steps:[{node:0,say:"..."},{node:1,say:"..."}] }  // 카메라가 단계별로 강조하며 진행
+              steps:[{node:0,say:"..."},{node:1,say:"..."}] }  // 자유 배치 관계도
   · points 의 x,y 는 0~100 백분율 좌표. 3~5개 노드를 화면에 고르게 배치.
-  · nodes 는 steps 각각이 하나의 나레이션 비트가 된다(steps 에만 say/spoken 을 쓴다).
-규칙: 화면에 요소를 적게 — 숫자와 짧은 라벨 위주. 장식 금지.
+
+[도식 슬라이드 — "구조를 그려서 설명"하는 장면. 이게 없으면 영상이 글자만 넘기는 느낌이 된다]
+- pipeline: { type:"pipeline", kicker, nodes:[{label:"단계명",sub:"영문 모노 라벨"}, ...3~6개],
+              steps:[{say:"..."},{say:"..."}], lead:"보조설명" }
+            // 좌→우 화살표 흐름. 절차·순서·처리 단계에 쓴다. steps 순서대로 한 칸씩 점등된다.
+- stack   : { type:"stack", kicker, layers:[{label:"층 이름",sub:"짧은 설명"}, ...3~5개],
+              steps:[{say:"..."}, ...], lead }
+            // 계층 구조. "무엇 위에 무엇이 있다"를 보여줄 때.
+            // ★layers 는 화면 위쪽부터 순서대로 쓴다(맨 위가 최상위 층).
+            //   steps[i] 는 i번째 층(위에서부터)을 점등시키므로 steps 도 같은 순서로 써야 한다.
+            //   아래층부터 설명하고 싶으면 steps 에 {node:3,say:"..."} 처럼 층 번호를 직접 지정해라.
+- cmp     : { type:"cmp", kicker, left:["예전 방식","항목","항목","항목"], right:["지금 방식","항목","항목","항목"], lead }
+            // 좌우 대비. 첫 항목이 열 제목이고 오른쪽 열이 액센트로 강조된다. 항목은 14자 이내.
+- grid    : { type:"grid", kicker, cols:3, cells:[{label:"항목명",sub:"한 줄 설명"}, ...4~6개] }
+            // 분류·구성요소 나열. 6가지 요소 같은 걸 한 화면에 보여줄 때.
+
+★도식을 반드시 섞어라★ 전체 슬라이드의 3분의 1 이상을 pipeline/stack/cmp/grid/nodes 로 채운다.
+  절차가 나오면 pipeline, 층·구조면 stack, 전후·대비면 cmp, 나열이면 grid — 내용에 맞는 걸 고른다.
+  pipeline/stack/nodes 에 steps 를 쓰면 각 step 이 하나의 나레이션 비트가 되어
+  화면이 단계별로 점등된다(이때 say/spoken 은 steps 안에만 쓰고 슬라이드 최상위에는 쓰지 않는다).
+규칙: 화면에 요소를 적게 — 숫자와 짧은 라벨 위주. 장식 금지. 라벨은 12자 이내로 짧게.
 `;
 
 const DECK3D_SPEC = `
