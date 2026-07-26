@@ -147,6 +147,10 @@ export const config = {
 export function resolveTopicMode(date = new Date()): 'trend' | 'basics' {
   if (config.contentMode === 'trend') return 'trend';
   if (config.contentMode === 'basics') return 'basics';
-  const day = date.getDay(); // 0=일 ... 6=토
+  // CI 러너는 UTC 로 돈다. 스케줄이 22:00 UTC(=다음날 07:00 KST)라서 UTC 요일로 판정하면
+  // 한국 기준 요일과 하루가 어긋난다 — 월수금 트렌드로 의도한 로테이션이 실제로는
+  // 한국 시간 화목토에 나왔다. 항상 KST 요일로 계산한다.
+  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const day = kst.getUTCDay(); // 0=일 ... 6=토 (KST 기준)
   return [1, 3, 5].includes(day) ? 'trend' : 'basics';
 }
