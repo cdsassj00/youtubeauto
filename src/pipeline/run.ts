@@ -33,7 +33,7 @@ import { generateThumbnail } from '../lib/thumbnail.js';
 import { uploadVideo, setThumbnail, setPrivacy } from '../lib/youtube.js';
 import { pickVisualThemeMode } from '../lib/visualTheme.js';
 
-type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail' | 'rethumb' | 'setprivacy';
+type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail' | 'rethumb' | 'setprivacy' | 'remixbgm';
 
 /** deck 기반 엔진(3D 기하학 / SIGNAL)인가 — 대본 스키마와 렌더 경로가 illustrated 와 완전히 다르다. */
 const DECK_ENGINES = ['signal', 'signal3d', 'deck3d'];
@@ -216,6 +216,17 @@ function render3dVideo(): Promise<void> {
 /** deck 기반 엔진 렌더 — web3d-deck/narrate-deck.mjs 가 비트별 TTS + 프레임렌더 + mux 를 한다. */
 function renderDeckVideo(): Promise<void> {
   const script = path.join(WEB3D_DIR, 'narrate-deck.mjs');
+  // 배경음악 — deck 엔진(signal/deck3d)은 나레이션만 mux 해서 음악이 아예 없었다.
+  // (illustrated 엔진만 Remotion 에서 BGM 을 깔고 있었다.) 여기서 만들어 경로를 넘긴다.
+  let bgmPath = '';
+  try {
+    bgmPath = path.join(OUT_DIR, 'bgm.wav');
+    generateBgm(bgmPath);
+    console.log('  · 배경음악 생성:', bgmPath);
+  } catch (e) {
+    bgmPath = '';
+    console.warn('  · 배경음악 생성 실패(무시, 음악 없이 진행):', (e as Error).message);
+  }
   return new Promise((resolve, reject) => {
     const child = spawn('node', [script, DECK_PATH, VIDEO_PATH], {
       stdio: 'inherit',
@@ -225,6 +236,8 @@ function renderDeckVideo(): Promise<void> {
         H: String(HEIGHT),
         FPS: String(FPS),
         NARRATION_SPEED: String(config.narrationSpeed),
+        BGM_PATH: bgmPath,
+        BGM_VOLUME: process.env.BGM_VOLUME || '0.085',
         // 워크플로 변수(ELEVENLABS_VOICE_ID)가 비어 있어도 config 의 기본값이 적용되도록 명시 전달.
         ELEVENLABS_API_KEY: config.elevenLabsApiKey(),
         ELEVENLABS_VOICE_ID: config.elevenLabsVoiceId,
@@ -329,6 +342,47 @@ async function stepRethumb(): Promise<void> {
   console.log('  · 교체 완료:', THUMBNAIL_PATH);
 }
 
+/**
+ * (선택) 이미 렌더된 out/video.mp4 에 배경음악만 덧입힌다 — 영상은 재인코딩하지 않는다(-c:v copy).
+ * deck 엔진이 BGM 없이 만든 기존 영상을 재렌더 없이 구제하기 위한 경로.
+ */
+async function stepRemixBgm(): Promise<void> {
+  const { createRequire } = await import('node:module');
+  const req = createRequire(import.meta.url);
+  const FFMPEG = req('ffmpeg-static') as string;
+  const bgmPath = path.join(OUT_DIR, 'bgm.wav');
+  const outPath = path.join(OUT_DIR, 'video-bgm.mp4');
+  console.log('▶ 배경음악 덧입히기 (영상 재인코딩 없음)');
+  generateBgm(bgmPath);
+
+  const volume = process.env.BGM_VOLUME || '0.085';
+  const dur = await new Promise<number>((resolve) => {
+    const p = spawn(FFMPEG, ['-hide_banner', '-i', VIDEO_PATH], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let err = '';
+    p.stderr.on('data', (d) => (err += d));
+    p.on('close', () => {
+      const m = err.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/);
+      resolve(m ? +m[1] * 3600 + +m[2] * 60 + parseFloat(m[3]) : 0);
+    });
+  });
+  if (!dur) throw new Error('영상 길이를 읽지 못했습니다 — out/video.mp4 를 확인하세요.');
+  console.log(`  · 원본 길이 ${dur.toFixed(1)}s, BGM 볼륨 ${volume}`);
+
+  const filter =
+    `[1:a]volume=${volume},atrim=0:${dur.toFixed(3)},asetpts=N/SR/TB,` +
+    `afade=t=in:st=0:d=2,afade=t=out:st=${Math.max(0, dur - 3).toFixed(3)}:d=3[bg];` +
+    `[0:a][bg]amix=inputs=2:duration=first:normalize=0[a]`;
+  await new Promise<void>((resolve, reject) => {
+    const p = spawn(FFMPEG, ['-hide_banner', '-y', '-i', VIDEO_PATH, '-stream_loop', '-1', '-i', bgmPath,
+      '-filter_complex', filter, '-map', '0:v', '-map', '[a]',
+      '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', outPath], { stdio: 'inherit' });
+    p.on('close', (c) => (c === 0 ? resolve() : reject(new Error(`ffmpeg 종료 코드 ${c}`))));
+    p.on('error', reject);
+  });
+  await fs.rename(outPath, VIDEO_PATH);
+  console.log('  · 완료 — 배경음악이 깔린 영상으로 교체:', VIDEO_PATH);
+}
+
 /** 4) 유튜브 업로드 */
 async function stepUpload(): Promise<void> {
   console.log('▶ [4/4] 유튜브 업로드');
@@ -394,6 +448,7 @@ async function main() {
     else if (step === 'rethumb') await stepRethumb();
     else if (step === 'upload') await stepUpload();
     else if (step === 'setprivacy') await stepSetPrivacy();
+    else if (step === 'remixbgm') await stepRemixBgm();
   }
 
   console.log('\n✅ 완료');

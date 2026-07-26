@@ -18,6 +18,10 @@ on:
         description: '그 영상을 만든 엔진 (signal3d | signal | deck3d | illustrated)'
         required: false
         default: 'signal3d'
+      add_bgm:
+        description: '배경음악을 덧입힐지 (true | false). 영상은 재인코딩하지 않는다.'
+        required: false
+        default: 'false'
       channel:
         description: '업로드 채널 (default | ch2)'
         required: false
@@ -74,6 +78,11 @@ jobs:
           ls -la out
           test -s out/video.mp4 || { echo "::error::out/video.mp4 가 없습니다 — 그 실행은 렌더까지 가지 못했습니다."; exit 1; }
           echo "영상 크기: $(du -h out/video.mp4 | cut -f1)"
+
+      # 렌더 당시 BGM 이 없던 영상을 구제 — 영상 스트림은 copy 라 화질 손실·재렌더가 없다.
+      - name: 배경음악 덧입히기
+        if: ${{ (github.event.inputs.add_bgm || github.event.client_payload.add_bgm) == 'true' }}
+        run: npm run remixbgm
 
       - name: 유튜브 업로드
         run: npm run upload

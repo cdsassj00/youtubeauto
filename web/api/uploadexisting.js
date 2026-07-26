@@ -26,6 +26,8 @@ export default async function handler(req, res) {
     // 메타를 script.json 에서 읽을지 deck-meta.json 에서 읽을지 가르므로 원래 엔진과 맞춰야 한다.
     engine: ['illustrated', 'deck3d', 'signal', 'signal3d'].includes(body.engine) ? body.engine : 'signal3d',
     channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
+    // 렌더 당시 배경음악이 없던 영상에 음악만 덧입힌다(영상 스트림은 copy — 재인코딩 없음).
+    add_bgm: body.addBgm === true || body.add_bgm === 'true' ? 'true' : 'false',
   };
 
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {

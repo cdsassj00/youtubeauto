@@ -82,7 +82,32 @@ const seq = []; clips.forEach((_, i) => { seq.push(`[${i}:a]`); seq.push(`[${sil
 const narr = path.join(work, 'narr.m4a');
 let r = spawnSync(FFMPEG, ['-hide_banner', '-y', ...inputs, '-filter_complex', `${seq.join('')}concat=n=${seq.length}:v=0:a=1[a]`, '-map', '[a]', '-c:a', 'aac', '-b:a', '160k', narr], { encoding: 'utf8' });
 if (r.status !== 0) { console.error('나레이션 합성 실패:', (r.stderr || '').slice(-400)); process.exit(1); }
-const TOTAL = ffDuration(narr) || beats.reduce((a, b) => a + b.obj.dur, 0);
+let TOTAL = ffDuration(narr) || beats.reduce((a, b) => a + b.obj.dur, 0);
+
+// 2-b) 배경음악을 나레이션 아래에 은은하게 깐다 (BGM_PATH 가 있을 때만).
+//      루프 재생 → 나레이션 길이에 맞춰 자르고, 앞뒤로 페이드. 볼륨은 말소리를 덮지 않게 낮게.
+const BGM_PATH = (process.env.BGM_PATH || '').trim();
+const BGM_VOLUME = Number(process.env.BGM_VOLUME || '0.085');
+let audioTrack = narr;
+if (BGM_PATH && fs.existsSync(BGM_PATH)) {
+  const mixed = path.join(work, 'narr-bgm.m4a');
+  const fadeOut = Math.max(0, TOTAL - 3);
+  const filter =
+    `[1:a]volume=${BGM_VOLUME},atrim=0:${TOTAL.toFixed(3)},asetpts=N/SR/TB,` +
+    `afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut.toFixed(3)}:d=3[bg];` +
+    `[0:a][bg]amix=inputs=2:duration=first:normalize=0[a]`;
+  const rb = spawnSync(FFMPEG, ['-hide_banner', '-y', '-i', narr, '-stream_loop', '-1', '-i', BGM_PATH,
+    '-filter_complex', filter, '-map', '[a]', '-c:a', 'aac', '-b:a', '160k', mixed], { encoding: 'utf8' });
+  if (rb.status === 0 && fs.existsSync(mixed)) {
+    audioTrack = mixed;
+    TOTAL = ffDuration(mixed) || TOTAL;
+    console.log(`배경음악 믹스 완료 (volume ${BGM_VOLUME})`);
+  } else {
+    console.warn('배경음악 믹스 실패 — 나레이션만 사용:', (rb.stderr || '').slice(-300));
+  }
+} else if (BGM_PATH) {
+  console.warn('배경음악 파일이 없어 건너뜀:', BGM_PATH);
+}
 console.log('총 길이', TOTAL.toFixed(1), 's');
 
 // 3) HTML 조립 (엔진별)
@@ -124,7 +149,7 @@ const D = await page.evaluate(() => window.__DURATION);
 const N = Math.round(D * FPS);
 console.log(`프레임 렌더 ${N}장 → ffmpeg 파이프, ${W}x${H} @ ${FPS}fps`);
 
-const ff2 = spawn(FFMPEG, ['-hide_banner', '-y', '-f', 'image2pipe', '-framerate', String(FPS), '-i', 'pipe:0', '-i', narr,
+const ff2 = spawn(FFMPEG, ['-hide_banner', '-y', '-f', 'image2pipe', '-framerate', String(FPS), '-i', 'pipe:0', '-i', audioTrack,
   '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'veryfast', '-crf', '22', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', outPath],
   { stdio: ['pipe', 'inherit', 'inherit'] });
 for (let i = 0; i < N; i++) {
