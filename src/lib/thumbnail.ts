@@ -98,10 +98,57 @@ const POSES = [
   'giving an OK sign with one hand, cheerful expression',
 ];
 
-function pickVariation(): { outfit: string; pose: string } {
+/**
+ * 구도(레이아웃) 변주 — 인물 위치·크기와 제목 위치를 통째로 바꾼다.
+ * 예전엔 "인물은 항상 오른쪽 가슴 위, 제목은 항상 왼쪽"으로 고정돼 매번 같은 그림이 나왔다.
+ * badge 는 제목·인물과 겹치지 않는 모서리를 레이아웃마다 지정한다.
+ */
+const LAYOUTS = [
+  {
+    person: 'on the RIGHT side of the frame, from chest up, turned slightly toward the center',
+    title: 'Place the Korean title block on the LEFT half, vertically centered.',
+    symbol: 'Draw the single symbol in the LOWER-LEFT area, below the title, smaller than the title.',
+    badge: 'TOP-LEFT',
+  },
+  {
+    person: 'on the LEFT side of the frame, from chest up, turned slightly toward the center (mirrored composition)',
+    title: 'Place the Korean title block on the RIGHT half, vertically centered.',
+    symbol: 'Draw the single symbol in the LOWER-RIGHT area, below the title, smaller than the title.',
+    badge: 'TOP-RIGHT',
+  },
+  {
+    person: 'on the RIGHT side as a LARGE close-up (head and shoulders filling nearly half the frame height), turned toward the center',
+    title: 'Stack the Korean title across the LEFT side and continue into the BOTTOM-LEFT corner, in 2-3 lines.',
+    symbol: 'Draw the single symbol small in the UPPER-LEFT, above the title.',
+    badge: 'BOTTOM-RIGHT',
+  },
+  {
+    person: 'in the BOTTOM-RIGHT corner, waist up and larger than usual, slightly cropped by the bottom edge, looking up toward the title',
+    title: 'Place the Korean title in the UPPER-LEFT, spanning the top two-thirds of the frame in 2 lines.',
+    symbol: 'Draw the single symbol in the LEFT-MIDDLE area, under the title.',
+    badge: 'BOTTOM-LEFT',
+  },
+  {
+    person: 'at the BOTTOM-CENTER, smaller (head and shoulders only), looking up at the title above him',
+    title: 'Place the Korean title across the TOP, spanning the full width in 2 lines, large and centered.',
+    symbol: 'Draw the single symbol in the MIDDLE-LEFT, beside the person.',
+    badge: 'TOP-RIGHT',
+  },
+  {
+    person: 'on the FAR RIGHT edge, three-quarter view turned inward, cropped so part of his shoulder leaves the frame',
+    title: 'Place the Korean title in the CENTER-LEFT, shifted slightly upward.',
+    symbol: 'Draw the single symbol large in the BOTTOM-CENTER, behind and below the title.',
+    badge: 'TOP-LEFT',
+  },
+];
+
+type Variation = { outfit: string; pose: string; layout: (typeof LAYOUTS)[number] };
+
+function pickVariation(): Variation {
   const outfit = OUTFITS[Math.floor(Math.random() * OUTFITS.length)];
   const pose = POSES[Math.floor(Math.random() * POSES.length)];
-  return { outfit, pose };
+  const layout = LAYOUTS[Math.floor(Math.random() * LAYOUTS.length)];
+  return { outfit, pose, layout };
 }
 
 function buildPrompt(
@@ -110,10 +157,11 @@ function buildPrompt(
   title: string,
   tone: string,
   hasPresenter: boolean,
-  variation: { outfit: string; pose: string },
+  variation: Variation,
   dramatic: boolean,
   badge: string,
 ): string {
+  const layout = variation.layout;
   // 파격 모드: 사건형 뉴스에 어울리는 강렬·긴장 구도(빨강 경고 액센트, 극적 조명/비네트, 초대형 글자,
   // 진지·놀란 표정). 톤은 무조건 어두운 배경으로 대비를 극대화한다.
   const cream = dramatic ? false : tone !== 'dark';
@@ -130,12 +178,12 @@ function buildPrompt(
   const person = hasPresenter
     ? [
         'You are given a photo of a real Korean man wearing black-framed glasses.',
-        'Cleanly REMOVE his green/plain background and place the SAME man on the RIGHT side of the thumbnail, from chest up, turned slightly toward the center,',
+        `Cleanly REMOVE his green/plain background and place the SAME man ${layout.person},`,
         `with ${expression}, ${variation.pose}.`,
         `Dress him in ${variation.outfit}.`,
         'CRITICAL: keep his real face, glasses, hairstyle and skin natural and clearly recognizable — do NOT beautify or change his identity; only his outfit and pose may differ. Add subtle rim lighting so he pops from the background.',
       ].join(' ')
-    : 'Leave the right side as soft empty space (no person).';
+    : 'Leave the area where the person would go as soft empty space (no person).';
 
   return [
     'Create a professional, high-CTR YouTube thumbnail image in 16:9 landscape, in the style of top Korean educational tech YouTubers.',
@@ -148,7 +196,9 @@ function buildPrompt(
     // ★ 썸네일은 인포그래픽이 아니다 ★ 예전엔 "라벨 붙은 박스 여러 개 + 화살표"를 요구해서
     // 깨알 글씨가 8~10개씩 박힌 정보 덤프가 나왔다 — 폰 썸네일에선 아무것도 안 읽히고 제목만 가린다.
     // 큰 상징 하나로 제한해 제목이 주인공이 되게 한다.
-    'On the LEFT/CENTER, draw ONE single bold hand-drawn symbol that captures the idea at a glance',
+    // ★구도는 매번 달라야 한다★ 인물·제목 위치를 고정하면 채널 썸네일이 전부 똑같아 보인다.
+    layout.title,
+    `${layout.symbol} It must be ONE single bold hand-drawn symbol that captures the idea at a glance`,
     '(for example: a giant up-arrow, a price tag, a balance scale, a rocket, a brain, a padlock, a stopwatch — whichever fits the topic).',
     `CRITICAL: do NOT draw a diagram, flowchart, or multiple labeled boxes. Do NOT add small explanatory text, bullet lists, checkmark lists, or captions anywhere${badge ? ' (the one corner badge described below is the only exception)' : ''}.`,
     'At most 2 extra tiny icons. Everything else stays EMPTY — negative space makes the title readable at phone size.',
@@ -156,11 +206,11 @@ function buildPrompt(
       ? 'Give it a breaking-news, high-alert feeling: a strong RED (#e03131) alert accent — e.g. a bold red warning triangle/exclamation, a red circle-and-slash, or a red cracked/broken outline around one box — combined with orange (#e8590c) and cool blue (#1971c2). High drama and urgency, but still clean and readable, NOT cluttered.'
       : 'Use orange (#e8590c), blue (#1971c2) and green (#2f9e44) accents on clean strokes. Lively and clear, NOT cluttered, with real depth.',
     `Add a HUGE, BOLD Korean title, hand-lettered marker style, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
-    `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — ${dramatic ? 'enormous and ultra-thick, dominating the frame, 1-2 lines' : 'very large and thick, 1-2 lines'}, ${inkTitle}, as the clear focal point.`,
+    `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — ${dramatic ? 'enormous and ultra-thick, dominating the frame' : 'very large and thick'}, broken into lines as described in the layout above, ${inkTitle}, as the clear focal point.`,
     'Keep ALL text fully inside the frame with a safe margin — never let letters touch or get cut off by any edge.',
     // 문구를 8~14자로 짧게 쓰게 하는 대신, "무엇에 대한 영상인지"는 이 작은 배지가 책임진다.
     badge
-      ? `In the TOP-LEFT corner, add ONE small flat rectangular badge (about 1/8 of the frame width) filled with ${dramatic ? 'red (#e03131)' : 'orange (#e8590c)'}, containing ONLY this short text in clean white letters, spelled exactly: "${badge}". Keep it small and secondary — it must never compete with or overlap the big title.`
+      ? `In the ${layout.badge} corner, add ONE small flat rectangular badge (about 1/8 of the frame width) filled with ${dramatic ? 'red (#e03131)' : 'orange (#e8590c)'}, containing ONLY this short text in clean white letters, spelled exactly: "${badge}". Keep it small and secondary — it must never compete with or overlap the big title or the person.`
       : dramatic
         ? 'You may add ONE small red accent sticker (a warning "!" or "STOP"-style badge), but it must NOT contain any of the title words and must not overlap the title text.'
         : 'You may add ONE tiny round accent sticker (a checkmark or a star), but it must NOT contain any of the title words and must not overlap the title text.',
