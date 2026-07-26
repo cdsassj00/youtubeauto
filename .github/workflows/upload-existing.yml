@@ -22,6 +22,10 @@ on:
         description: '배경음악을 덧입힐지 (true | false). 영상은 재인코딩하지 않는다.'
         required: false
         default: 'false'
+      thumb_from:
+        description: '썸네일을 가져올 기존 videoId (비우면 아티팩트의 썸네일 사용)'
+        required: false
+        default: ''
       channel:
         description: '업로드 채널 (default | ch2)'
         required: false
@@ -78,6 +82,21 @@ jobs:
           ls -la out
           test -s out/video.mp4 || { echo "::error::out/video.mp4 가 없습니다 — 그 실행은 렌더까지 가지 못했습니다."; exit 1; }
           echo "영상 크기: $(du -h out/video.mp4 | cut -f1)"
+
+      # 이미 손봐둔 썸네일을 새 영상에 그대로 옮긴다 — 이미지 재생성(유료) 없이 무료로.
+      # (아티팩트 안의 썸네일은 렌더 당시 자동 생성본이라 이후 수정본이 반영돼 있지 않다.)
+      - name: 기존 영상의 썸네일 가져오기
+        if: ${{ (github.event.inputs.thumb_from || github.event.client_payload.thumb_from) != '' }}
+        env:
+          FROM_ID: ${{ github.event.inputs.thumb_from || github.event.client_payload.thumb_from }}
+        run: |
+          set -e
+          for q in maxresdefault sddefault hqdefault; do
+            if curl -fsS -o out/thumbnail.png "https://i.ytimg.com/vi/$FROM_ID/$q.jpg"; then
+              echo "썸네일 확보: $q ($(du -h out/thumbnail.png | cut -f1))"; exit 0
+            fi
+          done
+          echo "::warning::$FROM_ID 의 썸네일을 못 받았습니다 — 아티팩트의 썸네일을 그대로 씁니다."
 
       # 렌더 당시 BGM 이 없던 영상을 구제 — 영상 스트림은 copy 라 화질 손실·재렌더가 없다.
       - name: 배경음악 덧입히기

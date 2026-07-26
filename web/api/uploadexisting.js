@@ -28,6 +28,8 @@ export default async function handler(req, res) {
     channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
     // 렌더 당시 배경음악이 없던 영상에 음악만 덧입힌다(영상 스트림은 copy — 재인코딩 없음).
     add_bgm: body.addBgm === true || body.add_bgm === 'true' ? 'true' : 'false',
+    // 이미 손봐둔 썸네일을 새 영상으로 옮긴다(이미지 재생성 비용 없이).
+    thumb_from: String(body.thumbFrom || body.thumb_from || '').trim().slice(0, 20),
   };
 
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
