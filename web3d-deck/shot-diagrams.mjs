@@ -30,7 +30,7 @@ const page = await (await browser.newContext({ viewport: { width: 1920, height: 
 const errs = []; page.on('pageerror', e => errs.push(e.message));
 await page.goto('file://' + tmp, { waitUntil: 'load' });
 await page.waitForTimeout(1200);
-const names = ['dram-cell','refresh','ddr','bandwidth','nand','wall','hbm'];
+const names = ['ram','leak','nand','ddr','ai','hbm','price'];
 for (let i = 1; i <= names.length; i++) {
   await page.evaluate(n => window.__show(n), i);
   await page.waitForTimeout(150);
