@@ -2,168 +2,167 @@
 <html lang="ko"><head><meta charset="UTF-8"><title>메모리 도식</title>
 <style>
 /* SIGNAL 디자인 언어 — 딥블랙 + 단일 민트 액센트.
-   원칙: 한 화면에 개념 하나, 숫자 하나. 전문 용어(1T1C·MT/s·TSV·인터포저)는 쓰지 않는다.
-   비유 그림이 아니라 실제로 일어나는 일을 그리되, 회로도로는 가지 않는다. */
+   원칙: 시청자가 이미 겪어본 일에서 출발한다.
+   전기·1과 0·회로도·규격 용어는 쓰지 않는다. 한 화면에 개념 하나. */
 :root{--bg:#0a0a0a;--ink:#e8ecf2;--dim:#8a8f98;--faint:#5a5f68;--ac:#2ee87a;--line:rgba(255,255,255,.10)}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--ink);
  font-family:'Pretendard',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 section{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:0 100px}
 section.on{display:flex}
-h1{font-size:60px;font-weight:800;letter-spacing:-.035em;margin-bottom:60px;text-align:center;line-height:1.25}
+h1{font-size:62px;font-weight:800;letter-spacing:-.035em;margin-bottom:64px;text-align:center;line-height:1.25}
 h1 em{font-style:normal;color:var(--ac)}
-.lead{font-size:30px;color:var(--dim);margin-top:52px;text-align:center;line-height:1.55}
+.lead{font-size:31px;color:var(--dim);margin-top:56px;text-align:center;line-height:1.6}
 .lead b{color:var(--ink)}
 svg{overflow:visible}
-.lbl{font-size:26px;fill:var(--dim)}
-.lbl-ac{font-size:26px;fill:var(--ac)}
-.cap{font-size:30px;fill:var(--ink);font-weight:700}
-.cell{fill:none;stroke:rgba(255,255,255,.22);stroke-width:2.5}
-.cell-on{fill:rgba(46,232,122,.16);stroke:var(--ac);stroke-width:2.5}
+.lbl{font-size:27px;fill:var(--dim)}
+.lbl-ac{font-size:27px;fill:var(--ac)}
+.cap{font-size:32px;fill:var(--ink);font-weight:700}
 .box{fill:#101010;stroke:var(--line);stroke-width:2}
 .box-ac{fill:rgba(46,232,122,.08);stroke:rgba(46,232,122,.5);stroke-width:2.5}
+.bar-t{fill:rgba(255,255,255,.10)}
+.bar-t-ac{fill:rgba(46,232,122,.22)}
 .arw{stroke:var(--ac);stroke-width:3;fill:none}
-.two{display:flex;gap:70px}
-.two .col{width:640px;border:2px solid var(--line);border-radius:20px;padding:46px 46px 40px}
-.two .col.hi{border-color:rgba(46,232,122,.45)}
-.two .col .t{font-size:38px;font-weight:800;margin-bottom:26px}
-.two .col.hi .t{color:var(--ac)}
-.two .col .d{font-size:27px;color:var(--dim);line-height:1.7}
-.two .col .big{font-size:42px;font-weight:800;margin-top:26px}
-.bars{display:flex;flex-direction:column;gap:30px;width:1480px}
-.bar{display:flex;align-items:center;gap:30px}
-.bar .nm{width:300px;font-size:32px;font-weight:700;text-align:right}
-.bar .tr{flex:1;height:58px;background:rgba(255,255,255,.045);border-radius:8px}
+.gone{opacity:.18}
+.bars{display:flex;flex-direction:column;gap:32px;width:1440px}
+.bar{display:flex;align-items:center;gap:32px}
+.bar .nm{width:280px;font-size:34px;font-weight:700;text-align:right}
+.bar .tr{flex:1;height:62px;background:rgba(255,255,255,.045);border-radius:8px}
 .bar .fl{height:100%;background:rgba(255,255,255,.2);border-radius:8px}
 .bar.hi .fl{background:var(--ac)}
-.bar .vv{width:180px;font-size:34px;font-weight:800}
+.bar .vv{width:170px;font-size:36px;font-weight:800}
 .bar.hi .vv{color:var(--ac)}
 </style></head><body>
 
-<!-- 1. 램은 아주 작은 전기 그릇이다 -->
+<!-- 1. 램 = 지금 켜놓은 것들이 올라가 있는 자리 -->
 <section id="s1">
-  <h1>램은 <em>아주 작은 전기 그릇</em>이 수십억 개 모인 것입니다</h1>
-  <svg width="1180" height="300" viewBox="0 0 1180 300">
-    <text class="lbl-ac" x="0" y="34">전기가 담겨 있으면 1, 비어 있으면 0</text>
-    <rect class="cell-on" x="0"   y="70" width="96" height="96" rx="14"/><text class="cap" x="36" y="132" fill="#2ee87a">1</text>
-    <rect class="cell"    x="126" y="70" width="96" height="96" rx="14"/><text class="cap" x="162" y="132">0</text>
-    <rect class="cell-on" x="252" y="70" width="96" height="96" rx="14"/><text class="cap" x="288" y="132" fill="#2ee87a">1</text>
-    <rect class="cell-on" x="378" y="70" width="96" height="96" rx="14"/><text class="cap" x="414" y="132" fill="#2ee87a">1</text>
-    <rect class="cell"    x="504" y="70" width="96" height="96" rx="14"/><text class="cap" x="540" y="132">0</text>
-    <rect class="cell"    x="630" y="70" width="96" height="96" rx="14"/><text class="cap" x="666" y="132">0</text>
-    <rect class="cell-on" x="756" y="70" width="96" height="96" rx="14"/><text class="cap" x="792" y="132" fill="#2ee87a">1</text>
-    <rect class="cell"    x="882" y="70" width="96" height="96" rx="14"/><text class="cap" x="918" y="132">0</text>
-    <text class="cap" x="1020" y="132">…</text>
-    <text class="lbl" x="0" y="250">이 1과 0이 모여 지금 보고 계신 화면이 됩니다</text>
+  <h1>램은 <em>지금 켜놓은 것들</em>이 올라가 있는 자리입니다</h1>
+  <svg width="1240" height="330" viewBox="0 0 1240 330">
+    <g>
+      <rect class="box" x="60" y="0" width="300" height="170" rx="14"/>
+      <rect class="bar-t" x="60" y="0" width="300" height="34" rx="14"/>
+      <text class="cap" x="130" y="115">인터넷 창</text>
+    </g>
+    <g>
+      <rect class="box" x="470" y="0" width="300" height="170" rx="14"/>
+      <rect class="bar-t" x="470" y="0" width="300" height="34" rx="14"/>
+      <text class="cap" x="565" y="115">문서</text>
+    </g>
+    <g>
+      <rect class="box" x="880" y="0" width="300" height="170" rx="14"/>
+      <rect class="bar-t" x="880" y="0" width="300" height="34" rx="14"/>
+      <text class="cap" x="985" y="115">유튜브</text>
+    </g>
+    <rect class="box-ac" x="60" y="215" width="1120" height="86" rx="16"/>
+    <text class="cap" x="560" y="270" fill="#2ee87a">램</text>
   </svg>
-  <div class="lead">켜놓은 프로그램은 전부 이 그릇들 안에 들어 있습니다.</div>
+  <div class="lead">창을 많이 띄우면 컴퓨터가 느려지죠. <b>램이 꽉 차서 그렇습니다.</b></div>
 </section>
 
-<!-- 2. 그 전기가 샌다 -->
+<!-- 2. 전원을 끄면 -->
 <section id="s2">
-  <h1>그런데 이 전기는 <em>가만히 둬도 새어나갑니다</em></h1>
-  <svg width="1180" height="300" viewBox="0 0 1180 300">
-    <rect class="cell-on" x="20" y="50" width="150" height="150" rx="20"/>
-    <text class="cap" x="80" y="145" fill="#2ee87a">1</text>
-    <text class="lbl" x="255" y="95">시간이 지나면</text>
-    <path class="arw" d="M220,135 L420,135" style="stroke:rgba(255,255,255,.3)"/>
-    <path class="arw" d="M393,120 L420,135 L393,150" style="stroke:rgba(255,255,255,.3)"/>
-    <rect class="cell" x="460" y="50" width="150" height="150" rx="20"/>
-    <text class="cap" x="522" y="145">0</text>
-    <text class="lbl" x="430" y="250">저장한 내용이 사라진다</text>
+  <h1>전원을 끄면 <em>램만 비워집니다</em></h1>
+  <svg width="1440" height="380" viewBox="0 0 1440 380">
+    <text class="lbl" x="0" y="34">전원을 끄기 전</text>
+    <rect class="box-ac" x="0" y="60" width="600" height="90" rx="14"/>
+    <text class="cap" x="60" y="115" fill="#2ee87a">램 — 켜놓은 것들</text>
+    <rect class="box" x="0" y="180" width="600" height="90" rx="14"/>
+    <text class="cap" x="60" y="235">낸드 — 저장해둔 사진·파일</text>
 
-    <text class="lbl-ac" x="700" y="95">그래서</text>
-    <path class="arw" d="M660,135 L840,135"/>
-    <path class="arw" d="M813,120 L840,135 L813,150"/>
-    <rect class="box-ac" x="880" y="50" width="150" height="150" rx="20"/>
-    <text class="cap" x="938" y="145" fill="#2ee87a">1</text>
-    <text class="lbl-ac" x="820" y="250">계속 다시 채워 넣는다</text>
+    <path class="arw" d="M660,165 L800,165"/>
+    <path class="arw" d="M773,150 L800,165 L773,180"/>
+    <text class="lbl-ac" x="655" y="135">전원 OFF</text>
+
+    <text class="lbl" x="840" y="34">끄고 난 뒤</text>
+    <g class="gone">
+      <rect class="box" x="840" y="60" width="600" height="90" rx="14"/>
+    </g>
+    <text class="lbl" x="900" y="115">비었다</text>
+    <rect class="box" x="840" y="180" width="600" height="90" rx="14"/>
+    <text class="cap" x="900" y="235">그대로 남아 있다</text>
+    <text class="lbl" x="0" y="345">저장 안 한 문서가 날아가는 이유가 바로 이것입니다</text>
   </svg>
-  <div class="lead">램은 <b>1초에 열다섯 번쯤</b> 저장된 내용을 통째로 다시 씁니다.<br>
-  전원이 꺼지면 다시 채울 수가 없으니, 그 순간 전부 사라집니다.</div>
+  <div class="lead">램은 <b>작업하는 자리</b>, 낸드는 <b>보관하는 자리</b>입니다.<br>
+  낸드로 만든 저장장치가 바로 SSD입니다.</div>
 </section>
 
-<!-- 3. 램 vs 낸드 -->
+<!-- 3. DDR -->
 <section id="s3">
-  <h1>낸드는 전기를 <em>가둬둡니다</em>. 그래서 안 사라집니다</h1>
-  <div class="two">
-    <div class="col">
-      <div class="t">램</div>
-      <div class="d">전기를 담아둔다 → 샌다 → 계속 다시 채운다</div>
-      <div class="big">전원 끄면 사라짐</div>
-      <div class="d" style="margin-top:22px">지금 실행 중인 프로그램이 올라가는 곳</div>
-    </div>
-    <div class="col hi">
-      <div class="t">낸드</div>
-      <div class="d">전기를 막 안에 가둔다 → 안 샌다 → 다시 채울 필요 없다</div>
-      <div class="big">전원 꺼도 남음</div>
-      <div class="d" style="margin-top:22px">사진·영상·프로그램이 저장되는 곳 (SSD)</div>
-    </div>
-  </div>
-  <div class="lead">컴퓨터는 이 둘을 같이 씁니다. 빠른 쪽과, 남는 쪽.</div>
-</section>
-
-<!-- 4. DDR -->
-<section id="s4">
-  <h1>DDR4, DDR5는 <em>램의 규격 이름</em>입니다</h1>
+  <h1>DDR4, DDR5는 <em>램의 이름</em>입니다</h1>
   <div class="bars">
     <div class="bar"><div class="nm">DDR4</div><div class="tr"><div class="fl" style="width:50%"></div></div><div class="vv">1배</div></div>
     <div class="bar hi"><div class="nm">DDR5</div><div class="tr"><div class="fl" style="width:100%"></div></div><div class="vv">2배</div></div>
   </div>
-  <div class="lead">숫자가 올라가면 <b>1초에 나르는 데이터 양이 두 배</b>가 됩니다.<br>
-  담기는 용량이 두 배가 아니라, 실어 나르는 속도가 두 배입니다.</div>
+  <div class="lead">숫자가 하나 올라가면 <b>일하는 속도가 두 배</b>가 됩니다.<br>
+  더 많이 담기는 게 아니라, 더 빨리 주고받습니다.</div>
 </section>
 
-<!-- 5. AI 가 만든 문제 -->
-<section id="s5">
-  <h1>AI는 <em>한 글자 쓸 때마다</em> 기억 전체를 읽습니다</h1>
-  <svg width="1460" height="300" viewBox="0 0 1460 300">
-    <rect class="box" x="0" y="60" width="420" height="150" rx="18"/>
-    <text class="cap" x="115" y="148">AI 모델 전체</text>
-    <text class="lbl" x="120" y="255">수백 기가바이트</text>
+<!-- 4. AI 는 램을 어마어마하게 쓴다 -->
+<section id="s4">
+  <h1>AI는 <em>글자 하나 쓸 때마다</em> 아는 것을 전부 꺼내 봅니다</h1>
+  <svg width="1400" height="300" viewBox="0 0 1400 300">
+    <rect class="box" x="0" y="50" width="420" height="160" rx="18"/>
+    <text class="cap" x="90" y="145">AI가 아는 것 전부</text>
 
-    <text class="lbl-ac" x="470" y="105">글자 하나 만들 때마다 통째로</text>
-    <path class="arw" d="M450,150 L740,150"/>
+    <text class="lbl-ac" x="480" y="105">글자 하나 쓸 때마다</text>
+    <path class="arw" d="M460,150 L740,150"/>
     <path class="arw" d="M713,135 L740,150 L713,165"/>
 
-    <rect class="box-ac" x="780" y="60" width="300" height="150" rx="18"/>
-    <text class="cap" x="880" y="148" fill="#2ee87a">GPU</text>
-    <text class="lbl" x="800" y="255">계산하는 곳</text>
+    <rect class="box-ac" x="780" y="50" width="300" height="160" rx="18"/>
+    <text class="cap" x="885" y="145" fill="#2ee87a">AI 칩</text>
 
-    <text class="lbl" x="1150" y="130">이걸 1초에</text>
-    <text x="1150" y="185" style="font-size:44px;font-weight:800;fill:#2ee87a">수십 번</text>
+    <text class="lbl" x="1150" y="125">1초에</text>
+    <text x="1150" y="185" style="font-size:46px;font-weight:800;fill:#2ee87a">수십 번</text>
   </svg>
-  <div class="lead">계산이 느려서가 아닙니다. <b>데이터를 갖다 주는 속도</b>가 못 따라갑니다.<br>
-  그래서 AI에서는 램이 얼마나 빨리 실어 나르느냐가 성능을 결정합니다.</div>
+  <div class="lead">그래서 AI에는 <b>어마어마하게 빠른 램</b>이 필요합니다.<br>
+  보통 램으로는 이 속도를 못 맞춥니다.</div>
 </section>
 
-<!-- 6. HBM -->
-<section id="s6">
-  <h1>HBM은 램을 <em>쌓아 올려</em> GPU 옆에 붙인 것입니다</h1>
+<!-- 5. HBM -->
+<section id="s5">
+  <h1>HBM은 램을 <em>쌓아 올려</em> AI 칩 옆에 붙인 것입니다</h1>
   <svg width="1360" height="360" viewBox="0 0 1360 360">
-    <text class="lbl" x="0" y="34">일반 램</text>
-    <rect class="box" x="0" y="55" width="330" height="62" rx="10"/>
-    <text class="cap" x="125" y="95">한 장</text>
-    <path d="M340,86 L620,86" style="stroke:rgba(255,255,255,.28);stroke-width:7;fill:none"/>
-    <text class="lbl" x="395" y="60">좁은 통로</text>
+    <text class="lbl" x="0" y="34">보통 램</text>
+    <rect class="box" x="0" y="58" width="330" height="64" rx="10"/>
+    <text class="cap" x="125" y="100">한 장</text>
+    <path d="M345,90 L620,90" style="stroke:rgba(255,255,255,.28);stroke-width:7;fill:none"/>
+    <text class="lbl" x="400" y="62">좁은 길</text>
 
     <text class="lbl-ac" x="0" y="200">HBM</text>
-    <rect class="box-ac" x="0" y="220" width="330" height="22" rx="4"/>
-    <rect class="box-ac" x="0" y="248" width="330" height="22" rx="4"/>
-    <rect class="box-ac" x="0" y="276" width="330" height="22" rx="4"/>
-    <rect class="box-ac" x="0" y="304" width="330" height="22" rx="4"/>
-    <text class="lbl-ac" x="0" y="352">여러 장을 위로 쌓았다</text>
-    <path class="arw" d="M340,231 L620,231" style="stroke-width:11"/>
-    <path class="arw" d="M340,265 L620,265" style="stroke-width:11"/>
-    <path class="arw" d="M340,299 L620,299" style="stroke-width:11"/>
-    <text class="lbl-ac" x="395" y="200">넓은 통로</text>
+    <rect class="box-ac" x="0" y="222" width="330" height="22" rx="4"/>
+    <rect class="box-ac" x="0" y="250" width="330" height="22" rx="4"/>
+    <rect class="box-ac" x="0" y="278" width="330" height="22" rx="4"/>
+    <rect class="box-ac" x="0" y="306" width="330" height="22" rx="4"/>
+    <text class="lbl-ac" x="0" y="354">여러 장을 위로 쌓았다</text>
+    <path class="arw" d="M345,233 L620,233" style="stroke-width:11"/>
+    <path class="arw" d="M345,267 L620,267" style="stroke-width:11"/>
+    <path class="arw" d="M345,301 L620,301" style="stroke-width:11"/>
+    <text class="lbl-ac" x="400" y="202">넓은 길</text>
 
-    <rect class="box-ac" x="660" y="120" width="330" height="200" rx="18"/>
-    <text class="cap" x="765" y="230" fill="#2ee87a">GPU</text>
-    <text class="lbl" x="1030" y="205">바로 옆에 붙여</text>
-    <text class="lbl" x="1030" y="245">거리를 없앴다</text>
+    <rect class="box-ac" x="660" y="130" width="330" height="200" rx="18"/>
+    <text class="cap" x="750" y="240" fill="#2ee87a">AI 칩</text>
+    <text class="lbl" x="1030" y="215">바로 옆에 붙여</text>
+    <text class="lbl" x="1030" y="255">거리를 없앴다</text>
   </svg>
-  <div class="lead">쌓아서 <b>통로를 넓히고</b>, GPU 옆에 붙여 <b>거리를 줄였습니다</b>. 이 둘이 HBM의 전부입니다.</div>
+  <div class="lead">쌓아서 <b>길을 넓히고</b>, 칩 옆에 붙여 <b>거리를 줄였습니다</b>. 이 둘이 HBM의 전부입니다.</div>
+</section>
+
+<!-- 6. 왜 비싼가 -->
+<section id="s6">
+  <h1>쌓다가 <em>한 장만 잘못돼도</em> 전부 버립니다</h1>
+  <svg width="1100" height="330" viewBox="0 0 1100 330">
+    <rect class="box-ac" x="0" y="40" width="420" height="34" rx="6"/>
+    <rect class="box-ac" x="0" y="82" width="420" height="34" rx="6"/>
+    <rect x="0" y="124" width="420" height="34" rx="6" style="fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.5);stroke-width:2.5;stroke-dasharray:8 6"/>
+    <text class="lbl" x="450" y="150">이 한 장이 불량이면</text>
+    <rect class="box-ac" x="0" y="166" width="420" height="34" rx="6"/>
+    <rect class="box-ac" x="0" y="208" width="420" height="34" rx="6"/>
+    <rect class="box-ac" x="0" y="250" width="420" height="34" rx="6"/>
+    <text class="lbl-ac" x="450" y="245">밑에 깔린 것까지</text>
+    <text x="450" y="290" style="font-size:38px;font-weight:800;fill:#2ee87a">전부 버린다</text>
+  </svg>
+  <div class="lead">그래서 HBM은 비싸고, <b>만들 수 있는 회사가 세 곳뿐</b>입니다.<br>
+  SK하이닉스, 삼성전자, 마이크론.</div>
 </section>
 
 <!-- 7. 왜 내 램값이 오르나 -->
@@ -171,8 +170,8 @@ svg{overflow:visible}
   <h1>공장은 하나인데 <em>HBM부터 만듭니다</em></h1>
   <svg width="1420" height="330" viewBox="0 0 1420 330">
     <rect class="box" x="0" y="80" width="320" height="170" rx="18"/>
-    <text class="cap" x="80" y="155">메모리 공장</text>
-    <text class="lbl" x="35" y="205">만들 수 있는 양은 정해져 있다</text>
+    <text class="cap" x="80" y="150">램 공장</text>
+    <text class="lbl" x="15" y="200">만들 수 있는 양은 정해져 있다</text>
 
     <path class="arw" d="M350,125 L580,125"/>
     <path class="arw" d="M553,110 L580,125 L553,140"/>
@@ -180,14 +179,14 @@ svg{overflow:visible}
     <path d="M553,205 L580,220 L553,235" style="stroke:rgba(255,255,255,.25);stroke-width:3;fill:none"/>
 
     <rect class="box-ac" x="620" y="75" width="440" height="100" rx="14"/>
-    <text class="cap" x="665" y="135" fill="#2ee87a">HBM — 비싸게 팔린다</text>
+    <text class="cap" x="660" y="135" fill="#2ee87a">HBM — 비싸게 팔린다</text>
     <text class="lbl-ac" x="1090" y="135">먼저 만든다</text>
 
     <rect class="box" x="620" y="195" width="440" height="100" rx="14"/>
-    <text class="cap" x="710" y="255">일반 램 · SSD</text>
+    <text class="cap" x="705" y="255">보통 램 · SSD</text>
     <text class="lbl" x="1090" y="255">남는 만큼만</text>
   </svg>
-  <div class="lead">그래서 AI와 상관없는 <b>내 컴퓨터 램값과 SSD값까지 같이 오릅니다.</b></div>
+  <div class="lead">그래서 AI와 아무 상관 없는 <b>내 컴퓨터 램값과 SSD값까지 같이 오릅니다.</b></div>
 </section>
 
 <script>
