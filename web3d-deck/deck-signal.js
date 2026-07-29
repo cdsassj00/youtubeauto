@@ -104,12 +104,108 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1;
 .kick{font-size:13px;letter-spacing:.22em;color:var(--ac);font-weight:700;margin-bottom:22px}
 .lead{font-size:20px;color:var(--dim);margin-top:22px;text-align:center}
 
+
+/* 설명 도식(figure) — 제목 + 그림 + 보조설명. 그림은 FIGURES 에서 이름으로 가져온다. */
+.fig-h{font-size:56px;font-weight:800;letter-spacing:-.03em;text-align:center;line-height:1.25;margin-bottom:52px;max-width:1500px}
+.fig-h em{font-style:normal;color:var(--ac)}
+.fig svg{overflow:visible}
+.fig .lbl{font-size:26px;fill:var(--dim)}
+.fig .lbl-ac{font-size:26px;fill:var(--ac)}
+.fig .cap{font-size:31px;fill:var(--ink);font-weight:700}
+.fig .bx{fill:#101010;stroke:var(--line);stroke-width:2}
+.fig .bx-ac{fill:rgba(46,232,122,.08);stroke:rgba(46,232,122,.5);stroke-width:2.5}
+.fig .tbar{fill:rgba(255,255,255,.10)}
+.fig .arw{stroke:var(--ac);stroke-width:3;fill:none}
+.fig .dim{opacity:.18}
+.fig .bars2{display:flex;flex-direction:column;gap:30px;width:1300px}
+.fig .b2{display:flex;align-items:center;gap:30px}
+.fig .b2 .nm{width:230px;font-size:33px;font-weight:700;text-align:right}
+.fig .b2 .tr{flex:1;height:58px;background:rgba(255,255,255,.045);border-radius:8px}
+.fig .b2 .fl{height:100%;background:rgba(255,255,255,.2);border-radius:8px}
+.fig .b2.hi .fl{background:var(--ac)}
+.fig .b2 .vv{width:150px;font-size:34px;font-weight:800}
+.fig .b2.hi .vv{color:var(--ac)}
+
 /* 하단 나레이션 자막 — 박스 없이 굵게 */
 #cap{position:fixed;left:50%;bottom:8.5%;transform:translateX(-50%);z-index:7;
  font-size:26px;font-weight:700;color:var(--ink);text-align:center;max-width:72vw;
  letter-spacing:-.01em;text-shadow:0 2px 18px rgba(0,0,0,.9);white-space:nowrap}
 `;
 const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+
+// 설명 도식 모음 — mem-diagrams.html 에서 확정한 그림을 엔진에 옮겨 심었다.
+// 회로도로 가지 않고 "실제로 무슨 일이 일어나는가"만 보여준다. 그림 안 텍스트는 최소로.
+const FIGURES = {
+  // 램 = 지금 켜놓은 것들이 올라가 있는 자리
+  ram: `<svg width="1240" height="330" viewBox="0 0 1240 330">
+    <rect class="bx" x="60" y="0" width="300" height="170" rx="14"/><rect class="tbar" x="60" y="0" width="300" height="34" rx="14"/>
+    <text class="cap" x="130" y="115">인터넷 창</text>
+    <rect class="bx" x="470" y="0" width="300" height="170" rx="14"/><rect class="tbar" x="470" y="0" width="300" height="34" rx="14"/>
+    <text class="cap" x="565" y="115">문서</text>
+    <rect class="bx" x="880" y="0" width="300" height="170" rx="14"/><rect class="tbar" x="880" y="0" width="300" height="34" rx="14"/>
+    <text class="cap" x="985" y="115">유튜브</text>
+    <rect class="bx-ac" x="60" y="215" width="1120" height="86" rx="16"/>
+    <text class="cap" x="580" y="270" fill="#2ee87a">램</text></svg>`,
+
+  // 전원을 끄면 램만 비워진다
+  poweroff: `<svg width="1440" height="330" viewBox="0 0 1440 330">
+    <text class="lbl" x="0" y="34">전원을 끄기 전</text>
+    <rect class="bx-ac" x="0" y="60" width="600" height="90" rx="14"/><text class="cap" x="60" y="115" fill="#2ee87a">램 — 켜놓은 것들</text>
+    <rect class="bx" x="0" y="180" width="600" height="90" rx="14"/><text class="cap" x="60" y="235">낸드 — 저장해둔 사진·파일</text>
+    <text class="lbl-ac" x="655" y="135">전원 OFF</text>
+    <path class="arw" d="M660,165 L800,165"/><path class="arw" d="M773,150 L800,165 L773,180"/>
+    <text class="lbl" x="840" y="34">끄고 난 뒤</text>
+    <g class="dim"><rect class="bx" x="840" y="60" width="600" height="90" rx="14"/></g>
+    <text class="lbl" x="900" y="115">비었다</text>
+    <rect class="bx" x="840" y="180" width="600" height="90" rx="14"/><text class="cap" x="900" y="235">그대로 남아 있다</text></svg>`,
+
+  // DDR4 대비 DDR5 — 속도 두 배
+  ddr: `<div class="bars2">
+    <div class="b2"><div class="nm">DDR4</div><div class="tr"><div class="fl" style="width:50%"></div></div><div class="vv">1배</div></div>
+    <div class="b2 hi"><div class="nm">DDR5</div><div class="tr"><div class="fl" style="width:100%"></div></div><div class="vv">2배</div></div>
+  </div>`,
+
+  // AI 는 글자 하나마다 아는 것을 꺼내 본다
+  ai: `<svg width="1400" height="290" viewBox="0 0 1400 290">
+    <rect class="bx" x="0" y="50" width="420" height="160" rx="18"/><text class="cap" x="90" y="145">AI가 아는 것 전부</text>
+    <text class="lbl-ac" x="480" y="105">글자 하나 쓸 때마다</text>
+    <path class="arw" d="M460,150 L740,150"/><path class="arw" d="M713,135 L740,150 L713,165"/>
+    <rect class="bx-ac" x="780" y="50" width="300" height="160" rx="18"/><text class="cap" x="885" y="145" fill="#2ee87a">AI 칩</text>
+    <text class="lbl" x="1150" y="125">계속</text>
+    <text x="1150" y="185" style="font-size:46px;font-weight:800;fill:#2ee87a">반복</text></svg>`,
+
+  // HBM — 쌓아서 길을 넓히고 칩 옆에 붙인다
+  hbm: `<svg width="1360" height="350" viewBox="0 0 1360 350">
+    <text class="lbl" x="0" y="30">보통 램</text>
+    <rect class="bx" x="0" y="52" width="330" height="64" rx="10"/><text class="cap" x="125" y="94">한 장</text>
+    <path d="M345,84 L620,84" style="stroke:rgba(255,255,255,.28);stroke-width:7;fill:none"/>
+    <text class="lbl" x="400" y="56">좁은 길</text>
+    <text class="lbl-ac" x="0" y="196">HBM</text>
+    <rect class="bx-ac" x="0" y="216" width="330" height="22" rx="4"/>
+    <rect class="bx-ac" x="0" y="244" width="330" height="22" rx="4"/>
+    <rect class="bx-ac" x="0" y="272" width="330" height="22" rx="4"/>
+    <rect class="bx-ac" x="0" y="300" width="330" height="22" rx="4"/>
+    <text class="lbl-ac" x="0" y="346">여러 장을 위로 쌓았다</text>
+    <path class="arw" d="M345,227 L620,227" style="stroke-width:11"/>
+    <path class="arw" d="M345,261 L620,261" style="stroke-width:11"/>
+    <path class="arw" d="M345,295 L620,295" style="stroke-width:11"/>
+    <text class="lbl-ac" x="400" y="198">넓은 길</text>
+    <rect class="bx-ac" x="660" y="124" width="330" height="200" rx="18"/><text class="cap" x="750" y="234" fill="#2ee87a">AI 칩</text>
+    <text class="lbl" x="1030" y="209">바로 옆에 붙여</text>
+    <text class="lbl" x="1030" y="249">거리를 없앴다</text></svg>`,
+
+  // 붙이는 과정에서 한 층이라도 잘못되면 덩어리 전체를 버린다
+  cost: `<svg width="1100" height="320" viewBox="0 0 1100 320">
+    <rect class="bx-ac" x="0" y="30" width="420" height="34" rx="6"/>
+    <rect class="bx-ac" x="0" y="72" width="420" height="34" rx="6"/>
+    <rect x="0" y="114" width="420" height="34" rx="6" style="fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.5);stroke-width:2.5;stroke-dasharray:8 6"/>
+    <text class="lbl" x="450" y="140">이 한 층이 잘못되면</text>
+    <rect class="bx-ac" x="0" y="156" width="420" height="34" rx="6"/>
+    <rect class="bx-ac" x="0" y="198" width="420" height="34" rx="6"/>
+    <rect class="bx-ac" x="0" y="240" width="420" height="34" rx="6"/>
+    <text class="lbl-ac" x="450" y="235">밑에 깔린 멀쩡한 층까지</text>
+    <text x="450" y="282" style="font-size:38px;font-weight:800;fill:#2ee87a">전부 버린다</text></svg>`,
+};
 
 const DECK = (window.DECK_DATA && window.DECK_DATA.length) ? window.DECK_DATA : [
   { type: 'claim', kicker: 'DEMO', claim: '데이터가 <em>주인공</em>이다', say: '데모입니다.' },
@@ -198,6 +294,14 @@ function buildScene(s) {
       <div class="grid" style="grid-template-columns:repeat(${cols},1fr)">${cs.map((c, i) => `<div class="c el">
         <div class="n mono">${String(i + 1).padStart(2, '0')}</div><div class="t">${esc(c.label)}</div>
         ${c.sub ? `<div class="s">${esc(c.sub)}</div>` : ''}</div>`).join('')}</div>`;
+  } else if (s.type === 'figure') {
+    // 손으로 그린 설명 도식 — 회로도로 가지 않고 구조만 보여주는 그림들.
+    // 슬라이드 타입으로 일반화할 수 없는 그림(부품 단면·전후 비교 등)을 이름으로 불러 쓴다.
+    const art = FIGURES[s.art] || '';
+    d.innerHTML = `${s.kicker ? `<div class="kick el">${esc(s.kicker)}</div>` : ''}
+      ${s.claim ? `<div class="fig-h el">${s.claim}</div>` : ''}
+      <div class="fig el">${art}</div>
+      ${s.lead ? `<div class="lead el">${s.lead}</div>` : ''}`;
   } else { // claim / title
     d.innerHTML = `${s.kicker ? `<div class="kick el">${esc(s.kicker)}</div>` : ''}
       <div class="claim el">${s.claim || esc(s.title)}</div>
