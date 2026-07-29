@@ -34,11 +34,17 @@ const slides = deck.slides || [];
 // say = 화면 자막(영어·숫자 그대로), spoken = 발음용(있으면 TTS 는 이걸 읽음).
 // 엔진에 따라 비트 순서가 다르다: signal 은 nodes.steps, timed 는 flow.nodes 가 비트가 된다.
 const ENGINE = deck.engine === 'signal' ? 'signal' : 'timed';
+// ★이 목록은 deck-signal.js 의 STEPPED 와 반드시 같아야 한다★
+// 엔진은 steps 하나하나를 비트로 세는데 여기서 슬라이드 하나로 세면, 화면 타임라인이
+// 오디오보다 길어진다. 실제로 nodes 만 여기 있고 pipeline/stack 이 빠져 있어서
+// 화면이 오디오보다 1분 28초 길어졌고, 렌더가 끝까지 못 가고 멈춘 적이 있다.
+const STEPPED_SIGNAL = new Set(['nodes', 'pipeline', 'stack']);
 const beats = [];
 slides.forEach((s) => {
   if (ENGINE === 'signal') {
-    if (s.type === 'nodes' && s.steps) s.steps.forEach((st) => beats.push({ obj: st, say: st.say || '', spoken: st.spoken }));
-    else beats.push({ obj: s, say: s.say || s.claim || s.title || '', spoken: s.spoken });
+    if (STEPPED_SIGNAL.has(s.type) && Array.isArray(s.steps) && s.steps.length) {
+      s.steps.forEach((st) => beats.push({ obj: st, say: st.say || '', spoken: st.spoken }));
+    } else beats.push({ obj: s, say: s.say || s.claim || s.title || '', spoken: s.spoken });
   } else if (s.type === 'flow') {
     (s.nodes || []).forEach((n) => { if (typeof n === 'string') n = { label: n }; beats.push({ obj: n, say: n.say || n.label, spoken: n.spoken }); });
   } else beats.push({ obj: s, say: s.say || s.title || s.head || s.quote || '', spoken: s.spoken });
@@ -146,20 +152,43 @@ page.on('pageerror', e => console.log('PAGEERR', e.message));
 await page.goto('file://' + htmlPath, { waitUntil: 'load' });
 await page.waitForTimeout(1800);
 const D = await page.evaluate(() => window.__DURATION);
-const N = Math.round(D * FPS);
+// 화면 타임라인(D)과 오디오 길이(TOTAL)가 어긋나면 -shortest 로 인해 ffmpeg 이 먼저 끝난다.
+// 어긋남 자체가 비트 계산 불일치라는 신호이므로 눈에 띄게 남기고, 프레임은 짧은 쪽에 맞춘다.
+const gap = D - TOTAL;
+if (Math.abs(gap) > 2) {
+  console.warn(`⚠ 화면 ${D.toFixed(1)}s vs 오디오 ${TOTAL.toFixed(1)}s — ${gap.toFixed(1)}s 어긋남. 비트 계산이 엔진과 다를 수 있다.`);
+}
+const N = Math.round(Math.min(D, TOTAL) * FPS);
 console.log(`프레임 렌더 ${N}장 → ffmpeg 파이프, ${W}x${H} @ ${FPS}fps`);
 
 const ff2 = spawn(FFMPEG, ['-hide_banner', '-y', '-f', 'image2pipe', '-framerate', String(FPS), '-i', 'pipe:0', '-i', audioTrack,
   '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'veryfast', '-crf', '22', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', outPath],
   { stdio: ['pipe', 'inherit', 'inherit'] });
+// ffmpeg 이 먼저 끝나면 파이프가 닫힌다. 그 뒤로 쓰면 drain 이벤트가 영원히 오지 않아
+// 프로세스가 그대로 멈춘다(실제로 95분을 서 있다가 제한시간에 잘린 적이 있다).
+// 종료를 감지해 루프를 빠져나가고, 기다림에는 반드시 시간 제한을 둔다.
+let ffAlive = true, ffCode = null;
+ff2.on('close', (c) => { ffAlive = false; ffCode = c; });
+ff2.stdin.on('error', () => { ffAlive = false; });
 for (let i = 0; i < N; i++) {
+  if (!ffAlive) { console.log(`\n  ffmpeg 이 ${i}프레임에서 먼저 종료 — 프레임 공급 중단`); break; }
   await page.evaluate(t => window.__setTime(t), i / FPS);
   const buf = await page.screenshot({ type: 'png' });
-  if (!ff2.stdin.write(buf)) await new Promise(res => ff2.stdin.once('drain', res));
+  if (!ff2.stdin.write(buf)) {
+    await Promise.race([
+      new Promise(res => ff2.stdin.once('drain', res)),
+      new Promise(res => setTimeout(res, 15000)),
+    ]);
+  }
   if (i % 48 === 0) process.stdout.write(`\r  ${i}/${N}`);
 }
-ff2.stdin.end();
-await new Promise((res, rej) => { ff2.on('close', c => c === 0 ? res() : rej(new Error('ffmpeg exit ' + c))); });
+try { ff2.stdin.end(); } catch {}
+// 마무리도 무한정 기다리지 않는다 — 안 끝나면 강제 종료하고 실패로 알린다.
+await new Promise((res, rej) => {
+  if (!ffAlive) return ffCode === 0 ? res() : rej(new Error('ffmpeg exit ' + ffCode));
+  const timer = setTimeout(() => { try { ff2.kill('SIGKILL'); } catch {} rej(new Error('ffmpeg 마무리 시간 초과(5분)')); }, 300000);
+  ff2.on('close', (c) => { clearTimeout(timer); c === 0 ? res() : rej(new Error('ffmpeg exit ' + c)); });
+});
 await browser.close();
 fs.rmSync(work, { recursive: true, force: true });
 console.log('\n완료:', outPath);
