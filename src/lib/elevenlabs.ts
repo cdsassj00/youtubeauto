@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseBuffer } from 'music-metadata';
 import { config } from '../config.js';
+import { recordUsage } from './usage.js';
 
 const API_BASE = 'https://api.elevenlabs.io/v1';
 
@@ -13,6 +14,7 @@ export async function synthesizeSpeech(params: {
   outPath: string;
 }): Promise<{ durationSec: number }> {
   const { text, outPath } = params;
+  recordUsage({ kind: 'elevenlabs', step: 'narration', model: config.elevenLabsModelId, chars: text.length });
 
   const res = await fetch(
     `${API_BASE}/text-to-speech/${config.elevenLabsVoiceId}`,

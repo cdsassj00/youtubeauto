@@ -146,11 +146,40 @@ jobs:
             out/deck.json
             out/deck-meta.json
             out/upload-result.json
+            out/usage.json
           if-no-files-found: ignore
           retention-days: 7
 
       # ── 업로드 전 리뷰 흐름 ── 결과(videoId·공개상태)를 아티팩트 "이름"에 인코딩해
       # 웹앱이 zip 다운로드 없이 목록 조회만으로 미리보기(임베드)·발행 버튼을 띄우게 한다.
+      # 사용량을 아티팩트 "이름"에 인코딩해 웹앱이 zip 없이 목록만으로 누적 집계하게 한다.
+      # (결과 아티팩트와 같은 방식 — 서버리스에서 파일을 풀지 않고 합계를 낼 수 있다.)
+      - name: 사용량 집계
+        id: usage
+        if: always()
+        run: |
+          if [ -f out/usage.json ]; then
+            jq -r 'def s(k; f): ([.[] | select(.kind==k) | (f // 0)] | add // 0);
+              "ci=\(s("claude"; .inputTokens))",
+              "co=\(s("claude"; .outputTokens))",
+              "oi=\(s("openai-text"; .inputTokens))",
+              "oo=\(s("openai-text"; .outputTokens))",
+              "img=\(s("openai-image"; .images))",
+              "tts=\(s("elevenlabs"; .chars))"' out/usage.json >> "$GITHUB_OUTPUT" || echo "has=0" >> "$GITHUB_OUTPUT"
+            echo "has=1" >> "$GITHUB_OUTPUT"
+            echo "── 이번 실행 사용량 ──"; cat out/usage.json | jq -c 'group_by(.kind)[] | {kind: .[0].kind, n: length}'
+          else
+            echo "has=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 사용량 아티팩트
+        if: always() && steps.usage.outputs.has == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: usage__ci-${{ steps.usage.outputs.ci }}__co-${{ steps.usage.outputs.co }}__oi-${{ steps.usage.outputs.oi }}__oo-${{ steps.usage.outputs.oo }}__img-${{ steps.usage.outputs.img }}__tts-${{ steps.usage.outputs.tts }}
+          path: out/usage.json
+          retention-days: 90
+
       - name: 업로드 결과 파싱
         id: result
         if: always()

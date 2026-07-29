@@ -3,6 +3,7 @@ import fsp from 'node:fs/promises';
 import OpenAI, { toFile } from 'openai';
 import sharp from 'sharp';
 import { config, PRESENTER_IMAGE_PATH } from '../config.js';
+import { recordUsage } from './usage.js';
 
 const W = 1280;
 const H = 720;
@@ -72,6 +73,7 @@ export async function generateThumbnail(params: {
     b64 = res.data?.[0]?.b64_json;
   }
   if (!b64) return false;
+  recordUsage({ kind: 'openai-image', step: 'thumbnail', model: config.openaiImageModel, images: 1 });
 
   // 16:9 (1280x720) 로 크롭·리사이즈.
   await sharp(Buffer.from(b64, 'base64')).resize(W, H, { fit: 'cover', position: 'centre' }).png().toFile(outPath);

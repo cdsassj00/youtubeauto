@@ -51,6 +51,17 @@ slides.forEach((s) => {
 });
 console.log(`비트 ${beats.length}개 · TTS(${VOICE})…`);
 
+// 사용량 장부 — TS 쪽 recordUsage 와 같은 파일에 이어 쓴다(여긴 .mjs 라 import 불가).
+const USAGE_PATH = process.env.USAGE_PATH || '';
+function recordUsage(entry) {
+  if (!USAGE_PATH) return;
+  try {
+    const list = fs.existsSync(USAGE_PATH) ? JSON.parse(fs.readFileSync(USAGE_PATH, 'utf8')) : [];
+    list.push(entry);
+    fs.writeFileSync(USAGE_PATH, JSON.stringify(list, null, 2), 'utf8');
+  } catch (e) { console.warn('사용량 기록 실패(무시):', e.message); }
+}
+
 function ffDuration(file) {
   const r = spawnSync(FFMPEG, ['-hide_banner', '-i', file], { encoding: 'utf8' });
   const m = (r.stderr || '').match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/);
@@ -74,6 +85,7 @@ for (let i = 0; i < beats.length; i++) {
     const rr = spawnSync(FFMPEG, ['-hide_banner', '-y', '-i', clip, '-filter:a', `atempo=${SPEED}`, fast], { encoding: 'utf8' });
     if (rr.status === 0) clip = fast;
   }
+  recordUsage({ kind: 'elevenlabs', step: 'narration', model: MODEL, chars: (b.spoken || b.say || '').length });
   const d = ffDuration(clip) || Math.max(2, b.say.length / 6.6);
   b.obj.dur = d + PAD;
   clips.push({ clip, dur: d });

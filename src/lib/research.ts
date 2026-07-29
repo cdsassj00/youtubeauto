@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { config } from '../config.js';
+import { recordUsage } from './usage.js';
 
 /**
  * 대본 작성 전에 실제 웹서치로 최신 정보를 조사한다.
@@ -70,6 +71,8 @@ async function researchWithOpenAI(params: { dateLabel: string; topic?: string; k
         { role: 'user', content: researchPrompt(dateLabel, query) },
       ],
     });
+    recordUsage({ kind: 'openai-text', step: 'research', model: config.openaiResearchModel,
+      inputTokens: res.usage?.input_tokens, outputTokens: res.usage?.output_tokens });
     const text = (res.output_text ?? '').trim();
     console.log(`  · 리서치(OpenAI) 결과 ${text.length}자 — 미리보기: ${text.slice(0, 120).replace(/\n/g, ' ')}...`);
     return text;
@@ -95,6 +98,8 @@ async function researchWithClaude(params: { dateLabel: string; topic?: string; k
       messages: [{ role: 'user', content: researchPrompt(dateLabel, query) }],
     });
 
+    recordUsage({ kind: 'claude', step: 'research', model: config.claudeModel,
+      inputTokens: res.usage?.input_tokens, outputTokens: res.usage?.output_tokens });
     if (res.stop_reason === 'refusal') return '';
     const text = res.content
       .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
+import { recordUsage } from './usage.js';
 
 /**
  * deck 기반 영상 엔진(signal / deck3d)용 대본 생성기.
@@ -180,6 +181,8 @@ export async function generateDeck(params: {
     messages: [{ role: 'user', content: user }],
   });
   const final = await stream.finalMessage();
+  recordUsage({ kind: 'claude', step: 'deck', model: config.claudeModel,
+    inputTokens: final.usage?.input_tokens, outputTokens: final.usage?.output_tokens });
   if (final.stop_reason === 'refusal') throw new Error('Claude 가 대본 생성을 거부했습니다(안전상).');
   if (final.stop_reason === 'max_tokens') throw new Error('deck JSON 이 출력 도중 잘렸습니다(출력 길이 초과). 주제/브리핑을 줄이거나 다시 시도하세요.');
   const block = final.content.find((b) => b.type === 'text');

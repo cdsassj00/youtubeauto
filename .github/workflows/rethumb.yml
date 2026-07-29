@@ -71,3 +71,24 @@ jobs:
 
       - name: 썸네일 재생성 + 교체
         run: npm run rethumb
+
+      # 썸네일만 다시 만드는 실행도 이미지 비용이 든다 — 누적 집계에 포함시킨다.
+      - name: 사용량 집계
+        id: usage
+        if: always()
+        run: |
+          if [ -f out/usage.json ]; then
+            jq -r 'def s(k; f): ([.[] | select(.kind==k) | (f // 0)] | add // 0);
+              "img=\(s("openai-image"; .images))"' out/usage.json >> "$GITHUB_OUTPUT"
+            echo "has=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 사용량 아티팩트
+        if: always() && steps.usage.outputs.has == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: usage__ci-0__co-0__oi-0__oo-0__img-${{ steps.usage.outputs.img }}__tts-0
+          path: out/usage.json
+          retention-days: 90

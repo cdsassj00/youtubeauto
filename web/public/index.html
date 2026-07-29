@@ -148,6 +148,14 @@
       .pv.unlisted { background: #2b2718; color: #ffd43b; }
       .pv.private { background: #2a2530; color: #b0a8c0; }
       .review .rehead { width: 100%; margin-top: 12px; display: none; }
+      .cost { margin-top: 18px; border: 1px solid rgba(255,255,255,.10); border-radius: 14px; padding: 18px 20px; background: rgba(255,255,255,.02); }
+      .cost h4 { font-size: 13px; letter-spacing: .1em; color: #8a8f98; margin-bottom: 12px; font-weight: 700; }
+      .cost .tot { font-size: 34px; font-weight: 800; letter-spacing: -.02em; }
+      .cost .sub { font-size: 13px; color: #8a8f98; margin-top: 6px; }
+      .cost table { width: 100%; margin-top: 14px; border-collapse: collapse; font-size: 13px; }
+      .cost td { padding: 6px 0; color: #b9c0ca; }
+      .cost td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+      .cost .note { font-size: 11.5px; color: #6a6f78; margin-top: 12px; line-height: 1.5; }
       .review .acts { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
       .review .acts button { flex: 1; min-width: 130px; padding: 13px; border-radius: 12px; border: 1px solid var(--line); background: #141824; color: var(--ink); font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; }
       .review .acts button.pub { background: linear-gradient(135deg, var(--ok), #37b24d); border: none; }
@@ -249,6 +257,14 @@
         </div>
 
         <!-- 업로드 전 리뷰: 미리보기 영상 + 썸네일 확인 → 발행 / 썸네일 수정 / 영상 다시 -->
+        <div id="cost" class="cost" style="display:none">
+          <h4>누적 비용</h4>
+          <div class="tot" id="costTot">—</div>
+          <div class="sub" id="costSub"></div>
+          <table id="costTbl"></table>
+          <div class="note" id="costNote"></div>
+        </div>
+
         <div id="review" class="review">
           <h3>미리보기 확인 <span id="pvbadge" class="pv unlisted">미등록</span></h3>
           <div class="rvsub">공개 전에 영상과 썸네일을 확인하세요. 문제 없으면 발행, 아니면 수정할 수 있어요. (미등록 상태라 링크 있는 사람만 볼 수 있어요)</div>
@@ -585,6 +601,25 @@
       $('go').addEventListener('click', publish);
       // 여러 줄 입력이므로 Enter 는 줄바꿈, Ctrl/Cmd+Enter 로 발행.
       $('topic').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) publish(); });
+      // 누적 비용 — 실행마다 남긴 사용량 아티팩트를 합산해 보여준다.
+      async function loadCost() {
+        try {
+          const d = await (await fetch('/api/cost')).json();
+          if (!d || d.error || !d.runs) return;
+          $('cost').style.display = 'block';
+          $('costTot').textContent = d.krw.toLocaleString() + '원';
+          $('costSub').textContent = `$${d.usd.toFixed(2)} · 실행 ${d.runs}회 집계`;
+          const b = d.breakdown, t = d.total, won = (u) => Math.round(u * d.price.usdKrw).toLocaleString() + '원';
+          $('costTbl').innerHTML = [
+            ['대본 (Claude)', `${(t.claudeIn + t.claudeOut).toLocaleString()} 토큰`, b.claude],
+            ['리서치 (OpenAI)', `${(t.openaiIn + t.openaiOut).toLocaleString()} 토큰`, b.openai],
+            ['썸네일 이미지', `${t.images}장`, b.image],
+            ['나레이션 (ElevenLabs)', `${t.ttsChars.toLocaleString()}자`, b.tts],
+          ].map(([k, q, u]) => `<tr><td>${k}</td><td style="color:#6a6f78">${q}</td><td>${won(u)}</td></tr>`).join('');
+          $('costNote').textContent = d.note;
+        } catch (e) { /* 비용 표시는 부가 기능이라 실패해도 조용히 넘어간다 */ }
+      }
+      loadCost();
       startPolling(0);
     </script>
   </body>

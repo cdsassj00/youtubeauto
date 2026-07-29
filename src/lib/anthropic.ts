@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { config } from '../config.js';
 import { ScriptSchema, type Script } from '../schema.js';
+import { recordUsage } from './usage.js';
 
 /** 출력 길이 초과로 JSON 이 도중에 잘렸을 때의 표식 — 이 메시지로 재시도 여부를 판단한다. */
 const TRUNCATED_MSG = '대본 JSON 이 출력 도중 잘렸습니다(출력 길이 초과).';
@@ -157,6 +158,8 @@ export async function generateScript(params: {
     let final: Anthropic.Message;
     try {
       final = await stream.finalMessage();
+      recordUsage({ kind: 'claude', step: 'script', model: config.claudeModel,
+        inputTokens: final.usage?.input_tokens, outputTokens: final.usage?.output_tokens });
     } catch (e) {
       const msg = (e as Error).message || '';
       if (/parse structured output/i.test(msg)) throw new Error(TRUNCATED_MSG);
