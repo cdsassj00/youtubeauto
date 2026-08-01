@@ -37,6 +37,31 @@ function defaultModel(provider: ImageProvider): string {
 }
 
 /**
+ * Gemini 이미지 응답 형식.
+ *
+ * 각 필드를 SDK 가 실제로 허용하는 리터럴로 좁혀 적어둔다. SDK 의 response_format
+ * 유니온에는 캐치올 멤버({[k:string]: any})가 있어서 오타나 미지원 값도 컴파일을
+ * 통과시켜 버리기 때문이다 — 여기서 좁혀야 런타임 400 대신 빌드 에러로 잡힌다.
+ *
+ * mime_type 은 이 모델이 image/jpeg 만 받는다(png 를 보내면 400). 어차피 sharp 로
+ * 다시 인코딩해 저장하므로 최종 파일은 PNG 다.
+ */
+type GeminiImageFormat = {
+  type: 'image';
+  mime_type: 'image/jpeg';
+  aspect_ratio: '16:9' | '1:1';
+  image_size: '512' | '1K' | '2K' | '4K';
+};
+
+const IMAGE_RESPONSE_FORMAT = (aspect: '16:9' | '1:1'): GeminiImageFormat => ({
+  type: 'image',
+  mime_type: 'image/jpeg',
+  aspect_ratio: aspect,
+  // 1K 면 1080p 로 리사이즈하기에 충분하고, 2K 보다 싸다.
+  image_size: '1K',
+});
+
+/**
  * 이미지 한 장을 생성해 PNG 버퍼로 돌려준다.
  * 실패하면 예외를 던진다 — 호출부가 씬 단위로 잡아서 무시할 수 있게.
  */
@@ -62,13 +87,11 @@ async function generateWithGemini(
   const interaction = await ai.interactions.create({
     model,
     input: prompt,
-    response_format: {
-      type: 'image',
-      mime_type: 'image/png',
-      aspect_ratio: aspect,
-      // 1K 면 1080p 로 리사이즈하기에 충분하고, 2K 보다 싸다.
-      image_size: '1K',
-    },
+    // ★타입을 명시적으로 좁혀둔다★ SDK 의 response_format 유니온에는
+    // { [k: string]: any } 캐치올 멤버가 있어서, 잘못된 리터럴을 써도 컴파일이 통과한다.
+    // 실제로 mime_type 을 'image/png' 로 두고 타입체크를 통과시켰다가 런타임 400 을 맞았다
+    // (이 모델은 image/jpeg 만 받는다). 아래처럼 좁은 타입을 걸면 컴파일 단계에서 잡힌다.
+    response_format: IMAGE_RESPONSE_FORMAT(aspect),
   });
 
   const b64 = interaction.output_image?.data;
