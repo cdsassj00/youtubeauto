@@ -41,6 +41,11 @@ jobs:
           node-version: '20'
           cache: npm
 
+      # 비교표의 화풍 이름을 sharp 가 SVG 텍스트로 그리는데, 러너에 한글 폰트가 없으면
+      # 전부 두부(□□□)로 나온다. 실제로 첫 실행에서 그렇게 깨졌다.
+      - name: 한국어 폰트 설치
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+
       - name: 의존성 설치
         run: npm ci
 
