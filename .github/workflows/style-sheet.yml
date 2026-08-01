@@ -1,0 +1,63 @@
+name: style-sheet
+
+# 화풍 견본 시트 — 같은 소재를 화풍마다 한 장씩 그려 비교표를 만든다.
+# 영상 렌더/업로드가 없어 몇 분 안에 끝나고, 비용도 이미지 장수만큼만 든다.
+# Gemini 배선(GEMINI_API_KEY / IMAGE_PROVIDER) 점검도 겸한다.
+on:
+  repository_dispatch:
+    types: [style-sheet]
+  workflow_dispatch:
+    inputs:
+      styles:
+        description: '쉼표로 구분한 화풍 id (비우면 전체). 예: comic,clay,watercolor'
+        required: false
+        default: ''
+      provider:
+        description: '이미지 provider (openai | gemini). 비우면 저장소 기본값'
+        required: false
+        default: ''
+
+jobs:
+  sheet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # 대본을 만들지 않으므로 Claude/TTS 키는 필요 없다. 이미지 관련만 넘긴다.
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_ILLUSTRATION_MODEL: ${{ vars.OPENAI_ILLUSTRATION_MODEL || 'gpt-image-1-mini' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image' }}
+      IMAGE_PROVIDER: ${{ github.event.inputs.provider || github.event.client_payload.provider || vars.IMAGE_PROVIDER || 'openai' }}
+      # config.ts 가 로드될 때 있어야 하는 값들 — 견본 생성에는 쓰이지 않는다.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 키 배선 확인
+        run: |
+          echo "IMAGE_PROVIDER = $IMAGE_PROVIDER"
+          # 값은 절대 출력하지 않는다 — 있는지 없는지만 본다.
+          if [ -n "$GEMINI_API_KEY" ]; then echo "GEMINI_API_KEY  = 있음 (${#GEMINI_API_KEY}자)"; else echo "GEMINI_API_KEY  = 없음"; fi
+          if [ -n "$OPENAI_API_KEY" ]; then echo "OPENAI_API_KEY  = 있음 (${#OPENAI_API_KEY}자)"; else echo "OPENAI_API_KEY  = 없음"; fi
+
+      - name: 견본 생성
+        run: npx tsx scripts/style-sheet.ts "${{ github.event.inputs.styles || github.event.client_payload.styles }}"
+
+      - name: 견본 아티팩트
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: style-sheet
+          path: out/styles
+          retention-days: 30
