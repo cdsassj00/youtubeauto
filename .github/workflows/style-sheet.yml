@@ -59,6 +59,30 @@ jobs:
       - name: 견본 생성
         run: npx tsx scripts/style-sheet.ts "${{ github.event.inputs.styles || github.event.client_payload.styles }}"
 
+      # 견본도 실제로 돈이 나가므로 누적 비용에 잡혀야 한다.
+      # (첫 실행 때 이 단계가 없어서 이미지 7장이 집계에서 통째로 빠졌다.)
+      # 이름 규칙은 daily-publish.yml 과 같아야 cost.js 가 같이 읽는다.
+      - name: 사용량 집계
+        id: usage
+        if: always()
+        run: |
+          if [ -f out/usage.json ]; then
+            jq -r 'def s(k; f): ([.[] | select(.kind==k) | (f // 0)] | add // 0);
+              "img=\(s("openai-image"; .images))",
+              "gimg=\(s("gemini-image"; .images))"' out/usage.json >> "$GITHUB_OUTPUT" || echo "has=0" >> "$GITHUB_OUTPUT"
+            echo "has=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 사용량 아티팩트
+        if: always() && steps.usage.outputs.has == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: usage__ci-0__co-0__oi-0__oo-0__img-${{ steps.usage.outputs.img }}__gimg-${{ steps.usage.outputs.gimg }}__tts-0
+          path: out/usage.json
+          retention-days: 90
+
       - name: 견본 아티팩트
         if: always()
         uses: actions/upload-artifact@v4
