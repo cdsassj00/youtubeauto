@@ -24,12 +24,14 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.3",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@google/genai": "^2.15.0",
     "@remotion/bundler": "^4.0.400",
     "@remotion/cli": "^4.0.400",
     "@remotion/google-fonts": "^4.0.491",
     "@remotion/media-utils": "^4.0.400",
     "@remotion/renderer": "^4.0.400",
     "dotenv": "^16.4.5",
+    "ffmpeg-static": "^5.2.0",
     "googleapis": "^144.0.0",
     "music-metadata": "^10.0.0",
     "openai": "^6.48.0",
@@ -39,8 +41,7 @@
     "remotion": "^4.0.400",
     "roughjs": "^4.6.6",
     "sharp": "^0.35.3",
-    "zod": "4.3.6",
-    "ffmpeg-static": "^5.2.0"
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

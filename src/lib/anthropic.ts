@@ -3,6 +3,8 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { config } from '../config.js';
 import { ScriptSchema, type Script } from '../schema.js';
 import { recordUsage } from './usage.js';
+import { buildToneGuide, resolveTone } from './tone.js';
+import { resolveArtStyle } from './artStyle.js';
 
 /** 출력 길이 초과로 JSON 이 도중에 잘렸을 때의 표식 — 이 메시지로 재시도 여부를 판단한다. */
 const TRUNCATED_MSG = '대본 JSON 이 출력 도중 잘렸습니다(출력 길이 초과).';
@@ -89,18 +91,24 @@ export async function generateScript(params: {
       ].join(' '),
   };
   const levelGuide = levelGuides[config.contentLevel] ?? levelGuides.expert;
+  // 대본이 "이 영상은 어떤 그림체인지" 알아야 illustration 묘사를 그 화풍에 맞게 쓴다.
+  const artStyle = resolveArtStyle(config.artStyle);
 
   const system = [
     '너는 교육 유튜브 채널의 수석 작가이자 연출가다.',
-    '영상은 씬마다 "깨끗한 흑백 등각(isometric) 삽화 한 장 + 화면 하단 자막(나레이션) + 배경음악"으로 구성되는 설명 영상이다. (손그림/판서/플래시 애니메이션이 아니다.)',
+    `영상은 씬마다 "${artStyle.label} 화풍의 삽화 한 장 + 화면 하단 자막(나레이션) + 배경음악"으로 구성되는 설명 영상이다. (손그림/판서/플래시 애니메이션이 아니다.)`,
     'diagram/comparison 씬은 그림 대신 코드로 그린 등각 모션 그래픽(떠 있는 원반+라벨 카드, 화살표)이 자동으로 들어간다.',
     '시청자는 한국어 사용자다. 흥미롭게, 그러나 정확하고 밀도 있게 설명해야 한다.',
     levelGuide,
+    // 말투는 난이도와 별개의 축이다 — "쉽게 설명한다"와 "유머러스하게 말한다"는 같이 성립한다.
+    `말투: ${buildToneGuide(resolveTone(config.narrationTone))}`,
     `오늘은 ${dateLabel} 이다. 모델·제품 예시를 들 때는 "지금 현재" 기준으로 최신인 것을 써라. 네 학습 데이터 시점에 최신이었어도 지금은 이미 구세대가 된 모델(예: GPT-4o, GPT-4 Turbo, GPT-3.5 등 오래된 세대)을 "요즘 대표 예시"처럼 제시하면 영상이 낡아 보인다 — 절대 그렇게 하지 마라. 리서치(아래)에 최신 모델이 있으면 반드시 그 이름을 쓰고, 확신이 없으면 특정 구세대 제품명을 콕 집지 말고 "각 회사의 최신 대형 모델들"처럼 일반화해서 말해라. (단, 역사적 맥락을 설명할 때 과거 모델을 "과거에 그랬다"고 언급하는 것은 괜찮다 — 문제는 낡은 모델을 "현재"인 양 말하는 것이다.)`,
     '과장·낚시성 표현은 피한다. 이해는 추상적 비유·은유가 아니라 실제 사례·구체적 수치·단계별 설명으로 돕는다. 비유는 꼭 필요할 때만 최소한으로.',
     'narration 은 성우가 그대로 읽을 수 있는 완결된 구어체 문장으로 작성한다. (마크다운/이모지/괄호 지시문 금지)',
     'heading·bullets 는 보조 데이터일 뿐 화면 자막으로는 나레이션이 쓰이므로, 짧고 핵심만 담는다.',
-    'illustration 은 이 씬을 한 장의 흑백 등각(isometric) 삽화로 그리기 위한 영어 묘사다. 나레이션이 말하는 사물·행동·화면을, 3/4 등각 각도에서 본 입체 형태(장치·박스·인물 등)로 직접적·직관적으로 그린다(은유 금지, 정면 평면 구도 금지). 화면에 글자는 넣지 않는다.',
+    // illustration 은 "무엇을 그릴지"만 쓰게 한다. "어떻게 그릴지"(화풍)는 이미지 생성 직전에
+    // artStyle.ts 가 붙이므로, 여기서 화풍까지 지시하면 두 지시가 충돌한다.
+    'illustration 은 이 씬을 삽화 한 장으로 그리기 위한 영어 묘사다. 나레이션이 말하는 사물·행동·화면이 무엇인지만 구체적으로 적는다(은유 금지). 화풍·색·터치는 적지 마라 — 그건 별도로 지정된다. 화면에 글자는 넣지 않는다.',
   ].join(' ');
 
   const user = [

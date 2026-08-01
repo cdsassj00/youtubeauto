@@ -115,6 +115,19 @@ export const config = {
   openaiImageModel: optional('OPENAI_IMAGE_MODEL', 'gpt-image-2'),
   // 영상 일러스트용 저가 모델 (글자 없는 흑백 라인아트라 mini 로 충분 → 비용 절감).
   openaiIllustrationModel: optional('OPENAI_ILLUSTRATION_MODEL', 'gpt-image-1-mini'),
+  // 이미지 생성 provider: openai | gemini.
+  // gemini(Nano Banana)는 회화적 화풍(수채화·클레이·코믹북)에 강하고 장당 단가가 더 싸다.
+  // 다만 썸네일은 진행자 얼굴을 보존해야 해서 provider 와 무관하게 계속 OpenAI 를 쓴다.
+  imageProvider: optional('IMAGE_PROVIDER', 'openai').toLowerCase(),
+  geminiApiKey: optional('GEMINI_API_KEY', ''),
+  // Nano Banana 2. 더 좋은 결과가 필요하면 gemini-3-pro-image(장당 약 2배).
+  geminiImageModel: optional('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image'),
+
+  // 씬 일러스트 화풍(src/lib/artStyle.ts). auto 면 날짜 기준으로 회차마다 다르게 고른다.
+  artStyle: optional('ART_STYLE', 'isometric').toLowerCase(),
+  // 나레이션 말투(src/lib/tone.ts): documentary | humorous | storytelling | mystery
+  narrationTone: optional('NARRATION_TONE', 'documentary').toLowerCase(),
+
   // 진행자 사진을 URL 로 줄 경우(저장소에 커밋하기 싫을 때). 비면 assets/presenter.png 사용.
   presenterImageUrl: optional('PRESENTER_IMAGE_URL', ''),
   // 썸네일 배경 톤: dark(칠판) | cream(종이)

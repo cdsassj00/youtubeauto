@@ -217,7 +217,33 @@
               <option value="signal3d">시그널 + 3D 공간</option>
             </select>
           </div>
+          <div>
+            <label for="art">화풍</label>
+            <select id="art">
+              <option value="isometric" selected>흑백 등각 라인아트 (기존)</option>
+              <option value="auto">자동 추천(회차마다 교체)</option>
+              <option value="comic">빈티지 코믹북</option>
+              <option value="watercolor">수채화</option>
+              <option value="cinematic">시네마틱 사진</option>
+              <option value="retro">레트로 애니메이션</option>
+              <option value="clay">클레이 애니메이션</option>
+              <option value="pixar">3D 픽사 스타일</option>
+            </select>
+          </div>
+          <div>
+            <label for="tone">말투</label>
+            <select id="tone">
+              <option value="documentary" selected>다큐멘터리톤</option>
+              <option value="humorous">유머러스</option>
+              <option value="storytelling">스토리텔링</option>
+              <option value="mystery">미스터리</option>
+            </select>
+          </div>
         </div>
+
+        <p class="hint" id="artHint">
+          화풍은 <b>2D 벡터 일러스트</b> 스타일에서만 그림에 적용됩니다. 시그널·3D 계열은 화면을 코드로 그리기 때문에 화풍 설정이 영상에 반영되지 않습니다.
+        </p>
 
         <div class="switch">
           <input id="upload" type="checkbox" checked />
@@ -292,6 +318,17 @@
         t.className = 'toast ' + (kind === 'err' ? 'err' : 'info');
       };
 
+      // 화풍은 AI 그림을 쓰는 illustrated 엔진에서만 영상에 반영된다.
+      // 시그널·3D 계열은 화면을 코드로 그리므로, 골라도 안 먹는다는 걸 미리 알려준다.
+      // (안내문을 항상 띄우면 정작 적용되는 경우에도 "안 되나?" 하고 헷갈리므로 조건부로 보여준다.)
+      function syncArtHint() {
+        const usesArt = $('style').value === 'illustrated';
+        $('artHint').style.display = usesArt ? 'none' : 'block';
+        $('art').disabled = !usesArt;
+      }
+      $('style').addEventListener('change', syncArtHint);
+      syncArtHint();
+
       let triggeredAt = 0;
       let pollTimer = null;
       let tickTimer = null;
@@ -322,6 +359,7 @@
               level: $('level').value, channel: $('channel').value,
               upload: $('upload').checked, password: $('pw').value,
               style: $('style').value,
+              art: $('art').value, tone: $('tone').value,
               // 업로드를 켜면 먼저 '미등록(unlisted)'으로 올려 확인 후 발행하는 리뷰 흐름.
               privacy: $('upload').checked ? 'unlisted' : '',
             }),

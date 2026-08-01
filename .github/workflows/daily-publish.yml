@@ -91,6 +91,16 @@ jobs:
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
       # 영상 엔진: illustrated(AI 흑백 일러스트) | web3d(3D 웹녹화) | remotion(손그림). 기본 illustrated.
       VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.style || vars.VIDEO_ENGINE || 'illustrated' }}
+      # 씬 일러스트 화풍(src/lib/artStyle.ts). 'auto' 는 회차마다 날짜 기준으로 회전.
+      # 기본은 isometric — 지정이 없을 때 기존 채널 그림체가 유지되도록.
+      ART_STYLE: ${{ github.event.client_payload.art_style || vars.ART_STYLE || 'isometric' }}
+      # 나레이션 말투(src/lib/tone.ts): documentary | humorous | storytelling | mystery
+      NARRATION_TONE: ${{ github.event.client_payload.narration_tone || vars.NARRATION_TONE || 'documentary' }}
+      # 이미지 생성 provider: openai | gemini(Nano Banana — 회화적 화풍에 강하고 장당 더 저렴).
+      # GEMINI_API_KEY 가 없으면 gemini 로 설정해도 일러스트 생성이 건너뛰어지므로 기본은 openai.
+      IMAGE_PROVIDER: ${{ vars.IMAGE_PROVIDER || 'openai' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image' }}
     steps:
       - name: 체크아웃
         uses: actions/checkout@v4
@@ -165,6 +175,7 @@ jobs:
               "oi=\(s("openai-text"; .inputTokens))",
               "oo=\(s("openai-text"; .outputTokens))",
               "img=\(s("openai-image"; .images))",
+              "gimg=\(s("gemini-image"; .images))",
               "tts=\(s("elevenlabs"; .chars))"' out/usage.json >> "$GITHUB_OUTPUT" || echo "has=0" >> "$GITHUB_OUTPUT"
             echo "has=1" >> "$GITHUB_OUTPUT"
             echo "── 이번 실행 사용량 ──"; cat out/usage.json | jq -c 'group_by(.kind)[] | {kind: .[0].kind, n: length}'
@@ -176,7 +187,7 @@ jobs:
         if: always() && steps.usage.outputs.has == '1'
         uses: actions/upload-artifact@v4
         with:
-          name: usage__ci-${{ steps.usage.outputs.ci }}__co-${{ steps.usage.outputs.co }}__oi-${{ steps.usage.outputs.oi }}__oo-${{ steps.usage.outputs.oo }}__img-${{ steps.usage.outputs.img }}__tts-${{ steps.usage.outputs.tts }}
+          name: usage__ci-${{ steps.usage.outputs.ci }}__co-${{ steps.usage.outputs.co }}__oi-${{ steps.usage.outputs.oi }}__oo-${{ steps.usage.outputs.oo }}__img-${{ steps.usage.outputs.img }}__gimg-${{ steps.usage.outputs.gimg }}__tts-${{ steps.usage.outputs.tts }}
           path: out/usage.json
           retention-days: 90
 

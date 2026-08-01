@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { recordUsage } from './usage.js';
+import { buildToneGuide, resolveTone } from './tone.js';
 
 /**
  * deck 기반 영상 엔진(signal / deck3d)용 대본 생성기.
@@ -114,6 +115,10 @@ export async function generateDeck(params: {
     'say 에 숫자·영문이 전혀 없으면 spoken 은 생략해도 된다.',
     '',
     style === 'deck3d' ? DECK3D_SPEC : SIGNAL_SPEC,
+    '',
+    // 말투 지정. 단 사용자가 완성 원고를 붙여넣은 경우(isBrief)에는 적용하지 않는다 —
+    // 그때는 원고 자체의 말투를 보존하는 것이 우선이고, 아래 isBrief 블록이 그렇게 지시한다.
+    isBrief ? '' : `말투: ${buildToneGuide(resolveTone(config.narrationTone))}`,
     '',
     `오늘은 ${dateLabel} 이다.`,
     `★분량이 가장 흔한 실패다★ 모든 슬라이드(및 각 steps)의 say 를 합친 글자 수가 반드시 ${targetChars}자 이상이어야 ${targetMinutes}분 영상이 된다.`,

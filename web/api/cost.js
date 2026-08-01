@@ -11,8 +11,10 @@ const PRICE = {
   // 리서치용 저가 모델 — 100만 토큰당 달러
   openaiIn: Number(process.env.PRICE_OPENAI_IN || 0.4),
   openaiOut: Number(process.env.PRICE_OPENAI_OUT || 1.6),
-  // 썸네일 이미지 — 장당 달러
+  // 썸네일 이미지(OpenAI) — 장당 달러
   image: Number(process.env.PRICE_IMAGE || 0.19),
+  // Gemini 이미지(Nano Banana 2, 1K) — 장당 달러. 공개 정가 기준 대략치.
+  geminiImage: Number(process.env.PRICE_GEMINI_IMAGE || 0.067),
   // TTS — 1000자당 달러
   tts1k: Number(process.env.PRICE_TTS_1K || 0.22),
   usdKrw: Number(process.env.USD_KRW || 1380),
@@ -44,22 +46,22 @@ export default async function handler(req, res) {
   };
 
   const runs = [];
-  let ci = 0, co = 0, oi = 0, oo = 0, img = 0, tts = 0;
+  let ci = 0, co = 0, oi = 0, oo = 0, img = 0, gimg = 0, tts = 0;
   for (const a of artifacts) {
     if (!a.name.startsWith('usage__') || a.expired) continue;
     const e = {
       at: a.created_at,
       claudeIn: num(a.name, 'ci'), claudeOut: num(a.name, 'co'),
       openaiIn: num(a.name, 'oi'), openaiOut: num(a.name, 'oo'),
-      images: num(a.name, 'img'), ttsChars: num(a.name, 'tts'),
+      images: num(a.name, 'img'), geminiImages: num(a.name, 'gimg'), ttsChars: num(a.name, 'tts'),
     };
     e.usd = cost(e);
     runs.push(e);
     ci += e.claudeIn; co += e.claudeOut; oi += e.openaiIn; oo += e.openaiOut;
-    img += e.images; tts += e.ttsChars;
+    img += e.images; gimg += e.geminiImages; tts += e.ttsChars;
   }
 
-  const total = { claudeIn: ci, claudeOut: co, openaiIn: oi, openaiOut: oo, images: img, ttsChars: tts };
+  const total = { claudeIn: ci, claudeOut: co, openaiIn: oi, openaiOut: oo, images: img, geminiImages: gimg, ttsChars: tts };
   const usd = cost(total);
 
   return res.status(200).json({
@@ -69,6 +71,7 @@ export default async function handler(req, res) {
       claude: r6(((ci * PRICE.claudeIn) + (co * PRICE.claudeOut)) / 1e6),
       openai: r6(((oi * PRICE.openaiIn) + (oo * PRICE.openaiOut)) / 1e6),
       image: r6(img * PRICE.image),
+      geminiImage: r6(gimg * PRICE.geminiImage),
       tts: r6((tts / 1000) * PRICE.tts1k),
     },
     usd: r6(usd),
@@ -84,6 +87,7 @@ function cost(t) {
     ((t.claudeIn * PRICE.claudeIn + t.claudeOut * PRICE.claudeOut) / 1e6) +
     ((t.openaiIn * PRICE.openaiIn + t.openaiOut * PRICE.openaiOut) / 1e6) +
     (t.images * PRICE.image) +
+    ((t.geminiImages || 0) * PRICE.geminiImage) +
     ((t.ttsChars / 1000) * PRICE.tts1k)
   );
 }

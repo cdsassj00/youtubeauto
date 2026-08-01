@@ -1,5 +1,10 @@
 // 웹앱 → GitHub Actions 트리거 (repository_dispatch).
 // GITHUB_TOKEN 은 서버(함수)에만 있고 브라우저에 노출되지 않는다.
+// 허용값 목록은 src/lib/artStyle.ts / src/lib/tone.ts 의 프리셋 id 와 일치해야 한다.
+// (여기서 걸러진 값만 워크플로로 넘어가고, 나머지는 기본값으로 떨어진다.)
+const ART_STYLES = ['auto', 'isometric', 'comic', 'watercolor', 'cinematic', 'retro', 'clay', 'pixar'];
+const TONES = ['documentary', 'humorous', 'storytelling', 'mystery'];
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST 만 허용됩니다' });
@@ -43,12 +48,18 @@ export default async function handler(req, res) {
     style: ['illustrated', 'deck3d', 'signal', 'signal3d'].includes(body.style) ? body.style : '',
     // 나레이션 배속(0.8~1.4). 비우면 워크플로 기본값.
     speed: pick('speed', 'narration_speed') ? String(Math.max(0.8, Math.min(1.4, Number(pick('speed', 'narration_speed')) || 1))) : '',
+    // 씬 일러스트 화풍(src/lib/artStyle.ts). 'auto' 는 회차마다 날짜로 회전.
+    // 목록에 없는 값은 빈 값으로 떨어뜨려 워크플로 기본값(기존 흑백 등각)을 쓰게 한다.
+    art_style: ART_STYLES.includes(pick('art', 'art_style')) ? pick('art', 'art_style') : '',
+    // 나레이션 말투(src/lib/tone.ts).
+    narration_tone: TONES.includes(pick('tone', 'narration_tone')) ? pick('tone', 'narration_tone') : '',
   };
 
   // 알 수 없는 키가 섞여 오면 조용히 버리지 말고 응답에 알려준다(오타로 인한 설정 유실 방지).
   const KNOWN = new Set([
     'topic', 'mode', 'content_mode', 'level', 'content_level', 'upload', 'do_upload',
     'minutes', 'target_minutes', 'channel', 'privacy', 'style', 'speed', 'narration_speed', 'password',
+    'art', 'art_style', 'tone', 'narration_tone',
   ]);
   const ignored = Object.keys(body).filter((k) => !KNOWN.has(k));
 
@@ -76,6 +87,8 @@ export default async function handler(req, res) {
       privacy: client_payload.privacy || '(워크플로 기본값)',
       target_minutes: client_payload.target_minutes,
       speed: client_payload.speed || '(워크플로 기본값)',
+      art_style: client_payload.art_style || '(워크플로 기본값)',
+      narration_tone: client_payload.narration_tone || '(워크플로 기본값)',
     },
     ...(ignored.length ? { ignoredKeys: ignored } : {}),
   });

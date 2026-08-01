@@ -10,7 +10,7 @@ import { OUT_DIR } from '../config.js';
  * 단가는 여기 두지 않는다(계정 요금제마다 다름) — 합산할 때 환경변수로 받는다.
  */
 
-export type UsageKind = 'claude' | 'openai-text' | 'openai-image' | 'elevenlabs';
+export type UsageKind = 'claude' | 'openai-text' | 'openai-image' | 'gemini-image' | 'elevenlabs';
 
 export interface UsageEntry {
   kind: UsageKind;
