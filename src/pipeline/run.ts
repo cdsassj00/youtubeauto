@@ -271,10 +271,16 @@ async function stepRender(): Promise<void> {
     await render3dVideo();
   } else if (config.videoEngine === 'scrapbook') {
     // VOX(스크랩북) 엔진 — 종이 배경 위에 컷아웃 판화를 붙이고 큰 글자를 타자기로 찍는다.
-    // 여기서는 모든 씬이 그림을 받는다. illustrated 와 달리 도식·불릿을 코드로 그리지 않고
-    // "한 화면에 스크랩 하나"가 원칙이라, 그림이 없으면 화면이 글자만 남는다.
-    const needsArt = manifest.scenes.filter((s) => s.visual !== 'quote');
-    console.log(`  · 컷아웃 판화 생성 중... (${needsArt.length}/${manifest.scenes.length}, 인용 씬 제외)`);
+    //
+    // ★모든 씬에 그림을 붙이지 않는다★ 이유가 두 가지다.
+    //  1) 연출 — 참고 영상도 글자만 남는 화면과 그림이 붙는 화면이 번갈아 나온다. 매 컷마다
+    //     그림이 들어오면 눈이 쉴 곳이 없어 오히려 단조로워진다(quote 씬이 그 쉼표다).
+    //  2) 비용 — 이 엔진은 컷이 빨라 씬이 45~65개다. 전부 그리면 장당 $0.067 × 60 ≈ $4 로
+    //     영상 한 편 값이 몇 배가 된다. visual="image" 인 씬만 그리면 절반 이하로 떨어진다.
+    const needsArt = manifest.scenes.filter(
+      (s) => s.visual === 'image' || s.visual === 'title' || s.visual === 'outro',
+    );
+    console.log(`  · 컷아웃 판화 생성 중... (${needsArt.length}/${manifest.scenes.length}, image/title/outro 씬만)`);
     const cutMap = await generateCutouts(needsArt);
     // 생성에 실패한 씬은 기존 값을 그대로 둔다(덮어쓰면 있던 그림까지 날아간다).
     manifest.scenes = manifest.scenes.map((s) => ({ ...s, imagePath: cutMap[s.id] ?? s.imagePath }));

@@ -59,13 +59,21 @@ const ScrapScene: React.FC<{
 
   // 스크랩 배치 — 씬마다 자리를 바꿔 "늘 같은 구도"를 피한다.
   // 한 화면에 하나만 크게 두는 것이 이 스타일의 규칙이다(참고 영상도 대부분 1~2개).
+  // 폭과 높이를 함께 준다. 컷아웃은 세로로 긴 것도 가로로 넓은 것도 나오는데, 폭만 주면
+  // 세로로 긴 조각이 화면 밖으로 흘러넘친다(테스트 렌더에서 실제로 그렇게 나왔다).
+  // 위쪽은 큰 글자, 아래쪽은 자막이 쓰므로 세로는 화면의 절반 남짓까지만 허용한다.
   const spots = [
-    { x: 62, y: 58, w: 46 },
-    { x: 38, y: 60, w: 44 },
-    { x: 60, y: 40, w: 42 },
-    { x: 40, y: 42, w: 48 },
+    { x: 64, y: 60, w: 40, h: 52 },
+    { x: 36, y: 62, w: 38, h: 50 },
+    { x: 62, y: 56, w: 42, h: 54 },
+    { x: 38, y: 58, w: 40, h: 50 },
   ];
   const spot = spots[index % spots.length];
+
+  // 그림이 없는 씬(주로 quote)은 글자가 유일한 내용이므로 화면 가운데에 크게 앉힌다.
+  // 위쪽에 작게 두면 종이만 넓게 비어 "빠진 화면"처럼 보인다. 참고 영상도 전환 문장은
+  // 화면 한가운데 한 줄로 크게 박는다 — 이 대비가 컷 사이의 쉼표 역할을 한다.
+  const soloText = !scene.imagePath;
 
   return (
     <AbsoluteFill>
@@ -74,19 +82,26 @@ const ScrapScene: React.FC<{
       {/* 큰 타이포 — 나레이션 시작과 함께 찍히기 시작한다 */}
       {headline && (
         <div
-          style={{
-            position: 'absolute',
-            left: 110,
-            top: 96,
-            right: 110,
-            maxWidth: 1180,
-          }}
+          style={
+            soloText
+              ? {
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 160px',
+                  paddingBottom: 120, // 하단 자막 자리를 비워 둔다
+                }
+              : { position: 'absolute', left: 110, top: 96, right: 110, maxWidth: 1180 }
+          }
         >
           <Typewriter
             text={headline}
             fps={fps}
             color={ink}
-            fontSize={headline.length > 18 ? 78 : 104}
+            fontSize={soloText ? (headline.length > 14 ? 120 : 148) : headline.length > 18 ? 78 : 104}
+            align={soloText ? 'center' : 'left'}
             delay={Math.round(fps * 0.25)}
           />
         </div>
@@ -99,6 +114,7 @@ const ScrapScene: React.FC<{
           x={spot.x}
           y={spot.y}
           w={spot.w}
+          h={spot.h}
           delay={Math.round(fps * 1.1)}
           fps={fps}
           seed={index}
