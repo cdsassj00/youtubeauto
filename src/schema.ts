@@ -35,6 +35,7 @@ export const VisualKind = z.enum([
   'comparison', // 좌/우 비교
   'quote', // 한 문장 강조
   'code', // 실제 파일/코드/설정 예시 한 화면
+  'image', // AI 그림 한 장으로 보여주는 장면 (화풍 설정이 실제로 적용되는 유일한 씬 타입)
   'outro', // 마무리/구독 유도
 ]);
 

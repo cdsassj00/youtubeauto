@@ -272,13 +272,17 @@ async function stepRender(): Promise<void> {
     // diagram/comparison/bullets/quote 씬은 AI 그림 대신 코드로 그린 등각 모션 그래픽·발표자료
     // 슬라이드로 렌더하므로(Illustrated.tsx 의 IsoDiagram/IsoComparison/BulletSlide/QuoteSlide 참고)
     // AI 일러스트 생성을 건너뛰어 비용을 아끼고, 영상 전체가 AI 그림 한 가지로만 도배되는 걸 막는다.
+    // ★visual="image" 는 반드시 여기서 제외돼야 한다★
+    // 예전에는 대본이 만들 수 있는 모든 씬 타입이 이 목록에 걸려서 needsAiImage 가 항상 0이었고,
+    // 그 결과 AI 일러스트가 한 장도 안 만들어졌다 — 화풍 설정이 아무 효과가 없던 원인이다.
     const isCodeRendered = (s: (typeof manifest.scenes)[number]) =>
-      (s.visual === 'diagram' && Boolean(s.diagram?.nodes.length)) ||
+      s.visual !== 'image' &&
+      ((s.visual === 'diagram' && Boolean(s.diagram?.nodes.length)) ||
       (s.visual === 'comparison' && Boolean(s.comparison)) ||
       (s.visual === 'bullets' && s.bullets.length > 0) ||
       (s.visual === 'code' && Boolean(s.code)) ||
       ((s.visual === 'title' || s.visual === 'outro') && Boolean(s.icon)) ||
-      s.visual === 'quote';
+      s.visual === 'quote');
     const needsAiImage = manifest.scenes.filter((s) => !isCodeRendered(s));
     console.log(`  · 씬별 흑백 일러스트 생성 중... (${needsAiImage.length}/${manifest.scenes.length}, 도식/비교/불릿/인용/아이콘 씬은 코드 렌더링으로 대체)`);
     // manifest.theme(다크로 정해졌으면) 에 맞춰 AI 일러스트도 색을 반전해, title/outro 씬만
