@@ -57,8 +57,14 @@ export async function makeCutout(input: Buffer, opts: CutoutOptions = {}): Promi
     // linear 의 기울기를 가파르게 둬야 종이 가장자리가 '가위로 자른 자국'처럼 또렷해진다.
     // 완만하면 빛 번짐(글로우)처럼 보여서 종이가 아니라 후광이 된다. 다만 완전한 이진화는
     // 계단이 생기므로, 1~2px 정도만 부드럽게 남도록 기울기만 세운다.
-    const merge = await sharp(ink, rawMask).blur(mergeRadius).linear(22, -120).png().toBuffer();
-    const edge = await sharp(ink, rawMask).blur(border / 2).linear(14, -130).png().toBuffer();
+    //
+    // ★기울기를 한 번 더 세웠다★ 테스트 렌더에서 겨자색 종이 위에 얹어보니 22/-120 은
+    // 여전히 종이가 아니라 흰 후광으로 보였다. 전이대(알파 0→255 구간)의 폭이 문제다:
+    //   22/-120 → 원본값 5.5~17 (폭 11.5) : 넓어서 뿌옇게 번진다
+    //   60/-330 → 원본값 5.5~9.8 (폭 4.3) : 자른 자국처럼 또렷하다
+    // 임계값 자체는 낮게 유지해야(≈5.5) 실루엣이 잉크 바깥으로 충분히 부풀어 종이가 된다.
+    const merge = await sharp(ink, rawMask).blur(mergeRadius).linear(60, -330).png().toBuffer();
+    const edge = await sharp(ink, rawMask).blur(border / 2).linear(40, -360).png().toBuffer();
     silhouette = await sharp(merge)
       .composite([{ input: edge, blend: 'lighten' }])
       .png()

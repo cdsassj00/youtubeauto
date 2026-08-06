@@ -129,12 +129,14 @@ export const ScrapPiece: React.FC<{
   /** 화면 기준 위치(%) */
   x: number;
   y: number;
-  /** 화면 가로 대비 크기(%) */
+  /** 화면 가로 대비 최대 폭(%) */
   w: number;
+  /** 화면 세로 대비 최대 높이(%) — 이걸 안 걸면 세로로 긴 조각이 화면 밖으로 나간다 */
+  h: number;
   delay: number;
   fps: number;
   seed?: number;
-}> = ({ src, x, y, w, delay, fps, seed = 0 }) => {
+}> = ({ src, x, y, w, h, delay, fps, seed = 0 }) => {
   const frame = useCurrentFrame();
   const t = frame - delay;
   const dur = Math.round(fps * 0.32);
@@ -149,12 +151,21 @@ export const ScrapPiece: React.FC<{
         position: 'absolute',
         left: `${x}%`,
         top: `${y}%`,
+        // 폭·높이 둘 다 상자로 묶고 그 안에서 비율을 유지한다(object-fit: contain).
+        // 폭만 주면 세로로 긴 조각이 화면 아래로 잘려 나간다 — 실제로 그렇게 나왔다.
         width: `${w}%`,
+        height: `${h}%`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         transform: `translate(-50%, -50%) scale(${scale}) rotate(${tilt}deg)`,
         opacity: p,
       }}
     >
-      <Img src={staticFile(src)} style={{ width: '100%', height: 'auto', display: 'block' }} />
+      <Img
+        src={staticFile(src)}
+        style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', display: 'block' }}
+      />
     </div>
   );
 };
