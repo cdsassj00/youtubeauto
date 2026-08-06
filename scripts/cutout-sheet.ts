@@ -24,7 +24,11 @@ const SUBJECTS: { id: string; subject: string }[] = [
   { id: 'datacenter', subject: 'a row of tall server racks in a data center hall' },
   { id: 'wafer', subject: 'a semiconductor wafer being held with tweezers' },
   { id: 'factory', subject: 'a large industrial factory building with smokestacks' },
-  { id: 'engineer', subject: 'an engineer sitting at a desk working at a computer terminal' },
+  // 사람이 나오는 소재는 "기법만 빈티지, 시대는 현재" 가 지켜지는지 확인하는 시험대다.
+  // 처음엔 프록코트 입은 19세기 신사가 나왔다(프롬프트가 소재까지 과거로 끌고 갔다).
+  { id: 'engineer', subject: 'a software engineer in a hoodie working at a modern laptop with two monitors' },
+  { id: 'team', subject: 'three coworkers in casual modern office clothes discussing a chart on a whiteboard' },
+  { id: 'phone', subject: 'a young woman in a t-shirt looking at a modern smartphone' },
   { id: 'robotarm', subject: 'an industrial robotic arm on an assembly line' },
   { id: 'ship', subject: 'a cargo ship loaded with shipping containers at a dock' },
 ];
