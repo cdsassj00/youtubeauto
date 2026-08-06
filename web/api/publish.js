@@ -42,17 +42,25 @@ export default async function handler(req, res) {
     target_minutes: String(Math.max(2, Math.min(20, Number(pick('minutes', 'target_minutes')) || 10))),
     // 업로드 대상 채널 (default | ch2). 알 수 없는 값은 default 로 안전 처리.
     channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
-    // 공개 상태. 리뷰 흐름은 'unlisted'(미등록)로 올려 확인 후 발행. 빈 값이면 워크플로 기본값.
-    privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : '',
-    // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
-    style: ['illustrated', 'deck3d', 'signal', 'signal3d'].includes(body.style) ? body.style : '',
-    // 나레이션 배속(0.8~1.4). 비우면 워크플로 기본값.
-    speed: pick('speed', 'narration_speed') ? String(Math.max(0.8, Math.min(1.4, Number(pick('speed', 'narration_speed')) || 1))) : '',
-    // 씬 일러스트 화풍(src/lib/artStyle.ts). 'auto' 는 회차마다 날짜로 회전.
-    // 목록에 없는 값은 빈 값으로 떨어뜨려 워크플로 기본값(기존 흑백 등각)을 쓰게 한다.
-    art_style: ART_STYLES.includes(pick('art', 'art_style')) ? pick('art', 'art_style') : '',
-    // 나레이션 말투(src/lib/tone.ts).
-    narration_tone: TONES.includes(pick('tone', 'narration_tone')) ? pick('tone', 'narration_tone') : '',
+
+    // ★나머지 옵션은 반드시 이 opts 안에 넣는다★
+    // GitHub repository_dispatch 의 client_payload 는 "최상위 속성 10개"가 상한이다.
+    // 옵션을 최상위에 하나씩 늘리다가 11개가 되면서 발행이 422 로 통째로 막힌 적이 있다.
+    // 중첩된 값은 개수에 세지 않으므로, 앞으로 옵션이 늘어도 여기에만 추가하면 안전하다.
+    // (워크플로에서는 client_payload.opts.<이름> 으로 읽는다.)
+    opts: {
+      // 공개 상태. 리뷰 흐름은 'unlisted'(미등록)로 올려 확인 후 발행. 빈 값이면 워크플로 기본값.
+      privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : '',
+      // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
+      style: ['illustrated', 'deck3d', 'signal', 'signal3d'].includes(body.style) ? body.style : '',
+      // 나레이션 배속(0.8~1.4). 비우면 워크플로 기본값.
+      speed: pick('speed', 'narration_speed') ? String(Math.max(0.8, Math.min(1.4, Number(pick('speed', 'narration_speed')) || 1))) : '',
+      // 씬 일러스트 화풍(src/lib/artStyle.ts). 'auto' 는 회차마다 날짜로 회전.
+      // 목록에 없는 값은 빈 값으로 떨어뜨려 워크플로 기본값(기존 흑백 등각)을 쓰게 한다.
+      art_style: ART_STYLES.includes(pick('art', 'art_style')) ? pick('art', 'art_style') : '',
+      // 나레이션 말투(src/lib/tone.ts).
+      narration_tone: TONES.includes(pick('tone', 'narration_tone')) ? pick('tone', 'narration_tone') : '',
+    },
   };
 
   // 알 수 없는 키가 섞여 오면 조용히 버리지 말고 응답에 알려준다(오타로 인한 설정 유실 방지).
@@ -83,12 +91,12 @@ export default async function handler(req, res) {
     // 실제로 무엇이 전달됐는지 되돌려준다 — 업로드 여부/스타일이 의도와 다른지 즉시 확인 가능.
     applied: {
       do_upload: client_payload.do_upload,
-      style: client_payload.style || '(워크플로 기본값)',
-      privacy: client_payload.privacy || '(워크플로 기본값)',
+      style: client_payload.opts.style || '(워크플로 기본값)',
+      privacy: client_payload.opts.privacy || '(워크플로 기본값)',
       target_minutes: client_payload.target_minutes,
-      speed: client_payload.speed || '(워크플로 기본값)',
-      art_style: client_payload.art_style || '(워크플로 기본값)',
-      narration_tone: client_payload.narration_tone || '(워크플로 기본값)',
+      speed: client_payload.opts.speed || '(워크플로 기본값)',
+      art_style: client_payload.opts.art_style || '(워크플로 기본값)',
+      narration_tone: client_payload.opts.narration_tone || '(워크플로 기본값)',
     },
     ...(ignored.length ? { ignoredKeys: ignored } : {}),
   });
