@@ -4,6 +4,9 @@
 // (여기서 걸러진 값만 워크플로로 넘어가고, 나머지는 기본값으로 떨어진다.)
 const ART_STYLES = ['auto', 'isometric', 'comic', 'watercolor', 'cinematic', 'retro', 'clay', 'pixar'];
 const TONES = ['documentary', 'humorous', 'storytelling', 'mystery'];
+// 썸네일 스타일(src/lib/thumbStyle.ts). 썸네일은 엔진과 무관하게 항상 생성되므로
+// 어떤 영상 스타일을 골라도 그대로 적용된다 — 모순 조합이 없다.
+const THUMB_STYLES = ['auto', 'chalk', 'paper', 'impact', 'neon', 'magazine', 'scrap'];
 
 // ★src/lib/engines.ts 의 ENGINES 와 반드시 같아야 한다★
 // 서버리스 함수는 그 모듈을 import 할 수 없어 값을 복제해 둔다. 어긋나면
@@ -70,6 +73,7 @@ export default async function handler(req, res) {
       art_style: ART_STYLES.includes(pick('art', 'art_style')) ? pick('art', 'art_style') : '',
       // 나레이션 말투(src/lib/tone.ts).
       narration_tone: TONES.includes(pick('tone', 'narration_tone')) ? pick('tone', 'narration_tone') : '',
+      thumb_style: THUMB_STYLES.includes(pick('thumb', 'thumb_style')) ? pick('thumb', 'thumb_style') : '',
     },
   };
 
@@ -77,7 +81,7 @@ export default async function handler(req, res) {
   const KNOWN = new Set([
     'topic', 'mode', 'content_mode', 'level', 'content_level', 'upload', 'do_upload',
     'minutes', 'target_minutes', 'channel', 'privacy', 'style', 'speed', 'narration_speed', 'password',
-    'art', 'art_style', 'tone', 'narration_tone',
+    'art', 'art_style', 'tone', 'narration_tone', 'thumb', 'thumb_style',
   ]);
   const ignored = Object.keys(body).filter((k) => !KNOWN.has(k));
 
@@ -115,6 +119,7 @@ export default async function handler(req, res) {
       speed: client_payload.opts.speed || '(워크플로 기본값)',
       art_style: client_payload.opts.art_style || '(워크플로 기본값)',
       narration_tone: client_payload.opts.narration_tone || '(워크플로 기본값)',
+      thumb_style: client_payload.opts.thumb_style || '(워크플로 기본값)',
     },
     // 지정했지만 이 엔진에서 안 먹는 옵션을 알려준다 — 조용히 무시되면
     // 결과물을 보고도 왜 반영이 안 됐는지 알 수 없다.

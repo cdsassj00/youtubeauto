@@ -30,6 +30,8 @@ export default async function handler(req, res) {
     // 여러 제품 회차 — 배지 대신 제품 심볼 줄. 쉼표로 구분된 제품명.
     icons: String(body.icons || '').slice(0, 120),
     dramatic: body.dramatic ? 'true' : 'false',
+    // 스타일만 바꿔 다시 뽑을 수 있게 한다 — 렌더 없이 썸네일만이라 장당 비용으로 끝난다.
+    thumb_style: ['auto','chalk','paper','impact','neon','magazine','scrap'].includes(body.thumb) ? body.thumb : '',
   };
 
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {

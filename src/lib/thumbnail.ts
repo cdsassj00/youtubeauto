@@ -4,6 +4,7 @@ import OpenAI, { toFile } from 'openai';
 import sharp from 'sharp';
 import { config, PRESENTER_IMAGE_PATH } from '../config.js';
 import { recordUsage } from './usage.js';
+import { resolveThumbStyle, type ThumbStyle } from './thumbStyle.js';
 
 const W = 1280;
 const H = 720;
@@ -44,7 +45,10 @@ export async function generateThumbnail(params: {
   const client = new OpenAI({ apiKey });
   // 매 생성마다 포즈·복장을 다르게 (얼굴/안경/헤어 정체성은 유지, 옷과 자세만 변주).
   const variation = pickVariation();
-  const prompt = buildPrompt(headline?.trim() || title, topic, title, config.thumbnailTone, Boolean(presenter), variation, dramatic, badge?.trim() || '', productIcons?.trim() || '');
+  // 스타일 프리셋(배경·글씨체·액센트 한 벌). 'auto' 면 회차마다 날짜 기준으로 회전한다.
+  const thumbStyle = resolveThumbStyle(config.thumbnailStyle);
+  console.log(`  · 썸네일 스타일: ${thumbStyle.label} / 인물 ${variation.mirror ? '좌' : '우'}측 배치`);
+  const prompt = buildPrompt(headline?.trim() || title, topic, title, thumbStyle, Boolean(presenter), variation, dramatic, badge?.trim() || '', productIcons?.trim() || '');
 
   let b64: string | undefined;
   if (presenter) {
@@ -146,20 +150,43 @@ const LAYOUTS = [
   },
 ];
 
-type Variation = { outfit: string; pose: string; layout: (typeof LAYOUTS)[number] };
+type Variation = { outfit: string; pose: string; layout: (typeof LAYOUTS)[number]; mirror: boolean };
+
+/**
+ * 레이아웃을 좌우 반전한다.
+ *
+ * 레이아웃 6개 중 4개가 인물을 오른쪽에 둬서, 랜덤인데도 67% 확률로 오른쪽에 섰다.
+ * "항상 사람이 오른쪽"이라는 지적이 정확했다. 레이아웃을 다시 쓰는 대신 좌우를 통째로
+ * 뒤집으면 배치 수가 두 배가 되고 좌우 비율도 정확히 반반이 된다.
+ */
+function mirrorText(t: string): string {
+  return t
+    .replace(/LEFT/g, '\u0000')
+    .replace(/RIGHT/g, 'LEFT')
+    .replace(/\u0000/g, 'RIGHT');
+}
 
 function pickVariation(): Variation {
   const outfit = OUTFITS[Math.floor(Math.random() * OUTFITS.length)];
   const pose = POSES[Math.floor(Math.random() * POSES.length)];
-  const layout = LAYOUTS[Math.floor(Math.random() * LAYOUTS.length)];
-  return { outfit, pose, layout };
+  const base = LAYOUTS[Math.floor(Math.random() * LAYOUTS.length)];
+  const mirror = Math.random() < 0.5;
+  const layout = mirror
+    ? {
+        person: mirrorText(base.person),
+        title: mirrorText(base.title),
+        symbol: mirrorText(base.symbol),
+        badge: mirrorText(base.badge),
+      }
+    : base;
+  return { outfit, pose, layout, mirror };
 }
 
 function buildPrompt(
   headline: string,
   topic: string,
   title: string,
-  tone: string,
+  style: ThumbStyle,
   hasPresenter: boolean,
   variation: Variation,
   dramatic: boolean,
@@ -167,15 +194,11 @@ function buildPrompt(
   productIcons: string,
 ): string {
   const layout = variation.layout;
-  // 파격 모드: 사건형 뉴스에 어울리는 강렬·긴장 구도(빨강 경고 액센트, 극적 조명/비네트, 초대형 글자,
-  // 진지·놀란 표정). 톤은 무조건 어두운 배경으로 대비를 극대화한다.
-  const cream = dramatic ? false : tone !== 'dark';
-  const bg = cream
-    ? 'warm cream textured paper background (#efe9dc) filling the whole frame, like a hand-drawn notebook'
-    : 'dark chalkboard background (near-black charcoal) with subtle chalk texture filling the whole frame';
-  const inkTitle = cream
-    ? 'the key phrase in bold ORANGE (#e8590c) marker and the rest in near-black ink'
-    : 'the key phrase in bold ORANGE (#e8590c) and the rest in bright WHITE chalk';
+  // 배경·글씨체·액센트는 스타일 프리셋이 한 벌로 정한다(src/lib/thumbStyle.ts).
+  // 예전엔 배경만 dark/cream 두 갈래였고 글씨체는 "마커 손글씨"로 하드코딩돼 있어서,
+  // 무엇을 골라도 썸네일이 늘 같은 인상이었다.
+  const bg = style.bg;
+  const inkTitle = style.inkTitle;
 
   const expression = dramatic
     ? 'a serious, tense, slightly shocked expression (wide eyes, brows raised) fitting a breaking-news moment'
@@ -220,13 +243,13 @@ function buildPrompt(
       : 'At most 2 extra tiny icons. Everything else stays EMPTY — negative space makes the title readable at phone size.',
     dramatic
       ? 'Give it a breaking-news, high-alert feeling: a strong RED (#e03131) alert accent — e.g. a bold red warning triangle/exclamation, a red circle-and-slash, or a red cracked/broken outline around one box — combined with orange (#e8590c) and cool blue (#1971c2). High drama and urgency, but still clean and readable, NOT cluttered.'
-      : 'Use orange (#e8590c), blue (#1971c2) and green (#2f9e44) accents on clean strokes. Lively and clear, NOT cluttered, with real depth.',
-    `Add a HUGE, BOLD Korean title, hand-lettered marker style, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
+      : `${style.accent} Lively and clear, NOT cluttered, with real depth.`,
+    `Add a HUGE, BOLD Korean title in ${style.lettering}, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
     `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — ${dramatic ? 'enormous and ultra-thick, dominating the frame' : 'very large and thick'}, broken into lines as described in the layout above, ${inkTitle}, as the clear focal point.`,
     'Keep ALL text fully inside the frame with a safe margin — never let letters touch or get cut off by any edge.',
     // 문구를 8~14자로 짧게 쓰게 하는 대신, "무엇에 대한 영상인지"는 이 작은 배지가 책임진다.
     badge && !productIcons
-      ? `In the ${layout.badge} corner, add ONE small flat rectangular badge (about 1/8 of the frame width) filled with ${dramatic ? 'red (#e03131)' : 'orange (#e8590c)'}, containing ONLY this short text in clean white letters, spelled exactly: "${badge}". Keep it small and secondary — it must never compete with or overlap the big title or the person.`
+      ? `In the ${layout.badge} corner, add ONE small flat rectangular badge (about 1/8 of the frame width) filled with ${dramatic ? 'red (#e03131)' : style.badgeColor}, containing ONLY this short text in clean white letters, spelled exactly: "${badge}". Keep it small and secondary — it must never compete with or overlap the big title or the person.`
       : dramatic
         ? 'You may add ONE small red accent sticker (a warning "!" or "STOP"-style badge), but it must NOT contain any of the title words and must not overlap the title text.'
         : 'You may add ONE tiny round accent sticker (a checkmark or a star), but it must NOT contain any of the title words and must not overlap the title text.',

@@ -133,8 +133,11 @@ export const config = {
 
   // 진행자 사진을 URL 로 줄 경우(저장소에 커밋하기 싫을 때). 비면 assets/presenter.png 사용.
   presenterImageUrl: optional('PRESENTER_IMAGE_URL', ''),
-  // 썸네일 배경 톤: dark(칠판) | cream(종이)
+  // 썸네일 배경 톤: dark(칠판) | cream(종이) — thumbnailStyle 로 대체됐지만 기존 배선 호환용으로 남긴다.
   thumbnailTone: optional('THUMBNAIL_TONE', 'dark'),
+  // 썸네일 스타일 프리셋(src/lib/thumbStyle.ts) — 배경·글씨체·액센트를 한 벌로 정한다.
+  // auto 면 회차마다 날짜 기준으로 회전. 비우면 기존 칠판 마커.
+  thumbnailStyle: optional('THUMBNAIL_STYLE', 'chalk').toLowerCase(),
 
   // 대본 전 최신정보 리서치(웹서치) 담당 provider: openai(기본, 저비용) | anthropic(Claude 웹서치).
   // 검색은 대본 작성만큼 비싼 모델이 필요 없는 작업이라 기본은 OpenAI 로 비용을 아낀다.
