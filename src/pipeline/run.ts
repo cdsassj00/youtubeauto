@@ -29,6 +29,7 @@ import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { generateBgm } from '../lib/bgm.js';
 import { renderVideo } from '../lib/render.js';
 import { generateIllustrations } from '../lib/illustrate.js';
+import { generateCutouts } from '../lib/cutoutScene.js';
 import { planBroll } from '../lib/broll.js';
 import { fetchClip, creditLine, type StockClip } from '../lib/stock.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
@@ -268,6 +269,18 @@ async function stepRender(): Promise<void> {
   console.log(`▶ [3/4] 영상 렌더링 (엔진: ${config.videoEngine})`);
   if (config.videoEngine === 'web3d') {
     await render3dVideo();
+  } else if (config.videoEngine === 'scrapbook') {
+    // VOX(스크랩북) 엔진 — 종이 배경 위에 컷아웃 판화를 붙이고 큰 글자를 타자기로 찍는다.
+    // 여기서는 모든 씬이 그림을 받는다. illustrated 와 달리 도식·불릿을 코드로 그리지 않고
+    // "한 화면에 스크랩 하나"가 원칙이라, 그림이 없으면 화면이 글자만 남는다.
+    const needsArt = manifest.scenes.filter((s) => s.visual !== 'quote');
+    console.log(`  · 컷아웃 판화 생성 중... (${needsArt.length}/${manifest.scenes.length}, 인용 씬 제외)`);
+    const cutMap = await generateCutouts(needsArt);
+    // 생성에 실패한 씬은 기존 값을 그대로 둔다(덮어쓰면 있던 그림까지 날아간다).
+    manifest.scenes = manifest.scenes.map((s) => ({ ...s, imagePath: cutMap[s.id] ?? s.imagePath }));
+    await writeJson(MANIFEST_PATH, manifest);
+    console.log(`  · 컷아웃 ${Object.keys(cutMap).length}/${needsArt.length}장 완료 → Remotion 합성`);
+    await renderVideo(manifest, 'Scrapbook');
   } else if (config.videoEngine === 'illustrated') {
     // diagram/comparison/bullets/quote 씬은 AI 그림 대신 코드로 그린 등각 모션 그래픽·발표자료
     // 슬라이드로 렌더하므로(Illustrated.tsx 의 IsoDiagram/IsoComparison/BulletSlide/QuoteSlide 참고)

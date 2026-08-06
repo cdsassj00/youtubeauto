@@ -14,7 +14,7 @@
  *  무시되는 옵션이 다시 생긴다.)
  */
 
-export type EngineId = 'illustrated' | 'signal' | 'signal3d' | 'deck3d';
+export type EngineId = 'illustrated' | 'scrapbook' | 'signal' | 'signal3d' | 'deck3d';
 
 /** 엔진과 무관하게 항상 적용되는 옵션은 여기 적지 않는다(주제·길이·모드·채널·배속). */
 export interface EngineCaps {
@@ -39,6 +39,16 @@ export const ENGINES: EngineCaps[] = [
     blurb: 'AI 그림과 도식에 스톡 영상 컷을 섞는다. 화풍을 고를 수 있는 유일한 스타일.',
     artStyle: true,
     broll: true,
+    level: true,
+    tone: true,
+  },
+  {
+    id: 'scrapbook',
+    label: '스크랩북 (빈티지 판화)',
+    blurb: '종이 위에 판화 컷아웃을 붙이고 큰 글자를 타자기로 찍는다. 화풍은 판화로 고정.',
+    // 화풍은 "빈티지 판화"로 고정이다 — 이 스타일의 정체성이라 바꾸면 다른 엔진이 된다.
+    artStyle: false,
+    broll: false,
     level: true,
     tone: true,
   },
