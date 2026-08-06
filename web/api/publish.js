@@ -5,6 +5,16 @@
 const ART_STYLES = ['auto', 'isometric', 'comic', 'watercolor', 'cinematic', 'retro', 'clay', 'pixar'];
 const TONES = ['documentary', 'humorous', 'storytelling', 'mystery'];
 
+// ★src/lib/engines.ts 의 ENGINES 와 반드시 같아야 한다★
+// 서버리스 함수는 그 모듈을 import 할 수 없어 값을 복제해 둔다. 어긋나면
+// "화면에서는 고를 수 있는데 실제로는 안 먹는" 옵션이 다시 생긴다.
+const ENGINES = {
+  illustrated: { artStyle: true, broll: true },
+  signal: { artStyle: false, broll: false },
+  signal3d: { artStyle: false, broll: false },
+  deck3d: { artStyle: false, broll: false },
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST 만 허용됩니다' });
@@ -71,6 +81,14 @@ export default async function handler(req, res) {
   ]);
   const ignored = Object.keys(body).filter((k) => !KNOWN.has(k));
 
+  // 고른 엔진이 지원하지 않는 옵션을 지정했는지 확인한다.
+  // 엔진이 비어 있으면 워크플로 기본값(illustrated)이 쓰이므로 그 기준으로 본다.
+  const caps = ENGINES[client_payload.opts.style || 'illustrated'] || ENGINES.illustrated;
+  const notApplied = [];
+  if (client_payload.opts.art_style && !caps.artStyle) {
+    notApplied.push('화풍 — 이 영상 스타일은 화면을 코드로 그려서 그림체가 적용되지 않습니다');
+  }
+
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
     method: 'POST',
     headers: {
@@ -98,6 +116,9 @@ export default async function handler(req, res) {
       art_style: client_payload.opts.art_style || '(워크플로 기본값)',
       narration_tone: client_payload.opts.narration_tone || '(워크플로 기본값)',
     },
+    // 지정했지만 이 엔진에서 안 먹는 옵션을 알려준다 — 조용히 무시되면
+    // 결과물을 보고도 왜 반영이 안 됐는지 알 수 없다.
+    ...(notApplied.length ? { notApplied } : {}),
     ...(ignored.length ? { ignoredKeys: ignored } : {}),
   });
 }

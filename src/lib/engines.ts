@@ -1,0 +1,94 @@
+/**
+ * 영상 엔진과 각 엔진이 실제로 지원하는 옵션 — 단일 정의.
+ *
+ * 왜 필요한가: 옵션을 하나씩 늘리다 보니 서로 안 맞는 조합이 생겼다. 화면에서는 고를 수
+ * 있는데 실제로는 아무 효과가 없는 설정이 세 개나 있었고(화풍·B롤·난이도), 그중 난이도는
+ * 코드를 뒤져보기 전까지 아무도 몰랐다. "고를 수 있다 = 적용된다"가 깨지면 사용자는
+ * 결과물을 보고도 왜 그런지 알 수 없다.
+ *
+ * 그래서 "무엇이 무엇과 맞물리는가"를 여기 한 곳에만 적는다. UI·API·파이프라인이 모두
+ * 이 표를 보므로, 새 엔진이나 새 옵션을 추가할 때 여기만 갱신하면 세 곳이 같이 맞는다.
+ *
+ * ★이 파일을 고치면 web/api/publish.js 의 ENGINES 도 같이 고쳐야 한다★
+ * (서버리스 함수는 이 모듈을 import 할 수 없어 값을 복제해 둔다 — 어긋나면 조용히
+ *  무시되는 옵션이 다시 생긴다.)
+ */
+
+export type EngineId = 'illustrated' | 'signal' | 'signal3d' | 'deck3d';
+
+/** 엔진과 무관하게 항상 적용되는 옵션은 여기 적지 않는다(주제·길이·모드·채널·배속). */
+export interface EngineCaps {
+  id: EngineId;
+  label: string;
+  /** 한 줄 설명 — UI 에서 무엇을 고르는 것인지 알려준다. */
+  blurb: string;
+  /** AI 그림을 쓰므로 화풍(artStyle)이 실제로 화면에 나타나는가 */
+  artStyle: boolean;
+  /** 스톡 영상 B롤 인서트 컷을 넣을 수 있는가 */
+  broll: boolean;
+  /** 대본 난이도(contentLevel)를 읽는가 */
+  level: boolean;
+  /** 나레이션 말투(tone)를 읽는가 */
+  tone: boolean;
+}
+
+export const ENGINES: EngineCaps[] = [
+  {
+    id: 'illustrated',
+    label: '2D 일러스트 + 영상컷',
+    blurb: 'AI 그림과 도식에 스톡 영상 컷을 섞는다. 화풍을 고를 수 있는 유일한 스타일.',
+    artStyle: true,
+    broll: true,
+    level: true,
+    tone: true,
+  },
+  {
+    id: 'signal',
+    label: '시그널 (데이터 중심)',
+    blurb: '딥블랙 배경에 큰 숫자와 도식. 화면을 코드로 그려서 화풍·영상컷은 안 들어간다.',
+    artStyle: false,
+    broll: false,
+    level: true,
+    tone: true,
+  },
+  {
+    id: 'signal3d',
+    label: '시그널 + 3D 공간',
+    blurb: '시그널 디자인에 3D 깊이 카메라. 마찬가지로 화풍·영상컷은 안 들어간다.',
+    artStyle: false,
+    broll: false,
+    level: true,
+    tone: true,
+  },
+  {
+    id: 'deck3d',
+    label: '3D 기하학 도형',
+    blurb: '3D 공간에 카드가 놓이고 카메라가 이동한다. 화풍·영상컷은 안 들어간다.',
+    artStyle: false,
+    broll: false,
+    level: true,
+    tone: true,
+  },
+];
+
+const BY_ID = new Map(ENGINES.map((e) => [e.id, e]));
+
+export const DEFAULT_ENGINE = ENGINES[0];
+
+export function resolveEngine(id: string | undefined): EngineCaps {
+  return BY_ID.get((id || '').trim().toLowerCase() as EngineId) ?? DEFAULT_ENGINE;
+}
+
+/**
+ * 이 엔진에서 무시될 옵션 이름들.
+ * 사용자가 값을 지정했는데 안 먹는 경우를 조용히 넘기지 않고 알려주는 데 쓴다.
+ */
+export function ignoredOptions(
+  engine: EngineCaps,
+  provided: { artStyle?: boolean; broll?: boolean },
+): string[] {
+  const out: string[] = [];
+  if (provided.artStyle && !engine.artStyle) out.push('화풍');
+  if (provided.broll && !engine.broll) out.push('영상컷(B롤)');
+  return out;
+}
