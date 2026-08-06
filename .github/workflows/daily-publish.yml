@@ -89,6 +89,8 @@ jobs:
       OPENAI_RESEARCH_MODEL: ${{ vars.OPENAI_RESEARCH_MODEL || 'gpt-4.1-mini' }}
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
+      # 썸네일 스타일(배경·글씨체·액센트 한 벌). auto 면 회차마다 회전.
+      THUMBNAIL_STYLE: ${{ github.event.client_payload.opts.thumb_style || vars.THUMBNAIL_STYLE || 'chalk' }}
       # 영상 엔진: illustrated(AI 흑백 일러스트) | web3d(3D 웹녹화) | remotion(손그림). 기본 illustrated.
       VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.opts.style || github.event.client_payload.style || vars.VIDEO_ENGINE || 'illustrated' }}
       # 씬 일러스트 화풍(src/lib/artStyle.ts). 'auto' 는 회차마다 날짜 기준으로 회전.

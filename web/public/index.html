@@ -231,6 +231,18 @@
             </select>
           </div>
           <div>
+            <label for="thumb">썸네일</label>
+            <select id="thumb">
+              <option value="chalk" selected>칠판 마커 (기존)</option>
+              <option value="auto">자동 추천(회차마다 교체)</option>
+              <option value="paper">크림 종이 + 잉크</option>
+              <option value="impact">초굵은 고딕 (임팩트)</option>
+              <option value="neon">네온 사이버</option>
+              <option value="magazine">잡지 편집</option>
+              <option value="scrap">빈티지 판화 콜라주</option>
+            </select>
+          </div>
+          <div>
             <label for="tone">말투</label>
             <select id="tone">
               <option value="documentary" selected>다큐멘터리톤</option>
@@ -383,7 +395,7 @@
               level: $('level').value, channel: $('channel').value,
               upload: $('upload').checked, password: $('pw').value,
               style: $('style').value,
-              art: $('art').value, tone: $('tone').value,
+              art: $('art').value, tone: $('tone').value, thumb: $('thumb').value,
               // 업로드를 켜면 먼저 '미등록(unlisted)'으로 올려 확인 후 발행하는 리뷰 흐름.
               privacy: $('upload').checked ? 'unlisted' : '',
             }),

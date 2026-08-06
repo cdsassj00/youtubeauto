@@ -47,6 +47,8 @@ jobs:
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
+      # 스타일만 바꿔 다시 뽑을 수 있게 — 렌더 없이 썸네일만이라 장당 비용으로 끝난다.
+      THUMBNAIL_STYLE: ${{ github.event.client_payload.thumb_style || vars.THUMBNAIL_STYLE || 'chalk' }}
       RETHUMB_VIDEO_ID: ${{ github.event.inputs.video_id || github.event.client_payload.video_id }}
       RETHUMB_TITLE: ${{ github.event.inputs.title || github.event.client_payload.title }}
       RETHUMB_TOPIC: ${{ github.event.inputs.topic || github.event.client_payload.topic }}
