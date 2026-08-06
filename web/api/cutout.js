@@ -1,6 +1,6 @@
 // 컷아웃 판화 견본 생성 트리거 (repository_dispatch: cutout-sheet).
 // VOX 스타일 엔진을 만들기 전에 그림이 쓸 만한지부터 싸게 확인하는 용도.
-const SUBJECTS = ['datacenter', 'wafer', 'factory', 'engineer', 'robotarm', 'ship'];
+const SUBJECTS = ['datacenter', 'wafer', 'factory', 'engineer', 'team', 'phone', 'robotarm', 'ship'];
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST 만 허용됩니다' });

@@ -134,9 +134,17 @@ async function applyMask(
  */
 export function engravingPrompt(subject: string): string {
   return [
-    `A vintage 19th-century steel engraving illustration of ${subject}.`,
-    'Pure black ink line work and cross-hatching on a plain pure-white background.',
-    'High contrast, fine detailed etching lines, monochrome only, no color whatsoever.',
+    // ★기법과 시대를 반드시 분리한다★
+    // "19세기 판화"라고만 하면 모델이 소재까지 그 시대로 옮긴다 — 실제로 현대 엔지니어를
+    // 프록코트 입은 빅토리아 시대 신사로 그렸다. 빌려오는 건 "그리는 방식"뿐이고,
+    // 무엇을 그리는지는 대본이 정한다. 그래서 아래 두 줄을 앞에 세워 못박는다.
+    'Rendering technique only: vintage steel-engraving / etching style — pure black ink line work,',
+    'fine cross-hatching and stippling for shading, high contrast, monochrome, no color whatsoever.',
+    `Subject: ${subject}.`,
+    'CRITICAL: depict the subject exactly as it is in the present day. Do NOT make the subject look antique or historical.',
+    'Modern equipment stays modern, modern clothing stays modern (contemporary shirts, jeans, hoodies, lab coats, sneakers) —',
+    'no Victorian dress, no top hats, no frock coats, no period costume, no old-fashioned machinery unless the subject itself says so.',
+    'Only the drawing technique is vintage; the thing being drawn is current.',
     // 아래 세 줄이 키잉 품질을 좌우한다.
     'The background must be completely blank pure white (#FFFFFF) — absolutely no background scenery,',
     'no vignette, no paper texture, no drop shadow, no frame, no border, no ground line, no sky.',
