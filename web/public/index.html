@@ -330,6 +330,9 @@
       syncArtHint();
 
       let triggeredAt = 0;
+      // 직전 발행 요청이 GitHub 에 전달조차 안 됐는지. true 면 진행 패널이 예전 실행의
+      // 상태(특히 '완성')를 대신 보여주지 못하게 막는다.
+      let triggerFailed = false;
       let pollTimer = null;
       let tickTimer = null;
       let clockSkew = 0; // 서버-클라 시각 보정(ms)
@@ -367,6 +370,7 @@
           const data = await res.json();
           if (!res.ok) throw new Error((data.error || '요청 실패') + (data.detail ? ' — ' + data.detail : ''));
           triggeredAt = Date.now();
+          triggerFailed = false;
           shownPct = 0;
           setLive('queued', { stage: '실행을 준비하고 있어요', sub: '잠시 후 GitHub Actions가 시작됩니다' });
           toast('✅ 발행 요청을 보냈어요! 아래에서 제작 과정이 실시간으로 보여요.', 'info');
@@ -374,6 +378,13 @@
           setTimeout(() => { btn.disabled = false; btn.textContent = '🚀 미리보기 제작'; }, COOLDOWN_MS);
           startPolling(1200);
         } catch (e) {
+          // 요청 자체가 실패하면 triggeredAt 이 안 잡히고, 진행 패널이 "가장 최근 실행"을
+          // 그대로 보여준다. 그 실행이 이전에 끝난 다른 작업이면 화면에 '✓ 완성!'이 떠서
+          // 실패한 줄 모르고 넘어가게 된다(실제로 그렇게 오해할 상황이 발생했다).
+          // 그래서 실패를 별도로 기억해 두고, 다음 성공 요청 전까지 진행 패널을 덮어쓴다.
+          triggerFailed = true;
+          triggeredAt = 0;
+          setLive('failed', { stage: '발행 요청이 전달되지 않았어요', sub: e.message });
           toast('⚠️ ' + e.message, 'err');
           btn.disabled = false;
           btn.textContent = '🚀 미리보기 제작';
@@ -399,7 +410,9 @@
           const waitingForMine = triggeredAt && (!newest || newestTs < triggeredAt - 20000);
 
           window.__state = { runs, steps: data.steps || [], jobStartedAt: data.jobStartedAt, waitingForMine };
-          renderLive();
+          // 요청이 전달되지 않은 상태에서는 예전 실행 상태로 패널을 덮어쓰지 않는다.
+          // (실패 안내가 '✓ 완성!'으로 바뀌어 버리는 것을 막는다.)
+          if (!triggerFailed) renderLive();
 
           const active = runs.some((r) => r.status !== 'completed');
           if (active || waitingForMine) startPolling(5000);
@@ -521,8 +534,10 @@
         } else if (mode === 'failed') {
           dot.style.display = 'none';
           label.textContent = '⚠️ 중단됨'; label.style.color = '#ff8787';
-          stage.textContent = opt.conclusion === 'cancelled' ? '실행이 취소됐어요' : '실행이 실패했어요';
-          sub.textContent = '로그를 확인해 원인을 봐주세요';
+          // 요청 전달 실패처럼 원인이 분명한 경우엔 그 내용을 그대로 보여준다.
+          // (예전엔 항상 "로그를 확인하세요"라 실제 원인이 화면에 안 남았다.)
+          stage.textContent = opt.stage || (opt.conclusion === 'cancelled' ? '실행이 취소됐어요' : '실행이 실패했어요');
+          sub.textContent = opt.sub || '로그를 확인해 원인을 봐주세요';
         }
       }
 

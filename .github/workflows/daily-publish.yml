@@ -57,7 +57,7 @@ jobs:
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       # 공개 상태: 리뷰 흐름은 웹앱이 unlisted 로 전달 → 확인 후 발행(public)으로 전환. 스케줄은 vars 기본값.
-      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || github.event.client_payload.privacy || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
+      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || github.event.client_payload.opts.privacy || github.event.client_payload.privacy || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
       YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
       # ── 두 번째 채널(ch2) 자격증명 — TARGET_CHANNEL=ch2 일 때 사용. 새 채널 OAuth 후 아래 시크릿을 등록. ──
@@ -79,7 +79,7 @@ jobs:
       TARGET_MINUTES: ${{ github.event.client_payload.target_minutes || vars.TARGET_MINUTES || '10' }}
       CONTENT_LANGUAGE: ${{ vars.CONTENT_LANGUAGE || 'ko' }}
       # 나레이션 배속(1=원속). 조금 빠르게 읽어 정보 밀도를 높인다.
-      NARRATION_SPEED: ${{ github.event.client_payload.speed || vars.NARRATION_SPEED || '1.12' }}
+      NARRATION_SPEED: ${{ github.event.client_payload.opts.speed || github.event.client_payload.speed || vars.NARRATION_SPEED || '1.12' }}
       DO_UPLOAD: ${{ github.event.inputs.do_upload || github.event.client_payload.do_upload || 'true' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
@@ -90,12 +90,12 @@ jobs:
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
       # 영상 엔진: illustrated(AI 흑백 일러스트) | web3d(3D 웹녹화) | remotion(손그림). 기본 illustrated.
-      VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.style || vars.VIDEO_ENGINE || 'illustrated' }}
+      VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.opts.style || github.event.client_payload.style || vars.VIDEO_ENGINE || 'illustrated' }}
       # 씬 일러스트 화풍(src/lib/artStyle.ts). 'auto' 는 회차마다 날짜 기준으로 회전.
       # 기본은 isometric — 지정이 없을 때 기존 채널 그림체가 유지되도록.
-      ART_STYLE: ${{ github.event.client_payload.art_style || vars.ART_STYLE || 'isometric' }}
+      ART_STYLE: ${{ github.event.client_payload.opts.art_style || github.event.client_payload.art_style || vars.ART_STYLE || 'isometric' }}
       # 나레이션 말투(src/lib/tone.ts): documentary | humorous | storytelling | mystery
-      NARRATION_TONE: ${{ github.event.client_payload.narration_tone || vars.NARRATION_TONE || 'documentary' }}
+      NARRATION_TONE: ${{ github.event.client_payload.opts.narration_tone || github.event.client_payload.narration_tone || vars.NARRATION_TONE || 'documentary' }}
       # 이미지 생성 provider: openai | gemini(Nano Banana — 회화적 화풍에 강하고 장당 더 저렴).
       # GEMINI_API_KEY 가 없으면 gemini 로 설정해도 일러스트 생성이 건너뛰어지므로 기본은 openai.
       IMAGE_PROVIDER: ${{ vars.IMAGE_PROVIDER || 'openai' }}
