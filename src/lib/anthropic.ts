@@ -5,6 +5,7 @@ import { ScriptSchema, type Script } from '../schema.js';
 import { recordUsage } from './usage.js';
 import { buildToneGuide, resolveTone } from './tone.js';
 import { resolveArtStyle } from './artStyle.js';
+import { levelGuide } from './level.js';
 
 /** 출력 길이 초과로 JSON 이 도중에 잘렸을 때의 표식 — 이 메시지로 재시도 여부를 판단한다. */
 const TRUNCATED_MSG = '대본 JSON 이 출력 도중 잘렸습니다(출력 길이 초과).';
@@ -75,22 +76,8 @@ export async function generateScript(params: {
   // 하한"으로 강하게 못박는다.
   const targetChars = Math.round(targetMinutes * 460);
 
-  // 대본 난이도/전문성 (CONTENT_LEVEL). "너무 쉽게만 풀어줘서 전문적인 영상이 안 나온다"는
-  // 피드백에 따라 기본값(expert)은 실무자 대상으로 깊이 있게 쓴다.
-  const levelGuides: Record<string, string> = {
-    basic:
-      '시청자는 이 주제를 처음 접하는 완전 초보다. 전문 용어는 최대한 풀어쓰고, 친절한 비유와 쉬운 예시로 눈높이를 낮춰 설명한다.',
-    intermediate:
-      '시청자는 AI/IT에 어느 정도 익숙한 사람이다. 기초 개념 설명은 짧게 짚고 넘어가고, 실무 예시·구체적 수치·최신 사례 위주로 균형 있게 설명한다.',
-    expert:
-      [
-        '이 채널은 실무자·전문가 시청자를 대상으로 한다. 초등학생 눈높이로 풀어쓰지 않는다.',
-        '전문 용어는 순화하지 않고 그대로 쓰되, 처음 등장할 때만 한 문장으로 짧게 정의하고 이후로는 계속 전문 용어로 서술한다.',
-        '"쉽게 말하면", "간단히 설명하면", "초등학생도 이해하는" 같은 눈높이를 낮추는 표현을 쓰지 않는다.',
-        '구체적인 수치·벤치마크·버전명·회사명·날짜·출처를 최대한 명시하고, 실무에 바로 쓸 수 있는 디테일(설정값, 한계, 트레이드오프, 실패 사례)을 반드시 포함한다.',
-      ].join(' '),
-  };
-  const levelGuide = levelGuides[config.contentLevel] ?? levelGuides.expert;
+  // 난이도 지침은 deckgen 과 공유한다(src/lib/level.ts).
+  const guide = levelGuide(config.contentLevel);
   // 대본이 "이 영상은 어떤 그림체인지" 알아야 illustration 묘사를 그 화풍에 맞게 쓴다.
   const artStyle = resolveArtStyle(config.artStyle);
 
@@ -99,7 +86,7 @@ export async function generateScript(params: {
     `영상은 씬마다 "${artStyle.label} 화풍의 삽화 한 장 + 화면 하단 자막(나레이션) + 배경음악"으로 구성되는 설명 영상이다. (손그림/판서/플래시 애니메이션이 아니다.)`,
     'diagram/comparison 씬은 그림 대신 코드로 그린 등각 모션 그래픽(떠 있는 원반+라벨 카드, 화살표)이 자동으로 들어간다.',
     '시청자는 한국어 사용자다. 흥미롭게, 그러나 정확하고 밀도 있게 설명해야 한다.',
-    levelGuide,
+    guide,
     // 말투는 난이도와 별개의 축이다 — "쉽게 설명한다"와 "유머러스하게 말한다"는 같이 성립한다.
     `말투: ${buildToneGuide(resolveTone(config.narrationTone))}`,
     `오늘은 ${dateLabel} 이다. 모델·제품 예시를 들 때는 "지금 현재" 기준으로 최신인 것을 써라. 네 학습 데이터 시점에 최신이었어도 지금은 이미 구세대가 된 모델(예: GPT-4o, GPT-4 Turbo, GPT-3.5 등 오래된 세대)을 "요즘 대표 예시"처럼 제시하면 영상이 낡아 보인다 — 절대 그렇게 하지 마라. 리서치(아래)에 최신 모델이 있으면 반드시 그 이름을 쓰고, 확신이 없으면 특정 구세대 제품명을 콕 집지 말고 "각 회사의 최신 대형 모델들"처럼 일반화해서 말해라. (단, 역사적 맥락을 설명할 때 과거 모델을 "과거에 그랬다"고 언급하는 것은 괜찮다 — 문제는 낡은 모델을 "현재"인 양 말하는 것이다.)`,

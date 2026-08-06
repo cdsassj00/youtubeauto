@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { recordUsage } from './usage.js';
 import { buildToneGuide, resolveTone } from './tone.js';
+import { levelGuide } from './level.js';
 
 /**
  * deck 기반 영상 엔진(signal / deck3d)용 대본 생성기.
@@ -116,8 +117,11 @@ export async function generateDeck(params: {
     '',
     style === 'deck3d' ? DECK3D_SPEC : SIGNAL_SPEC,
     '',
-    // 말투 지정. 단 사용자가 완성 원고를 붙여넣은 경우(isBrief)에는 적용하지 않는다 —
-    // 그때는 원고 자체의 말투를 보존하는 것이 우선이고, 아래 isBrief 블록이 그렇게 지시한다.
+    // 난이도·말투는 사용자가 완성 원고를 붙여넣은 경우(isBrief)에는 적용하지 않는다 —
+    // 그때는 원고 자체의 톤과 수준을 보존하는 것이 우선이고, 아래 isBrief 블록이 그렇게 지시한다.
+    // 난이도는 예전엔 이 생성기가 CONTENT_LEVEL 을 아예 안 읽어서, 사용자가 '쉽게'를 골라도
+    // 시그널 영상은 항상 전문가용으로 나왔다(옵션이 조용히 무시되던 문제).
+    isBrief ? '' : `난이도: ${levelGuide(config.contentLevel)}`,
     isBrief ? '' : `말투: ${buildToneGuide(resolveTone(config.narrationTone))}`,
     '',
     `오늘은 ${dateLabel} 이다.`,

@@ -211,10 +211,10 @@
           <div>
             <label for="style">영상 스타일</label>
             <select id="style">
-              <option value="illustrated" selected>2D 벡터 일러스트</option>
-              <option value="deck3d">3D 기하학 도형</option>
+              <option value="illustrated" selected>2D 일러스트 + 영상컷</option>
               <option value="signal">시그널(데이터 중심)</option>
               <option value="signal3d">시그널 + 3D 공간</option>
+              <option value="deck3d">3D 기하학 도형</option>
             </select>
           </div>
           <div>
@@ -241,9 +241,7 @@
           </div>
         </div>
 
-        <p class="hint" id="artHint">
-          화풍은 <b>2D 벡터 일러스트</b> 스타일에서만 적용됩니다(영상당 그림 4~6컷). 시그널·3D 계열은 화면을 코드로 그리기 때문에 화풍 설정이 영상에 반영되지 않습니다.
-        </p>
+        <p class="hint" id="artHint"></p>
 
         <div class="switch">
           <input id="upload" type="checkbox" checked />
@@ -318,16 +316,37 @@
         t.className = 'toast ' + (kind === 'err' ? 'err' : 'info');
       };
 
-      // 화풍은 AI 그림을 쓰는 illustrated 엔진에서만 영상에 반영된다.
-      // 시그널·3D 계열은 화면을 코드로 그리므로, 골라도 안 먹는다는 걸 미리 알려준다.
-      // (안내문을 항상 띄우면 정작 적용되는 경우에도 "안 되나?" 하고 헷갈리므로 조건부로 보여준다.)
-      function syncArtHint() {
-        const usesArt = $('style').value === 'illustrated';
-        $('artHint').style.display = usesArt ? 'none' : 'block';
-        $('art').disabled = !usesArt;
+      // ★영상 스타일이 다른 옵션의 상위 개념이다★
+      // 스타일마다 실제로 먹히는 옵션이 달라서, 고를 수는 있는데 아무 효과가 없는
+      // 설정이 생기기 쉽다(실제로 화풍·영상컷·난이도 셋이 그랬다).
+      // 이 표는 src/lib/engines.ts 와 같은 내용이어야 한다.
+      const ENGINE_CAPS = {
+        illustrated: { art: true,  broll: true,  blurb: 'AI 그림 + 도식에 스톡 영상 컷을 섞습니다. 화풍을 고를 수 있는 유일한 스타일입니다.' },
+        signal:      { art: false, broll: false, blurb: '딥블랙 배경에 큰 숫자와 도식. 화면을 코드로 그려서 화풍·영상컷은 안 들어갑니다.' },
+        signal3d:    { art: false, broll: false, blurb: '시그널 디자인에 3D 깊이 카메라. 화풍·영상컷은 안 들어갑니다.' },
+        deck3d:      { art: false, broll: false, blurb: '3D 공간에 카드가 놓이고 카메라가 이동합니다. 화풍·영상컷은 안 들어갑니다.' },
+      };
+
+      function syncEngineCaps() {
+        const caps = ENGINE_CAPS[$('style').value] || ENGINE_CAPS.illustrated;
+        // 안 먹는 옵션은 아예 못 고르게 막는다 — 고를 수 있으면 적용된다고 믿게 된다.
+        $('art').disabled = !caps.art;
+        const artBox = $('art').closest('div');
+        if (artBox) artBox.style.opacity = caps.art ? '1' : '0.45';
+        // 켜지는 것과 꺼지는 것을 한 줄로 같이 보여준다.
+        const on = ['말투', '난이도', '길이'];
+        if (caps.art) on.push('화풍');
+        if (caps.broll) on.push('영상컷');
+        const off = [];
+        if (!caps.art) off.push('화풍');
+        if (!caps.broll) off.push('영상컷');
+        $('artHint').innerHTML =
+          caps.blurb +
+          '<br><b>적용됨:</b> ' + on.join(' · ') +
+          (off.length ? '  ·  <b>미적용:</b> ' + off.join(' · ') : '');
       }
-      $('style').addEventListener('change', syncArtHint);
-      syncArtHint();
+      $('style').addEventListener('change', syncEngineCaps);
+      syncEngineCaps();
 
       let triggeredAt = 0;
       // 직전 발행 요청이 GitHub 에 전달조차 안 됐는지. true 면 진행 패널이 예전 실행의
