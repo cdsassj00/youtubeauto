@@ -122,6 +122,12 @@ export type SceneWithAudio = Scene & {
   durationSec: number; // 측정된 오디오 길이
   startFrame: number;
   durationInFrames: number;
+  /**
+   * 이 씬 위에 얹을 스톡 영상 컷들(src/lib/broll.ts 가 배치, stock.ts 가 내려받음).
+   * fromFrame 은 "씬 시작 기준" 상대 프레임이다 — 전체 타임라인 기준이 아니다.
+   * 한 화면이 15~20초씩 정지해 프리젠테이션처럼 보이던 것을 끊어주는 용도.
+   */
+  broll?: { path: string; fromFrame: number; durationInFrames: number }[];
 };
 
 export type RenderManifest = {
