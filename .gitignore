@@ -10,3 +10,5 @@ build/
 # 런타임 생성 오디오(나레이션/BGM)
 public/audio/
 public/img/
+# 런타임에 내려받는 Pexels 스톡 클립(수십 MB) — 저장소에 들어가면 안 된다
+public/stock/

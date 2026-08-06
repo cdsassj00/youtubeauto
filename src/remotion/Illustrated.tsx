@@ -3,6 +3,7 @@ import {
   AbsoluteFill,
   Audio,
   Img,
+  OffthreadVideo,
   Sequence,
   staticFile,
   useCurrentFrame,
@@ -32,6 +33,24 @@ export const AiIllustrated: React.FC<RenderManifest> = (manifest) => {
       {manifest.scenes.map((scene, i) => (
         <Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.durationInFrames} name={scene.heading}>
           <SceneShot scene={scene} index={i} theme={theme} />
+          {/*
+            B롤은 기본 화면을 "덮는" 레이어다. 기본 화면을 잘라내지 않는 이유:
+            도식·불릿은 나레이션에 맞춰 순서대로 등장하는 애니메이션이라, 중간을 잘라내면
+            그 타이밍이 통째로 어긋난다. 위에 얹으면 원래 애니메이션은 그대로 흐르고
+            화면만 잠깐 바뀐다 — 실제 편집에서 B롤을 쓰는 방식과 같다.
+          */}
+          {(scene.broll || []).map((b, bi) => (
+            <Sequence key={`${scene.id}-b${bi}`} from={b.fromFrame} durationInFrames={b.durationInFrames}>
+              <BRollCut src={b.path} durationInFrames={b.durationInFrames} />
+            </Sequence>
+          ))}
+          {/*
+            자막은 B롤보다 위에 둔다. 안 그러면 컷이 들어간 2~4초 동안 자막이 사라져
+            시청자가 그 구간의 말을 놓친다. (quote 씬은 문장 자체가 화면이라 자막을 안 넣는다.)
+          */}
+          {scene.visual !== 'quote' && (
+            <WordCaption narration={scene.narration} durationInFrames={scene.durationInFrames} />
+          )}
           <Audio src={staticFile(scene.audioPath)} />
         </Sequence>
       ))}
@@ -68,7 +87,6 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
         <AbsoluteFill style={{ transform: `scale(${1 + (zoom - 1) * 0.35}) translate(${panX * 0.3}px, ${panY * 0.3}px)`, transformOrigin: 'center center' }}>
           <IsoDiagram diagram={scene.diagram} narration={scene.narration} durationInFrames={dur} seed={index} theme={theme} />
         </AbsoluteFill>
-        <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
   }
@@ -78,7 +96,6 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
         <AbsoluteFill style={{ transform: `scale(${1 + (zoom - 1) * 0.35}) translate(${panX * 0.3}px, ${panY * 0.3}px)`, transformOrigin: 'center center' }}>
           <IsoComparison comparison={scene.comparison} narration={scene.narration} durationInFrames={dur} theme={theme} />
         </AbsoluteFill>
-        <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
   }
@@ -88,7 +105,6 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
     return (
       <AbsoluteFill style={{ opacity: fade }}>
         <BulletSlide heading={scene.heading} bullets={scene.bullets} narration={scene.narration} durationInFrames={dur} theme={theme} seed={index} />
-        <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
   }
@@ -102,7 +118,6 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
           narration={scene.narration}
           durationInFrames={dur}
         />
-        <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
   }
@@ -119,7 +134,6 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
     return (
       <AbsoluteFill style={{ opacity: fade }}>
         <FlatIconSlide icon={scene.icon} theme={theme} />
-        <WordCaption narration={scene.narration} durationInFrames={dur} />
       </AbsoluteFill>
     );
   }
@@ -138,7 +152,44 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
           </h1>
         </AbsoluteFill>
       )}
-      <WordCaption narration={scene.narration} durationInFrames={dur} />
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * B롤 컷 — 스톡 영상을 화면 가득 얹는다.
+ *
+ * 그대로 쓰지 않고 색을 눌러서 넣는 이유: 이 채널 화면은 흑백 잉크 톤인데 풀컬러 스톡을
+ * 그대로 끼우면 그 3초만 완전히 다른 영상처럼 튄다. 채도를 크게 낮추고 대비를 올리면
+ * "같은 영상 안의 인서트 컷"으로 붙는다.
+ *
+ * 앞뒤 6프레임 페이드는 필수다. 컷이 딱 잘려 들어오면 화면이 튀는 것처럼 보인다.
+ */
+const BRollCut: React.FC<{ src: string; durationInFrames: number }> = ({ src, durationInFrames }) => {
+  const frame = useCurrentFrame();
+  const F = 6;
+  const fade = interpolate(
+    frame,
+    [0, F, durationInFrames - F, durationInFrames],
+    [0, 1, 1, 0],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
+  );
+  // 컷 안에서도 아주 느리게 확대 — 스톡 클립이 정적인 경우가 많아 그대로 두면 또 멈춰 보인다.
+  const zoom = interpolate(frame, [0, durationInFrames], [1.04, 1.12], { extrapolateRight: 'clamp' });
+  return (
+    <AbsoluteFill style={{ opacity: fade, backgroundColor: '#000' }}>
+      <AbsoluteFill style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}>
+        <OffthreadVideo
+          src={staticFile(src)}
+          muted
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            filter: 'saturate(0.18) contrast(1.16) brightness(0.92)',
+          }}
+        />
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };

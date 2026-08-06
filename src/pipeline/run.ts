@@ -29,6 +29,8 @@ import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { generateBgm } from '../lib/bgm.js';
 import { renderVideo } from '../lib/render.js';
 import { generateIllustrations } from '../lib/illustrate.js';
+import { planBroll } from '../lib/broll.js';
+import { fetchClip, creditLine, type StockClip } from '../lib/stock.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { printUsage } from '../lib/usage.js';
 import { uploadVideo, setThumbnail, setPrivacy } from '../lib/youtube.js';
@@ -283,6 +285,7 @@ async function stepRender(): Promise<void> {
     // 흰 배경으로 튀지 않고 영상 전체가 한 톤으로 보이게 한다.
     const imgMap = await generateIllustrations(needsAiImage, manifest.theme === 'dark');
     manifest.scenes = manifest.scenes.map((s) => ({ ...s, imagePath: imgMap[s.id] }));
+    await attachBroll(manifest);
     await writeJson(MANIFEST_PATH, manifest); // imagePath 반영 저장(재실행 대비)
     const made = Object.keys(imgMap).length;
     console.log(`  · 일러스트 ${made}/${needsAiImage.length}장 완료 → Remotion 합성`);
@@ -423,6 +426,76 @@ async function writeUploadResult(r: { videoId: string; privacyStatus: string; ti
 }
 
 /** (선택) 이미 올라간 영상의 공개 상태 전환 — 미리보기(unlisted) → 발행(public) 등. */
+/**
+ * 씬 위에 얹을 스톡 B롤을 붙인다.
+ *
+ * 한 화면이 15~20초씩 정지해 있어서 "프리젠테이션 같다"는 문제를 고치기 위한 것이다.
+ * 어디에 넣을지는 broll.ts 가 계산하고, 클립은 stock.ts 가 내려받는다.
+ *
+ * PEXELS_API_KEY 가 없으면 조용히 아무것도 안 한다 — B롤은 없어도 영상이 나와야 한다.
+ */
+async function attachBroll(manifest: RenderManifest): Promise<void> {
+  if (!config.pexelsApiKey) return;
+
+  const plans = planBroll(
+    manifest.scenes.map((s) => ({
+      id: s.id,
+      visual: s.visual,
+      durationInFrames: s.durationInFrames,
+      // 검색어는 대본이 씬마다 써 둔 영어 묘사를 그대로 쓴다(이미 "무엇이 보이는가"의 설명이다).
+      query: s.illustration,
+    })),
+    manifest.fps,
+  );
+  if (!plans.length) return;
+
+  console.log(`  · B롤 배치: ${plans.length}개 씬 (Pexels 검색 중...)`);
+  const byId = new Map(manifest.scenes.map((s) => [s.id, s]));
+  const used: StockClip[] = [];
+  let ok = 0;
+
+  for (const [i, plan] of plans.entries()) {
+    const clip = await fetchClip(plan.query, i);
+    if (!clip) continue;
+    const scene = byId.get(plan.sceneId);
+    if (!scene) continue;
+
+    // 클립 실제 길이를 넘는 컷은 끝이 검은 화면이 된다 — 클립 길이로 잘라 맞춘다.
+    const maxFrames = Math.floor((clip.duration - 0.3) * manifest.fps);
+    const cuts = plan.cuts
+      .map((c) => ({
+        path: clip.relPath,
+        fromFrame: c.fromFrame,
+        durationInFrames: Math.min(c.durationInFrames, maxFrames),
+      }))
+      .filter((c) => c.durationInFrames >= manifest.fps * 2); // 2초 미만은 깜빡임처럼 보인다
+
+    if (!cuts.length) continue;
+    scene.broll = cuts;
+    used.push(clip);
+    ok++;
+  }
+
+  console.log(`  · B롤 ${ok}/${plans.length}개 씬 적용`);
+
+  // 출처 표기는 설명란 맨 아래에 덧붙인다(Pexels 는 의무가 아니지만 표기가 권장된다).
+  // 설명란은 매니페스트가 아니라 script.json 에 있고 업로드 단계가 거기서 읽으므로,
+  // 그 파일을 갱신해야 실제 영상 설명에 들어간다.
+  const credit = creditLine(used);
+  if (!credit) return;
+  try {
+    const script = ScriptSchema.parse(await readJson(SCRIPT_PATH));
+    if (!script.description.includes('Pexels')) {
+      script.description = `${script.description}\n\n${credit}`;
+      await writeJson(SCRIPT_PATH, script);
+      console.log('  · 설명란에 스톡 출처 표기 추가');
+    }
+  } catch (e) {
+    // 출처 표기 실패가 영상 제작을 막을 이유는 없다.
+    console.warn('  · 출처 표기 추가 실패(무시):', (e as Error).message);
+  }
+}
+
 async function stepSetPrivacy(): Promise<void> {
   const videoId = process.env.SETPRIVACY_VIDEO_ID?.trim();
   const status = (process.env.SETPRIVACY_STATUS?.trim() || 'public') as 'public' | 'unlisted' | 'private';

@@ -101,6 +101,9 @@ jobs:
       IMAGE_PROVIDER: ${{ vars.IMAGE_PROVIDER || 'openai' }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image' }}
+      # Pexels 스톡 영상 B롤 — 한 화면이 15~20초씩 정지해 프리젠테이션처럼 보이던 것을
+      # 2.5~4초 인서트 컷으로 끊는다. 키가 없으면 B롤 없이 기존대로 렌더된다.
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
     steps:
       - name: 체크아웃
         uses: actions/checkout@v4
