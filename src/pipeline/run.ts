@@ -31,7 +31,7 @@ import { renderVideo } from '../lib/render.js';
 import { generateIllustrations } from '../lib/illustrate.js';
 import { generateCutouts } from '../lib/cutoutScene.js';
 import { planBroll } from '../lib/broll.js';
-import { fetchClip, creditLine, type StockClip } from '../lib/stock.js';
+import { fetchStock, creditLine, type StockClip } from '../lib/stock.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { printUsage } from '../lib/usage.js';
 import { uploadVideo, setThumbnail, setPrivacy } from '../lib/youtube.js';
@@ -478,16 +478,20 @@ async function attachBroll(manifest: RenderManifest): Promise<void> {
   let ok = 0;
 
   for (const [i, plan] of plans.entries()) {
-    const clip = await fetchClip(plan.query, i);
+    // 영상 우선, 없으면 사진. 영상만 고집하면 조금만 구체적인 키워드에서 결과가 0건이라
+    // 그 씬이 그대로 정지 화면으로 남는다(고치려던 문제가 그대로 남는다).
+    const clip = await fetchStock(plan.query, i);
     if (!clip) continue;
     const scene = byId.get(plan.sceneId);
     if (!scene) continue;
 
     // 클립 실제 길이를 넘는 컷은 끝이 검은 화면이 된다 — 클립 길이로 잘라 맞춘다.
+    // 사진은 duration 이 Infinity 라 이 계산이 컷을 깎지 않는다.
     const maxFrames = Math.floor((clip.duration - 0.3) * manifest.fps);
     const cuts = plan.cuts
       .map((c) => ({
         path: clip.relPath,
+        kind: clip.kind,
         fromFrame: c.fromFrame,
         durationInFrames: Math.min(c.durationInFrames, maxFrames),
       }))

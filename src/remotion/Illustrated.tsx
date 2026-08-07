@@ -41,7 +41,12 @@ export const AiIllustrated: React.FC<RenderManifest> = (manifest) => {
           */}
           {(scene.broll || []).map((b, bi) => (
             <Sequence key={`${scene.id}-b${bi}`} from={b.fromFrame} durationInFrames={b.durationInFrames}>
-              <BRollCut src={b.path} durationInFrames={b.durationInFrames} />
+              <BRollCut
+                src={b.path}
+                kind={b.kind}
+                durationInFrames={b.durationInFrames}
+                seed={i * 3 + bi}
+              />
             </Sequence>
           ))}
           {/*
@@ -165,31 +170,78 @@ const SceneShot: React.FC<{ scene: RenderManifest['scenes'][number]; index: numb
  *
  * 앞뒤 6프레임 페이드는 필수다. 컷이 딱 잘려 들어오면 화면이 튀는 것처럼 보인다.
  */
-const BRollCut: React.FC<{ src: string; durationInFrames: number }> = ({ src, durationInFrames }) => {
+/**
+ * B롤 컷 하나.
+ *
+ * 참고 릴(Pexels Cinema Reel)에서 가져온 세 가지가 들어 있다. 셋 다 CSS 몇 줄인데
+ * 화면 격이 확 달라진다:
+ *
+ *  1) 클립 리빌 커튼 — 페이드가 아니라 clip-path 로 한쪽에서 밀고 들어온다. 페이드는
+ *     "흐려졌다 밝아진다"라 편집한 컷이 아니라 사고처럼 보이는데, 와이프는 손으로 자른
+ *     컷처럼 읽힌다. 나갈 때는 페이드로 조용히 빠진다(양쪽 다 와이프면 산만하다).
+ *  2) 켄번즈 방향 교대 — 예전엔 모든 컷이 같은 방향으로 확대만 했다. 컷마다 줌인/줌아웃과
+ *     팬 방향을 바꿔야 여러 컷이 이어져도 같은 움직임의 반복으로 안 보인다.
+ *  3) 비네트 — 위아래 어둠. 스톡은 노출·톤이 제각각인데 이걸 깔면 한 영상처럼 붙고,
+ *     B롤 위에 얹히는 자막도 읽힌다(자막이 컷보다 위에 있으므로 실제로 필요하다).
+ */
+const BRollCut: React.FC<{
+  src: string;
+  kind: 'video' | 'photo';
+  durationInFrames: number;
+  seed: number;
+}> = ({ src, kind, durationInFrames, seed }) => {
   const frame = useCurrentFrame();
-  const F = 6;
-  const fade = interpolate(
-    frame,
-    [0, F, durationInFrames - F, durationInFrames],
-    [0, 1, 1, 0],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
-  );
-  // 컷 안에서도 아주 느리게 확대 — 스톡 클립이 정적인 경우가 많아 그대로 두면 또 멈춰 보인다.
-  const zoom = interpolate(frame, [0, durationInFrames], [1.04, 1.12], { extrapolateRight: 'clamp' });
+
+  // 들어올 때는 커튼 와이프, 나갈 때는 페이드.
+  const WIPE = 11; // 약 0.37초
+  const wipe = interpolate(frame, [0, WIPE], [100, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const fromRight = seed % 2 === 0;
+  const clipPath = fromRight ? `inset(0 0 0 ${wipe}%)` : `inset(0 ${wipe}% 0 0)`;
+  const fade = interpolate(frame, [durationInFrames - 6, durationInFrames], [1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  // 컷마다 다른 줌·팬. 스톡 클립도 정적인 경우가 많아 그대로 두면 또 멈춰 보인다.
+  const zoomIn = seed % 2 === 0;
+  const dir = seed % 4;
+  const dx = [-2.4, 2.4, -1.6, 1.6][dir];
+  const dy = [1.4, -1.4, -2.0, 2.0][dir];
+  const p = interpolate(frame, [0, durationInFrames], [0, 1], { extrapolateRight: 'clamp' });
+  const zoom = zoomIn ? 1.04 + 0.12 * p : 1.16 - 0.12 * p;
+  const media = {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    // 원본(도식·일러스트)과 톤을 맞추려고 채도를 죽이고 대비를 올린다.
+    filter: 'saturate(0.18) contrast(1.16) brightness(0.92)',
+  } as const;
+
   return (
-    <AbsoluteFill style={{ opacity: fade, backgroundColor: '#000' }}>
-      <AbsoluteFill style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}>
-        <OffthreadVideo
-          src={staticFile(src)}
-          muted
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            filter: 'saturate(0.18) contrast(1.16) brightness(0.92)',
-          }}
-        />
+    <AbsoluteFill style={{ opacity: fade, backgroundColor: '#000', clipPath }}>
+      <AbsoluteFill
+        style={{
+          transform: `scale(${zoom}) translate(${dx * p}%, ${dy * p}%)`,
+          transformOrigin: 'center center',
+        }}
+      >
+        {kind === 'photo' ? (
+          <Img src={staticFile(src)} style={media} />
+        ) : (
+          <OffthreadVideo src={staticFile(src)} muted style={media} />
+        )}
       </AbsoluteFill>
+      {/* 비네트 — 위아래로 눌러 자막이 읽히게 하고 컷들의 톤을 하나로 묶는다 */}
+      <AbsoluteFill
+        style={{
+          pointerEvents: 'none',
+          background:
+            'linear-gradient(180deg, rgba(0,0,0,.45) 0%, transparent 26%, transparent 52%, rgba(0,0,0,.78) 100%)',
+        }}
+      />
     </AbsoluteFill>
   );
 };
