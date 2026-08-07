@@ -52,10 +52,16 @@ const MIN_SEC = 2;
 const MAX_SEC = 4;
 
 /**
- * 컷을 받을 수 있는 최소 씬 길이(초).
- * 8초였는데, 3분 영상에서는 8초를 넘는 씬이 0~3개뿐이라 사실상 기능이 꺼져 있었다.
+ * ★"씬 길이 하한"은 두지 않는다★
+ *
+ * 원래 "8초 이상인 씬만"이라는 기준이 있었다. 3분 영상에서 8초를 넘는 씬이 0~3개뿐이라
+ * 기능이 통째로 꺼져 있었고, 그래서 6초로 내렸다가 다시 보니 이 기준 자체가 중복이었다.
+ * cutsFor 가 이미 "앞뒤를 보호하고 남는 자리(room)가 컷 길이보다 짧으면 버린다"를 계산한다.
+ * 즉 들어갈 수 없는 씬은 어차피 걸러진다. 하한을 따로 두면 들어갈 수 있는 씬까지 막을 뿐이다.
+ *
+ * 취향으로 정한 숫자는 빼고, 산수로 정해지는 것만 남긴다 —
+ * 이 파일에서 틀렸던 값들은 전부 "감으로 정한 하한"이었다.
  */
-const MIN_SCENE_SEC = 6;
 
 /** 씬 끝에 비워 두는 시간(초) — 컷이 씬 경계에 붙으면 전환이 겹쳐 지저분해진다. */
 const TAIL_SEC = 0.8;
@@ -67,17 +73,20 @@ export function planBroll(scenes: BrollPlanInput[], fps: number): BrollPlan[] {
   // 늘어짐이 가장 심한 곳부터 고쳐야 효과가 크다.
   const eligible = scenes
     .filter((s) => !EXCLUDED.has(s.visual) && (s.query || '').trim().length > 0)
-    .filter((s) => s.durationInFrames >= MIN_SCENE_SEC * fps)
     .sort((a, b) => b.durationInFrames - a.durationInFrames);
 
   const budget = Math.floor(scenes.length * MAX_RATIO);
-  const chosen = eligible.slice(0, Math.max(0, budget));
 
-  return chosen.map((s) => ({
-    sceneId: s.id,
-    query: (s.query || '').trim(),
-    cuts: cutsFor(s.durationInFrames, fps, minLen),
-  }));
+  // 컷을 먼저 계산하고, 자리가 안 나온 씬은 예산에서 세지 않는다.
+  // (예전처럼 예산을 먼저 잘라내면, 짧아서 컷이 0개인 씬이 자리를 차지해 버린다.)
+  return eligible
+    .map((s) => ({
+      sceneId: s.id,
+      query: (s.query || '').trim(),
+      cuts: cutsFor(s.durationInFrames, fps, minLen),
+    }))
+    .filter((p) => p.cuts.length > 0)
+    .slice(0, Math.max(0, budget));
 }
 
 /**
