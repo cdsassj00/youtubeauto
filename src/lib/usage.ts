@@ -77,4 +77,39 @@ export function printUsage(): void {
     if (v.images) parts.push(`이미지 ${v.images}장`);
     console.log(`  ${k.padEnd(28)} ${parts.join(' · ')}`);
   }
+  printBrollSummary();
+}
+
+/**
+ * B롤이 실제로 몇 컷 들어갔는지 실행 끝에 찍는다.
+ *
+ * ★이게 없어서 문제를 놓쳤다★
+ * 3분짜리를 뽑았는데 B롤이 한 컷도 안 들어갔고, 그 사실이 로그 어디에도 요약돼 있지
+ * 않아서 영상을 눈으로 볼 때까지 아무도 몰랐다(원인은 검색어 없는 씬 제외 + 8초 이상
+ * 씬만 허용이었다). B롤은 실패해도 조용히 넘어가는 기능이라 이런 요약이 반드시 필요하다.
+ * 사용량 요약과 같은 자리에 찍어야 로그 끝부분만 봐도 확인된다.
+ */
+function printBrollSummary(): void {
+  try {
+    const p = path.join(OUT_DIR, 'manifest.json');
+    if (!fs.existsSync(p)) return;
+    const m = JSON.parse(fs.readFileSync(p, 'utf8')) as {
+      scenes?: { broll?: { kind?: string }[] }[];
+    };
+    const scenes = m.scenes || [];
+    if (!scenes.length) return;
+    const withBroll = scenes.filter((s) => (s.broll || []).length > 0);
+    const cuts = scenes.flatMap((s) => s.broll || []);
+    const video = cuts.filter((c) => c.kind === 'video').length;
+    const photo = cuts.filter((c) => c.kind === 'photo').length;
+    if (!cuts.length) {
+      console.log(`  ${'B롤'.padEnd(28)} 0컷 — 이번 영상에는 실사 컷이 하나도 안 들어갔습니다`);
+      return;
+    }
+    console.log(
+      `  ${'B롤'.padEnd(28)} ${cuts.length}컷 (영상 ${video} · 사진 ${photo}) / ${withBroll.length}개 씬 · 전체 ${scenes.length}개 씬`,
+    );
+  } catch {
+    // 요약은 부가 정보다 — 여기서 실패해도 파이프라인을 막지 않는다.
+  }
 }
