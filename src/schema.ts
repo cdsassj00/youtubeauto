@@ -128,7 +128,13 @@ export type SceneWithAudio = Scene & {
    * fromFrame 은 "씬 시작 기준" 상대 프레임이다 — 전체 타임라인 기준이 아니다.
    * 한 화면이 15~20초씩 정지해 프리젠테이션처럼 보이던 것을 끊어주는 용도.
    */
-  broll?: { path: string; fromFrame: number; durationInFrames: number }[];
+  broll?: {
+    path: string;
+    /** 영상이면 OffthreadVideo, 사진이면 Img 로 렌더한다(사진도 켄번즈를 걸면 컷으로 기능한다). */
+    kind: 'video' | 'photo';
+    fromFrame: number;
+    durationInFrames: number;
+  }[];
 };
 
 export type RenderManifest = {

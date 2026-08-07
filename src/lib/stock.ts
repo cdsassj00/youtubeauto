@@ -26,7 +26,12 @@ export const STOCK_DIR = path.join(PUBLIC_DIR, 'stock');
 export interface StockClip {
   /** public/ 기준 상대경로 — Remotion staticFile 로 참조 */
   relPath: string;
-  /** 원본 클립 길이(초). 잘라 쓸 때 상한이 된다. */
+  /**
+   * 영상이냐 사진이냐. 렌더러가 OffthreadVideo 와 Img 중 무엇을 쓸지 정한다.
+   * 사진도 켄번즈로 움직이면 컷으로 충분히 기능한다(참고 릴이 사진 2 : 영상 1 로 섞는다).
+   */
+  kind: 'video' | 'photo';
+  /** 원본 클립 길이(초). 잘라 쓸 때 상한이 된다. 사진은 길이 제한이 없어 Infinity. */
   duration: number;
   photographer: string;
   pexelsUrl: string;
@@ -45,11 +50,32 @@ interface PexelsVideo {
   user?: { name?: string };
   video_files: PexelsVideoFile[];
 }
+interface PexelsPhoto {
+  id: number;
+  url: string;
+  photographer?: string;
+  src?: { large2x?: string; large?: string; original?: string };
+}
 
 /**
- * 키워드로 가로 영상 하나를 찾아 내려받는다.
+ * 키워드로 컷 하나를 가져온다. 영상을 먼저 찾고, 없으면 사진으로 떨어진다.
+ *
+ * ★사진을 쓰는 이유★
+ * 영상만 쓰면 구멍이 너무 자주 난다. Pexels 의 영상 수는 사진의 극히 일부이고, 여기서는
+ * "6초 이상"이라는 조건까지 걸리기 때문에 조금만 구체적인 키워드("HBM stack",
+ * "semiconductor cleanroom worker")면 결과가 0건이 되기 일쑤다. 그러면 그 씬은 결국
+ * 정지 화면으로 남는다 — 고치려던 문제가 그대로 남는 것이다.
+ *
+ * 사진은 수가 압도적으로 많아 거의 항상 걸리고, 켄번즈(줌·팬)를 걸면 3초짜리 컷으로는
+ * 영상과 구분이 잘 안 된다. 참고 릴(Pexels Cinema Reel)도 사진 2 : 영상 1 로 섞어 쓴다.
+ *
  * 실패하면 null — B롤은 있으면 좋고 없어도 영상은 나와야 하므로 절대 예외를 던지지 않는다.
  */
+export async function fetchStock(query: string, seed = 0): Promise<StockClip | null> {
+  return (await fetchClip(query, seed)) ?? (await fetchPhoto(query, seed));
+}
+
+/** 가로 영상 하나를 찾아 내려받는다. */
 export async function fetchClip(query: string, seed = 0): Promise<StockClip | null> {
   const key = config.pexelsApiKey;
   if (!key) return null;
@@ -93,6 +119,7 @@ export async function fetchClip(query: string, seed = 0): Promise<StockClip | nu
     }
     return {
       relPath: rel,
+      kind: 'video',
       duration: v.duration,
       photographer: v.user?.name || 'Pexels',
       pexelsUrl: v.url,
@@ -103,9 +130,58 @@ export async function fetchClip(query: string, seed = 0): Promise<StockClip | nu
   }
 }
 
+/**
+ * 가로 사진 하나를 찾아 내려받는다(영상이 없을 때의 대체).
+ * large2x(약 1880px)면 1080p 에서 켄번즈로 1.2배까지 확대해도 깨지지 않는다.
+ */
+export async function fetchPhoto(query: string, seed = 0): Promise<StockClip | null> {
+  const key = config.pexelsApiKey;
+  if (!key) return null;
+
+  try {
+    const url =
+      `${API}/v1/search?query=${encodeURIComponent(query)}` +
+      `&per_page=15&orientation=landscape&size=large`;
+    const r = await fetch(url, { headers: { Authorization: key } });
+    if (!r.ok) {
+      console.warn(`    · 스톡 사진 검색 실패(${r.status}) "${query}"`);
+      return null;
+    }
+    const photos = ((await r.json()) as { photos?: PexelsPhoto[] }).photos || [];
+    if (!photos.length) return null;
+
+    const p = photos[seed % photos.length];
+    const link = p.src?.large2x || p.src?.large || p.src?.original;
+    if (!link) return null;
+
+    fs.mkdirSync(STOCK_DIR, { recursive: true });
+    const rel = `stock/p${p.id}.jpg`;
+    const abs = path.join(PUBLIC_DIR, rel);
+    if (!fs.existsSync(abs)) {
+      const ir = await fetch(link);
+      if (!ir.ok) return null;
+      fs.writeFileSync(abs, Buffer.from(await ir.arrayBuffer()));
+    }
+    return {
+      relPath: rel,
+      kind: 'photo',
+      // 사진은 끝나지 않는다 — 컷 길이를 클립 길이로 깎을 필요가 없다.
+      duration: Infinity,
+      photographer: p.photographer || 'Pexels',
+      pexelsUrl: p.url,
+    };
+  } catch (e) {
+    console.warn(`    · 스톡 사진 "${query}" 실패(무시):`, (e as Error).message);
+    return null;
+  }
+}
+
 /** 설명란에 넣을 출처 표기. Pexels 는 의무는 아니지만 표기하는 게 예의이고 분쟁 예방도 된다. */
 export function creditLine(clips: StockClip[]): string {
   if (!clips.length) return '';
   const names = [...new Set(clips.map((c) => c.photographer))].sort();
-  return `영상 소스: Pexels (${names.join(', ')})`;
+  const hasPhoto = clips.some((c) => c.kind === 'photo');
+  const hasVideo = clips.some((c) => c.kind === 'video');
+  const what = hasPhoto && hasVideo ? '영상·사진' : hasPhoto ? '사진' : '영상';
+  return `${what} 소스: Pexels (${names.join(', ')})`;
 }
