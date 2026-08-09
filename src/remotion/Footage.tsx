@@ -56,7 +56,11 @@ export const Footage: React.FC<RenderManifest> = (manifest) => {
               durationInFrames={scene.durationInFrames}
             />
           )}
-          <Caption narration={scene.narration} durationInFrames={scene.durationInFrames} />
+          <Caption
+            narration={scene.narration}
+            durationInFrames={scene.durationInFrames}
+            speechFrames={Math.round(scene.durationSec * manifest.fps)}
+          />
           {scene.sourceNote && <SourceNote text={scene.sourceNote} />}
           {scene.audioPath && <Audio src={staticFile(scene.audioPath)} />}
         </Sequence>
@@ -413,12 +417,13 @@ const HeadingCard: React.FC<{ heading: string }> = ({ heading }) => (
 );
 
 /** 하단 자막 — 화면이 실사라 대비를 확실히 줘야 읽힌다. */
-const Caption: React.FC<{ narration: string; durationInFrames: number }> = ({
+const Caption: React.FC<{ narration: string; durationInFrames: number; speechFrames: number }> = ({
   narration,
   durationInFrames,
+  speechFrames,
 }) => {
   const frame = useCurrentFrame();
-  const chunks = captionChunks(narration, durationInFrames, 16);
+  const chunks = captionChunks(narration, durationInFrames, 16, speechFrames);
   if (!chunks.length) return null;
   const cur = chunks.find((b) => frame >= b.start && frame < b.end) ?? chunks[chunks.length - 1];
   const pop = interpolate(frame - cur.start, [0, 6], [0, 1], {

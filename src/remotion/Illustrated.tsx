@@ -54,7 +54,11 @@ export const AiIllustrated: React.FC<RenderManifest> = (manifest) => {
             시청자가 그 구간의 말을 놓친다. (quote 씬은 문장 자체가 화면이라 자막을 안 넣는다.)
           */}
           {scene.visual !== 'quote' && (
-            <WordCaption narration={scene.narration} durationInFrames={scene.durationInFrames} />
+            <WordCaption
+              narration={scene.narration}
+              durationInFrames={scene.durationInFrames}
+              speechFrames={Math.round(scene.durationSec * manifest.fps)}
+            />
           )}
           <Audio src={staticFile(scene.audioPath)} />
         </Sequence>
@@ -247,9 +251,9 @@ const BRollCut: React.FC<{
 };
 
 /** 하단 중앙 짧은 자막(구절 단위) — 흰 배경/그림 위에서도 잘 보이게 어두운 알약 + 흰 글씨. */
-const WordCaption: React.FC<{ narration: string; durationInFrames: number }> = ({ narration, durationInFrames }) => {
+const WordCaption: React.FC<{ narration: string; durationInFrames: number; speechFrames: number }> = ({ narration, durationInFrames, speechFrames }) => {
   const frame = useCurrentFrame();
-  const chunks = captionChunks(narration, durationInFrames, 16);
+  const chunks = captionChunks(narration, durationInFrames, 16, speechFrames);
   if (chunks.length === 0) return null;
   const cur = chunks.find((b) => frame >= b.start && frame < b.end) ?? chunks[chunks.length - 1];
 
