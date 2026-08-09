@@ -3,6 +3,7 @@ import { Composition, Sequence, AbsoluteFill } from 'remotion';
 import { AiVideo } from './Video.js';
 import { AiIllustrated } from './Illustrated.js';
 import { Scrapbook } from './Scrapbook.js';
+import { Footage } from './Footage.js';
 import { FlatIconSlide, FLAT_ICON_KINDS } from './components/flatIcon.js';
 import type { RenderManifest } from '../schema.js';
 
@@ -151,6 +152,16 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="Scrapbook"
         component={Scrapbook}
+        durationInFrames={sampleManifest.totalDurationInFrames}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
+        defaultProps={sampleManifest}
+        calculateMetadata={calcMeta}
+      />
+      <Composition
+        id="Footage"
+        component={Footage}
         durationInFrames={sampleManifest.totalDurationInFrames}
         fps={FPS}
         width={WIDTH}

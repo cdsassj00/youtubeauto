@@ -32,6 +32,8 @@ import { generateIllustrations } from '../lib/illustrate.js';
 import { generateCutouts } from '../lib/cutoutScene.js';
 import { planBroll } from '../lib/broll.js';
 import { fetchStock, creditLine, type StockClip } from '../lib/stock.js';
+import { fetchAsset, availableProviders, creditBlock, type StockAsset } from '../lib/stockProviders.js';
+import { planShots, shotSeeds } from '../lib/footagePlan.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { printUsage } from '../lib/usage.js';
 import { uploadVideo, setThumbnail, setPrivacy } from '../lib/youtube.js';
@@ -269,6 +271,11 @@ async function stepRender(): Promise<void> {
   console.log(`▶ [3/4] 영상 렌더링 (엔진: ${config.videoEngine})`);
   if (config.videoEngine === 'web3d') {
     await render3dVideo();
+  } else if (config.videoEngine === 'footage') {
+    // 실사 푸티지 엔진 — AI 그림을 한 장도 만들지 않는다. 화면을 전부 스톡으로 채운다.
+    await attachFootage(manifest);
+    await writeJson(MANIFEST_PATH, manifest);
+    await renderVideo(manifest, 'Footage');
   } else if (config.videoEngine === 'scrapbook') {
     // VOX(스크랩북) 엔진 — 종이 배경 위에 컷아웃 판화를 붙이고 큰 글자를 타자기로 찍는다.
     //
@@ -457,6 +464,79 @@ async function writeUploadResult(r: { videoId: string; privacyStatus: string; ti
  *
  * PEXELS_API_KEY 가 없으면 조용히 아무것도 안 한다 — B롤은 없어도 영상이 나와야 한다.
  */
+/**
+ * 실사 푸티지 엔진 — 모든 씬을 스톡 컷으로 빈틈없이 채운다.
+ *
+ * attachBroll 과 목적이 정반대다. 저쪽은 원본 화면 위에 가끔 인서트를 얹는 것이고,
+ * 이쪽은 화면 자체가 스톡이다. 그래서 상한도 없고 씬 종류로 거르지도 않는다.
+ *
+ * 소재를 못 구한 씬은 컷이 비는데, 렌더러가 그 경우 제목 카드를 대신 띄운다
+ * (검은 화면보다 낫고, 무엇을 못 구했는지 눈으로 바로 보인다).
+ */
+async function attachFootage(manifest: RenderManifest): Promise<void> {
+  const providers = availableProviders();
+  if (!providers.length) {
+    throw new Error(
+      '실사 푸티지 엔진에는 스톡 API 키가 최소 하나 필요합니다 ' +
+        '(PEXELS_API_KEY / PIXABAY_API_KEY / UNSPLASH_ACCESS_KEY).',
+    );
+  }
+  console.log(`  · 실사 푸티지 수집 중... (소스: ${providers.join(', ')})`);
+
+  const used: StockAsset[] = [];
+  let filled = 0;
+  let shots = 0;
+
+  for (const [i, scene] of manifest.scenes.entries()) {
+    // 검색어는 대본이 씬마다 써 둔 영어 묘사를 그대로 쓴다.
+    // 비어 있으면(quote/code 씬 등) 제목으로 대신한다 — 한국어라도 안 쓰는 것보다 낫다.
+    const query = (scene.illustration || scene.heading || '').trim();
+    if (!query) continue;
+
+    const plan = planShots(scene.durationInFrames, manifest.fps);
+    const seeds = shotSeeds(i, plan.length);
+    const cuts: NonNullable<RenderManifest['scenes'][number]['broll']> = [];
+
+    for (const [ci, shot] of plan.entries()) {
+      const asset = await fetchAsset(query, seeds[ci], true);
+      if (!asset) continue;
+      // 영상 클립이 컷보다 짧으면 뒤가 검은 화면이 된다 — 클립 길이로 잘라 맞춘다.
+      const maxFrames = Math.floor((asset.duration - 0.3) * manifest.fps);
+      const len = Math.min(shot.durationInFrames, maxFrames);
+      if (len < manifest.fps) continue; // 1초 미만은 깜빡임이다
+      cuts.push({
+        path: asset.relPath,
+        kind: asset.kind,
+        fromFrame: shot.fromFrame,
+        durationInFrames: len,
+      });
+      used.push(asset);
+    }
+
+    if (cuts.length) {
+      scene.broll = cuts;
+      filled++;
+      shots += cuts.length;
+    }
+  }
+
+  console.log(`  · 푸티지 ${shots}컷 / ${filled}개 씬 (전체 ${manifest.scenes.length}개 씬)`);
+  if (!shots) throw new Error('스톡에서 소재를 하나도 구하지 못했습니다 — 검색어나 API 키를 확인하세요.');
+
+  // ★Unsplash 는 출처 표기가 의무다★ 설명란에 반드시 들어가야 한다.
+  const credit = creditBlock(used);
+  if (!credit) return;
+  try {
+    const script = ScriptSchema.parse(await readJson(SCRIPT_PATH));
+    if (!script.description.includes(credit)) {
+      script.description = `${script.description}\n\n${credit}`;
+      await writeJson(SCRIPT_PATH, script);
+    }
+  } catch (e) {
+    console.warn('  · 출처 표기 추가 실패(무시):', (e as Error).message);
+  }
+}
+
 async function attachBroll(manifest: RenderManifest): Promise<void> {
   if (!config.pexelsApiKey) return;
 

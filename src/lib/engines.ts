@@ -14,7 +14,7 @@
  *  무시되는 옵션이 다시 생긴다.)
  */
 
-export type EngineId = 'illustrated' | 'scrapbook' | 'signal' | 'signal3d' | 'deck3d';
+export type EngineId = 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d';
 
 /** 엔진과 무관하게 항상 적용되는 옵션은 여기 적지 않는다(주제·길이·모드·채널·배속). */
 export interface EngineCaps {
@@ -48,6 +48,19 @@ export const ENGINES: EngineCaps[] = [
     blurb: '종이 위에 판화 컷아웃을 붙이고 큰 글자를 타자기로 찍는다. 화풍은 판화로 고정.',
     // 화풍은 "빈티지 판화"로 고정이다 — 이 스타일의 정체성이라 바꾸면 다른 엔진이 된다.
     artStyle: false,
+    broll: false,
+    level: true,
+    tone: true,
+  },
+  {
+    id: 'footage',
+    label: '실사 푸티지 (무료 스톡)',
+    blurb:
+      '무료 스톡(Pexels·Pixabay·Unsplash) 실사 영상·사진이 화면을 꽉 채우고 자막만 얹힌다. ' +
+      'AI 그림을 안 써서 이미지 비용이 0 이지만, 화면이 전부 남의 소재라 유튜브 재사용 콘텐츠 판정 위험이 있다.',
+    // AI 그림을 아예 만들지 않으므로 화풍은 적용될 곳이 없다.
+    artStyle: false,
+    // "인서트 B롤"이라는 개념 자체가 없다 — 화면 전체가 스톡이다.
     broll: false,
     level: true,
     tone: true,
