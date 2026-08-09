@@ -41,7 +41,13 @@ export const Footage: React.FC<RenderManifest> = (manifest) => {
           name={scene.heading}
         >
           <FootageScene scene={scene} index={i} />
+          <Keynote
+            heading={scene.heading}
+            subtext={scene.bullets[0] || ''}
+            durationInFrames={scene.durationInFrames}
+          />
           <Caption narration={scene.narration} durationInFrames={scene.durationInFrames} />
+          {scene.sourceNote && <SourceNote text={scene.sourceNote} />}
           {scene.audioPath && <Audio src={staticFile(scene.audioPath)} />}
         </Sequence>
       ))}
@@ -140,6 +146,116 @@ const Shot: React.FC<{
     </AbsoluteFill>
   );
 };
+
+/**
+ * 키노트 타이포 — 큰 글씨(핵심)와 작은 글씨(부연)를 실사 위에 얹는다.
+ *
+ * 이 엔진이 자막만 깔면 "스톡 영상에 자막 붙인 것"이 되고, 무슨 말을 하는 회차인지가
+ * 화면에 안 남는다. 강의형 콘텐츠는 소리를 끄고 지나가는 시청자에게도 핵심 문장이
+ * 보여야 한다. 그래서 씬의 heading 을 화면 왼쪽에 크게 세우고 부연을 한 줄 붙인다.
+ *
+ * 실사 위에 흰 글씨를 그냥 얹으면 밝은 장면에서 읽히지 않으므로, 글자 뒤에만
+ * 왼쪽에서 오는 어두운 그라디언트를 깐다(화면 전체를 덮으면 영상이 죽는다).
+ */
+const Keynote: React.FC<{ heading: string; subtext: string; durationInFrames: number }> = ({
+  heading,
+  subtext,
+  durationInFrames,
+}) => {
+  const frame = useCurrentFrame();
+  if (!heading) return null;
+  const inFade = interpolate(frame, [4, 20], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  // 끝에서 먼저 빠진다 — 다음 씬의 큰 글씨와 겹치면 지저분하다.
+  const outFade = interpolate(frame, [durationInFrames - 14, durationInFrames - 4], [1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const o = Math.min(inFade, outFade);
+  const rise = (1 - inFade) * 16;
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+      <AbsoluteFill
+        style={{
+          opacity: o,
+          background: 'linear-gradient(100deg, rgba(8,10,14,.86) 0%, rgba(8,10,14,.58) 42%, transparent 68%)',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          left: 96,
+          top: 120,
+          width: 760,
+          opacity: o,
+          transform: `translateY(${rise}px)`,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: PRETENDARD,
+            fontWeight: 900,
+            fontSize: heading.length > 22 ? 62 : 78,
+            lineHeight: 1.16,
+            letterSpacing: '-.035em',
+            color: '#ffffff',
+            textShadow: '0 2px 24px rgba(0,0,0,.45)',
+          }}
+        >
+          {heading}
+        </div>
+        {subtext && (
+          <div
+            style={{
+              marginTop: 22,
+              paddingLeft: 18,
+              borderLeft: '3px solid rgba(255,255,255,.5)',
+              fontFamily: PRETENDARD,
+              fontWeight: 600,
+              fontSize: 27,
+              lineHeight: 1.5,
+              color: 'rgba(255,255,255,.86)',
+              textShadow: '0 1px 12px rgba(0,0,0,.5)',
+            }}
+          >
+            {subtext}
+          </div>
+        )}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * 시연·사례 표기 — 화면 왼쪽 아래에 아주 옅게.
+ *
+ * "지금 이 얘기는 어디서 확인할 수 있나"를 남기되 화면을 방해하면 안 되므로 투명도를
+ * 낮게 둔다. 진하게 하면 시청자가 자막인 줄 알고 읽으려다 본문을 놓친다.
+ */
+const SourceNote: React.FC<{ text: string }> = ({ text }) => (
+  <div
+    style={{
+      position: 'absolute',
+      left: 96,
+      bottom: 168,
+      maxWidth: 720,
+      fontFamily: PRETENDARD,
+      fontWeight: 600,
+      fontSize: 19,
+      lineHeight: 1.45,
+      color: '#ffffff',
+      opacity: 0.34,
+      letterSpacing: '.01em',
+      textShadow: '0 1px 10px rgba(0,0,0,.6)',
+      pointerEvents: 'none',
+    }}
+  >
+    {text}
+  </div>
+);
 
 /** 소재를 못 구한 씬의 대타 — 검은 화면보다는 제목이 낫다. */
 const HeadingCard: React.FC<{ heading: string }> = ({ heading }) => (

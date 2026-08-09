@@ -80,6 +80,9 @@ export const SceneSchema = z.object({
   // AI 일러스트용 영어 시각 묘사 — 폴백 전용(icon 이 없을 때만 사용). title/outro 는 기본적으로
   // 아래 icon 필드로 렌더링되므로 보통 채울 필요 없다.
   illustration: z.string().default(''),
+  // 실사 푸티지 엔진에서 화면 아래에 아주 옅게 까는 한 줄 — 시연 대상, 사례 사이트, 출처 표기.
+  // "지금 이 얘기는 어디서 확인할 수 있나"를 화면을 방해하지 않고 남기기 위한 자리다.
+  sourceNote: z.string().default(''),
   // title/outro 씬에서 실제로 렌더링되는 평면 2D 아이콘. 이 씬이 설명하는 구체적 대상과
   // 맞는 아이콘을 고른다(예: 보안 얘기면 lock, 데이터 얘기면 database).
   icon: IconKind.optional(),

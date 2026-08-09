@@ -85,6 +85,9 @@ export async function generateScript(params: {
   // 스크랩북(VOX) 엔진은 화면에 도표·불릿이 없고 heading 이 주인공이라, 기본 엔진 지침을
   // 그대로 주면 렌더링되지 않는 씬 타입만 잔뜩 만들어 낸다. 자세한 이유는 voxScript.ts 참고.
   const isVox = config.videoEngine === 'scrapbook';
+  // 실사 푸티지 엔진은 화면이 전부 스톡 영상이고, 그 위에 큰 글씨(heading)와 부연 한 줄,
+  // 그리고 아주 옅은 시연·사례 표기(sourceNote)가 얹힌다. 도표·코드 화면이 존재하지 않는다.
+  const isFootage = config.videoEngine === 'footage';
 
   const system = [
     '너는 교육 유튜브 채널의 수석 작가이자 연출가다.',
@@ -122,7 +125,22 @@ export async function generateScript(params: {
     `- ★가장 흔한 실패 = 분량 미달★ 전체 나레이션 합계 글자 수(공백 포함)는 반드시 약 ${targetChars}자 이상이어야 한다. 한국어 나레이션은 초당 약 7자로 읽혀서 ${targetChars}자라야 ${targetMinutes}분이 나온다. 이보다 짧게 쓰면 영상이 목표의 절반짜리로 나와 완전히 실패다 — ${isVox ? '씬 수를 아주 많이 늘려서' : '씬 수를 충분히 늘리고 각 씬 나레이션을 충분히 길게 써서'} 이 총량을 반드시 채워라.${isBrief ? ' 브리핑 내용이 많으면 이보다 더 길어도 좋다(분량보다 완전 반영 우선).' : ''}`,
     // ★엔진별 씬 구성 규칙★ 스크랩북은 도표·불릿 화면이 존재하지 않고 heading 이 주인공이라,
     // 아래 기본 규칙(diagram 최소 3개, bullets 30% 이하 …)을 그대로 주면 렌더링되지 않는 씬만 만들어 낸다.
-    ...(isVox ? voxRequirements({ targetChars, isBrief }) : [
+    ...(isFootage ? [
+      `- 씬(scenes)은 ${isBrief ? '26~38' : '26~38'}개로 나눈다. 씬 하나가 화면 한 장면이다.`,
+      '- 한 씬의 narration 은 2~3문장, 대략 90~150자.',
+      '- ★이 영상은 화면이 전부 실사 영상·사진이다★ 도표·코드·불릿 화면은 존재하지 않는다. visual 은 title / image / quote / outro 네 가지만 쓴다(중간 씬은 image 와 quote).',
+      '- ★heading 이 화면에 크게 박히는 키노트 문장이다★ 이 영상에서 heading 은 보조 라벨이 아니라 화면 왼쪽에 큰 글씨로 뜨는 주인공이다. 8~22자의 완결된 단정문으로 써라. "주요 특징", "현황" 같은 라벨은 절대 쓰지 마라 — 소리를 끄고 지나가는 시청자에게 남는 유일한 문장이다.',
+      '- ★bullets 의 첫 항목이 큰 글씨 아래 붙는 부연 한 줄이다★ 모든 씬의 bullets 에 정확히 1개만 채워라(2개 이상 넣어도 첫 항목만 화면에 나온다). 25~45자로, heading 을 되풀이하지 말고 heading 이 왜 그런지를 한 줄로 보탠다.',
+      '- ★sourceNote 는 화면 아래에 아주 옅게 깔리는 한 줄이다★ 그 씬에서 실제로 보여 줄 만한 시연 대상, 사례 사이트, 확인처를 짧게 적는다(예: "시연 · 코딩 에이전트로 즉석 시각화", "사례 · public-task.lovable.app", "확인 · 2026.07.30 발표"). 해당되는 것이 없으면 빈 문자열로 두어라 — 억지로 채우면 화면만 지저분해진다.',
+      '- ★illustration 은 모든 씬에 반드시 채운다★ 이 묘사로 실사 스톡을 검색하므로 이것이 비면 그 씬은 화면이 빈다. 추상적으로 쓰면 아무것도 안 잡힌다 — 눈에 보이는 것만 영어로 적어라(사람, 손, 도구, 기계, 장소, 사물).',
+      '- 좋은 illustration: "a person typing on a laptop late at night in an office", "hands sorting printed documents on a desk", "wide shot of a data center server aisle", "a robotic arm assembling parts in a factory"',
+      '- 나쁜 illustration: "the concept of collaboration", "digital transformation" — 스톡에서 검색되지 않는다.',
+      '- 같은 검색어를 여러 씬에 반복하지 마라. 비슷한 내용이라도 다른 장면을 지정해야 화면이 반복되지 않는다.',
+      '- visual="quote" 인 씬은 heading 하나로 화면이 완성되는 자리다. 전환점·반전·단언에 쓰고, 이 씬에서도 illustration 은 채운다(배경 영상이 필요하다).',
+      '- 첫 씬은 visual="title", 마지막 씬은 visual="outro" 로 각각 한 번씩만 쓴다.',
+      '- title/outro 씬은 icon 필드도 채운다(다른 엔진과 호환을 위해). 값은 아래 icon 목록에서 고른다.',
+      '- 고를 수 있는 icon: document, chat, search, lock, key, database, server, cloud, terminal, gear, link, check, warning, user, users, clock, chart, mail.',
+    ] : isVox ? voxRequirements({ targetChars, isBrief }) : [
       `- 씬(scenes)은 ${isBrief ? '26~40' : '28~40'}개로 잘게 나눈다(단계형 내용은 단계당 1씬). 씬이 적으면 위 총 글자수를 못 채운다.`,
       '- 한 씬의 narration 은 2~4문장, 대략 120~200자로 충분히 쓴다 — 한 문장만 달랑 쓰면 영상이 짧아지는 주된 원인이 된다. (예외: quote 씬만은 한 문장 임팩트로 짧게 쓴다.)',
       '- 첫 씬은 visual="title" 로 후킹 도입(왜 이 주제가 중요한지)을 담는다. visual="title" 은 이 영상 전체에서 딱 이 첫 씬 한 번만 쓴다 — 중간에 장/화제를 전환하고 싶어도 title 을 또 쓰지 마라(그러면 그 씬마다 AI 그림 한 장 + 줌 효과가 반복돼 영상 전체가 "맨날 같은 그림"처럼 보이는 가장 큰 원인이 된다). 장 전환이 필요하면 quote(소제목이나 전환 문장을 강조 문구로) 또는 bullets 를 대신 써라.',
