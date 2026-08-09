@@ -35,5 +35,5 @@ jobs:
       - name: 의존성 설치
         run: npm ci
 
-      - name: Pexels 점검
+      - name: 스톡 3종 점검 (Pexels · Pixabay · Unsplash)
         run: npx tsx scripts/stock-check.ts
