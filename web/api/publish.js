@@ -14,6 +14,7 @@ const THUMB_STYLES = ['auto', 'chalk', 'paper', 'impact', 'neon', 'magazine', 's
 const ENGINES = {
   illustrated: { artStyle: true, broll: true },
   scrapbook: { artStyle: false, broll: false },
+  footage: { artStyle: false, broll: false },
   signal: { artStyle: false, broll: false },
   signal3d: { artStyle: false, broll: false },
   deck3d: { artStyle: false, broll: false },
@@ -66,7 +67,7 @@ export default async function handler(req, res) {
       // 공개 상태. 리뷰 흐름은 'unlisted'(미등록)로 올려 확인 후 발행. 빈 값이면 워크플로 기본값.
       privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : '',
       // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
-      style: ['illustrated', 'scrapbook', 'deck3d', 'signal', 'signal3d'].includes(body.style) ? body.style : '',
+      style: ['illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d'].includes(body.style) ? body.style : '',
       // 나레이션 배속(0.8~1.4). 비우면 워크플로 기본값.
       speed: pick('speed', 'narration_speed') ? String(Math.max(0.8, Math.min(1.4, Number(pick('speed', 'narration_speed')) || 1))) : '',
       // 씬 일러스트 화풍(src/lib/artStyle.ts). 'auto' 는 회차마다 날짜로 회전.

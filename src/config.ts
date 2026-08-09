@@ -123,8 +123,14 @@ export const config = {
   // Nano Banana 2. 더 좋은 결과가 필요하면 gemini-3-pro-image(장당 약 2배).
   geminiImageModel: optional('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image'),
 
-  // Pexels 스톡 영상 B롤(src/lib/stock.ts). 비어 있으면 B롤 없이 기존대로 렌더된다.
+  // 무료 스톡 소스(src/lib/stockProviders.ts). 셋 다 선택 사항이고, 있는 것만 쓴다.
+  //   Pexels   영상+사진 · 표기 의무 없음
+  //   Pixabay  영상+사진 · 표기 의무 없음
+  //   Unsplash 사진만    · ★표기 의무 + download_location 호출 의무★
+  // 하나도 없으면 B롤은 조용히 건너뛰고, footage 엔진은 아예 시작하지 않는다.
   pexelsApiKey: optional('PEXELS_API_KEY', ''),
+  pixabayApiKey: optional('PIXABAY_API_KEY', ''),
+  unsplashAccessKey: optional('UNSPLASH_ACCESS_KEY', ''),
 
   // 씬 일러스트 화풍(src/lib/artStyle.ts). auto 면 날짜 기준으로 회차마다 다르게 고른다.
   artStyle: optional('ART_STYLE', 'isometric').toLowerCase(),

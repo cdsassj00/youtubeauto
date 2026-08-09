@@ -1,6 +1,6 @@
 name: stock-check
 
-# Pexels 키 점검 — 완전 무료다.
+# 스톡 소스(Pexels·Pixabay·Unsplash) 키 점검 — 완전 무료다.
 #
 # 파이프라인은 키가 없거나 틀려도 조용히 B롤을 건너뛴다(B롤은 없어도 영상이 나와야 하므로
 # 그렇게 설계했다). 그래서 키가 잘못돼 있으면 유료 영상을 한 편 다 뽑고 나서야 알게 된다.
@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 5
     env:
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
       # config.ts 가 로드될 때 있어야 하는 값들 — 이 점검에는 쓰이지 않는다.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}

@@ -33,7 +33,7 @@ on:
         required: false
         default: ''
       style:
-        description: '영상 스타일 (illustrated=2D 벡터 | scrapbook=빈티지 판화 스크랩북 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D)'
+        description: '영상 스타일 (illustrated=2D 벡터 | scrapbook=빈티지 판화 스크랩북 | footage=실사 스톡 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D)'
         required: false
         default: ''
   # 웹앱/외부에서 트리거 (client_payload 로 topic 전달)
@@ -108,6 +108,8 @@ jobs:
       # Pexels 스톡 영상 B롤 — 한 화면이 15~20초씩 정지해 프리젠테이션처럼 보이던 것을
       # 2.5~4초 인서트 컷으로 끊는다. 키가 없으면 B롤 없이 기존대로 렌더된다.
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
     steps:
       - name: 체크아웃
         uses: actions/checkout@v4
