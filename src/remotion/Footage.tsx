@@ -157,6 +157,30 @@ const Shot: React.FC<{
  * 실사 위에 흰 글씨를 그냥 얹으면 밝은 장면에서 읽히지 않으므로, 글자 뒤에만
  * 왼쪽에서 오는 어두운 그라디언트를 깐다(화면 전체를 덮으면 영상이 죽는다).
  */
+/** 큰 글씨가 쓸 수 있는 가로 폭(px). 오른쪽 절반은 배경 영상을 보여 줘야 하므로 넘기지 않는다. */
+const HEAD_W = 940;
+
+/**
+ * 글자 수에 맞춰 큰 글씨 크기를 정한다.
+ *
+ * 예전엔 22자를 기준으로 78/62 두 단계만 뒀는데, 14자짜리 문장이 폭을 넘겨 두 줄로
+ * 쪼개졌다("처음엔 말을 잘 걸어야 / 했다"). 짧은 문장은 한 줄로 끝나야 키노트로 읽힌다.
+ *
+ * ★비율은 추정하지 말고 실측한 값을 쓴다★ 처음엔 "한글은 글자폭이 글자크기와 같다"고
+ * 보고 0.98 을 썼는데, Pretendard 900 에 letter-spacing -0.035em 을 건 실제 폭을 재 보니
+ * 글자당 0.64~0.89 였다(공백과 라틴 문자가 훨씬 좁다). 과대추정이라 계산상 딱 맞는 값도
+ * 실제로는 남아돌지 않아 결국 줄이 넘어갔다.
+ *
+ * 가장 넓은 경우(한글만 이어진 문장, 0.885)를 기준으로 잡아 어떤 문장이 와도 넘치지 않게 한다.
+ * 16자 이하는 한 줄에 넣고, 그보다 길면 두 줄을 목표로 크기를 잡는다.
+ */
+function headingSize(heading: string): number {
+  const CHAR_RATIO = 0.9;
+  const targetLines = heading.length <= 16 ? 1 : 2;
+  const fit = (HEAD_W * targetLines) / (heading.length * CHAR_RATIO);
+  return Math.round(Math.max(46, Math.min(78, fit)));
+}
+
 const Keynote: React.FC<{ heading: string; subtext: string; durationInFrames: number }> = ({
   heading,
   subtext,
@@ -189,7 +213,7 @@ const Keynote: React.FC<{ heading: string; subtext: string; durationInFrames: nu
           position: 'absolute',
           left: 96,
           top: 120,
-          width: 760,
+          width: HEAD_W,
           opacity: o,
           transform: `translateY(${rise}px)`,
         }}
@@ -198,11 +222,16 @@ const Keynote: React.FC<{ heading: string; subtext: string; durationInFrames: nu
           style={{
             fontFamily: PRETENDARD,
             fontWeight: 900,
-            fontSize: heading.length > 22 ? 62 : 78,
+            fontSize: headingSize(heading),
             lineHeight: 1.16,
             letterSpacing: '-.035em',
             color: '#ffffff',
             textShadow: '0 2px 24px rgba(0,0,0,.45)',
+            // ★keep-all 이 없으면 한글이 단어 중간에서 잘린다★
+            // 실제로 "처음엔 말을 잘 걸어야 했 / 다" 처럼 두 글자짜리 어절이 쪼개져 나왔다.
+            // 브라우저 기본값(break-word)은 한국어에서 어절 개념이 없어 아무 데서나 끊는다.
+            wordBreak: 'keep-all',
+            overflowWrap: 'break-word',
           }}
         >
           {heading}
