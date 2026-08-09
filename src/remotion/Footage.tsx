@@ -12,6 +12,8 @@ import {
 import type { RenderManifest } from '../schema.js';
 import { PRETENDARD } from './pretendard.js';
 import { captionChunks } from './components/beats.js';
+import { IsoDiagram, IsoComparison } from './components/iso.js';
+import { darkTheme } from './theme.js';
 
 /**
  * 실사 푸티지 엔진.
@@ -41,11 +43,19 @@ export const Footage: React.FC<RenderManifest> = (manifest) => {
           name={scene.heading}
         >
           <FootageScene scene={scene} index={i} />
-          <Keynote
-            heading={scene.heading}
-            subtext={scene.bullets[0] || ''}
-            durationInFrames={scene.durationInFrames}
-          />
+          {/*
+            도식이 있는 씬은 큰 글씨 대신 도식이 주인공이다.
+            둘을 같이 크게 띄우면 화면 왼쪽에서 서로 자리를 다툰다.
+          */}
+          {hasFigure(scene) ? (
+            <FigureOverlay scene={scene} index={i} durationInFrames={scene.durationInFrames} />
+          ) : (
+            <Keynote
+              heading={scene.heading}
+              subtext={scene.bullets[0] || ''}
+              durationInFrames={scene.durationInFrames}
+            />
+          )}
           <Caption narration={scene.narration} durationInFrames={scene.durationInFrames} />
           {scene.sourceNote && <SourceNote text={scene.sourceNote} />}
           {scene.audioPath && <Audio src={staticFile(scene.audioPath)} />}
@@ -157,6 +167,97 @@ const Shot: React.FC<{
  * 실사 위에 흰 글씨를 그냥 얹으면 밝은 장면에서 읽히지 않으므로, 글자 뒤에만
  * 왼쪽에서 오는 어두운 그라디언트를 깐다(화면 전체를 덮으면 영상이 죽는다).
  */
+/** 이 씬에 코드로 그리는 도식이 실제로 들어가는가. */
+function hasFigure(scene: RenderManifest['scenes'][number]): boolean {
+  if (scene.visual === 'diagram') return Boolean(scene.diagram?.nodes.length);
+  if (scene.visual === 'comparison') return Boolean(scene.comparison);
+  return false;
+}
+
+/**
+ * 실사 위에 얹는 도식.
+ *
+ * ★이게 이 엔진의 마지막 조각이다★
+ * 실사 위에 글자만 얹으면 "스톡 영상에 자막 단 것"에서 못 벗어난다. illustrated 엔진이
+ * 코드로 그리던 등각 도식·비교 모션그래픽을 평평한 배경 대신 실사 위에 올리면,
+ * 남의 소재 위에 우리 것이 올라가서 화면의 성격 자체가 달라진다.
+ *
+ * 두 가지를 지켜야 실제로 읽힌다:
+ *  1) 도식 뒤에 어둡게 깔아 준다. 도식은 단색 배경 기준으로 그려져 있어서 복잡한 실사
+ *     위에 그대로 올리면 선과 글자가 묻힌다. 다만 화면을 완전히 덮지는 않는다 —
+ *     가장자리로 배경 영상이 살아 있어야 "영상 위에 자료를 올린" 화면이 된다.
+ *  2) 다크 테마로 그린다. iso 컴포넌트는 theme.paper 를 배경이 아니라 노드 채움색으로
+ *     쓰므로, 어두운 paper + 흰 ink 조합이면 노드가 실사 위에서 또렷하게 뜬다.
+ */
+const FigureOverlay: React.FC<{
+  scene: RenderManifest['scenes'][number];
+  index: number;
+  durationInFrames: number;
+}> = ({ scene, index, durationInFrames }) => {
+  const frame = useCurrentFrame();
+  const appear = interpolate(frame, [2, 18], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const leave = interpolate(frame, [durationInFrames - 12, durationInFrames - 2], [1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const o = Math.min(appear, leave);
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none', opacity: o }}>
+      {/* 가운데를 어둡게 눌러 도식을 띄우고, 가장자리는 배경 영상이 그대로 보이게 둔다 */}
+      <AbsoluteFill
+        style={{
+          // 처음엔 .90/.78/.30 으로 깔았더니 도식은 잘 읽히는데 배경 영상이 거의 안 보였다.
+          // 그러면 "실사 위에 도식"이 아니라 그냥 어두운 배경의 도식 화면이 된다.
+          // 도식이 있는 가운데만 눌러 주고 가장자리는 영상이 살아 있게 낮춘다.
+          background:
+            'radial-gradient(74% 70% at 50% 46%, rgba(8,10,14,.80) 0%, rgba(8,10,14,.62) 55%, rgba(8,10,14,.18) 100%)',
+        }}
+      />
+      {/* 도식이 주인공인 씬이므로 제목은 위쪽에 작게 — 큰 글씨와 자리를 다투지 않게 */}
+      {scene.heading && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 74,
+            left: 0,
+            right: 0,
+            textAlign: 'center',
+            fontFamily: PRETENDARD,
+            fontWeight: 900,
+            fontSize: 44,
+            letterSpacing: '-.03em',
+            color: '#ffffff',
+            textShadow: '0 2px 18px rgba(0,0,0,.6)',
+            wordBreak: 'keep-all',
+          }}
+        >
+          {scene.heading}
+        </div>
+      )}
+      {scene.visual === 'diagram' && scene.diagram ? (
+        <IsoDiagram
+          diagram={scene.diagram}
+          narration={scene.narration}
+          durationInFrames={durationInFrames}
+          seed={index}
+          theme={darkTheme}
+        />
+      ) : scene.comparison ? (
+        <IsoComparison
+          comparison={scene.comparison}
+          narration={scene.narration}
+          durationInFrames={durationInFrames}
+          theme={darkTheme}
+        />
+      ) : null}
+    </AbsoluteFill>
+  );
+};
+
 /** 큰 글씨가 쓸 수 있는 가로 폭(px). 오른쪽 절반은 배경 영상을 보여 줘야 하므로 넘기지 않는다. */
 const HEAD_W = 940;
 
