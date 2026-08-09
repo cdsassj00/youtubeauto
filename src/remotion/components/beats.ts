@@ -72,31 +72,85 @@ export function revealFrames(
  * 나레이션을 짧은 자막 조각(chunk)으로 쪼개고 각 조각의 화면 구간(프레임)을 배분한다.
  * 한 화면에 긴 문장이 통째로 지나가지 않도록, 문장을 다시 maxChars 이하의 구절로 나눈다.
  */
+/**
+ * 문장을 "쉬는 자리"로 먼저 쪼갠다.
+ *
+ * 쉼표·가운뎃점·콜론은 말하는 사람이 실제로 숨을 고르는 지점이라, 여기서 끊으면
+ * 자막이 발화 호흡과 맞는다. 부호는 앞 조각에 붙여 둔다(뒤로 넘기면 조각이 부호로 시작한다).
+ */
+function splitClauses(text: string): string[] {
+  return text
+    .split(/(?<=[,،、·:;])\s*/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/**
+ * 한 절을 maxChars 이하 구절들로 묶는다.
+ *
+ * 그냥 채우다 넘치면 끊는 방식은 "확대되기 때문에 어떤" 처럼 다음 말과 붙어야 할 어절이
+ * 앞줄 끝에 매달린다. 그래서 끊을 자리를 정할 때, 직전 어절이 연결어미로 끝나면
+ * (…하고 / …하며 / …해서 / …지만 / …는데) 거기서 끊는 쪽을 우선한다 — 한국어에서
+ * 그 자리가 자연스러운 쉼이다.
+ */
+const CLAUSE_TAIL = /(고|며|서|면|나|만|지만|는데|운데|어야|아야|으로|로|까지|부터|처럼|보다|이며|이고|라서|거나)$/;
+
+function packWords(clause: string, maxChars: number): string[] {
+  const words = clause.split(/\s+/).filter(Boolean);
+  const parts: string[] = [];
+  let cur: string[] = [];
+  const len = (a: string[]) => a.join(' ').length;
+
+  for (const w of words) {
+    if (cur.length && len([...cur, w]) > maxChars) {
+      // 끊기 직전, 마지막 어절이 연결어미가 아니고 그 앞 어절이 연결어미라면
+      // 한 어절을 다음 줄로 넘겨 의미 단위를 살린다(단, 남는 조각이 있을 때만).
+      if (cur.length >= 2 && !CLAUSE_TAIL.test(cur[cur.length - 1]) && CLAUSE_TAIL.test(cur[cur.length - 2])) {
+        const moved = cur.pop() as string;
+        parts.push(cur.join(' '));
+        cur = [moved, w];
+      } else {
+        parts.push(cur.join(' '));
+        cur = [w];
+      }
+    } else {
+      cur.push(w);
+    }
+  }
+  if (cur.length) parts.push(cur.join(' '));
+  return parts;
+}
+
 export function captionChunks(
   narration: string,
   durationInFrames: number,
   maxChars = 16,
+  speechFrames?: number,
 ): SentenceBound[] {
-  const sentences = sentenceBounds(narration, durationInFrames);
+  // ★자막이 뒤로 갈수록 늦어지던 원인★
+  // 씬 길이(durationInFrames)는 "나레이션 오디오 + 끝 여백 0.6초"다(run.ts TAIL_PAD_FRAMES).
+  // 자막을 씬 길이 전체에 비례 배분하면 그 여백까지 나눠 갖게 되어, 씬 끝으로 갈수록
+  // 소리보다 최대 0.6초 뒤처진다. 말이 끝났는데 자막이 아직 안 넘어가는 그 현상이다.
+  // 그래서 실제 오디오 길이(speechFrames)가 주어지면 그 구간에만 배분한다.
+  const span = speechFrames && speechFrames > 0 ? Math.min(speechFrames, durationInFrames) : durationInFrames;
+  const sentences = sentenceBounds(narration, span);
   const out: SentenceBound[] = [];
   for (const s of sentences) {
-    const words = s.text.split(/\s+/).filter(Boolean);
-    // maxChars 이하로 단어를 묶어 구절 생성.
+    // ★의미 단위로 먼저 자른다★
+    // 예전엔 글자 수만 보고 단어를 채워 넣어서 "…읽고 쓰는 것에서" / "확대되기 때문에 어떤"
+    // 처럼 쉼표를 무시하고 끊겼다. 쉼표·가운뎃점 같은 문장부호는 말하는 사람이 실제로 쉬는
+    // 자리이므로, 여기서 먼저 끊으면 자막이 호흡과 맞는다.
+    const clauses = splitClauses(s.text);
     const parts: string[] = [];
-    let cur = '';
-    for (const w of words) {
-      if (cur && (cur + ' ' + w).length > maxChars) {
-        parts.push(cur);
-        cur = w;
-      } else {
-        cur = cur ? cur + ' ' + w : w;
-      }
+    for (const clause of clauses) {
+      parts.push(...packWords(clause, maxChars));
     }
-    if (cur) parts.push(cur);
     // 글자수로만 자르면 마지막에 "-합니다." 같은 접미사 한 조각만 남아 다음 자막이
     // 문맥 없는 꼬리말처럼 보이는 문제가 있다. 너무 짧은 조각은 바로 앞 조각에 합쳐
     // (maxChars 를 살짝 넘기더라도) 어색한 고아 자막을 없앤다.
-    const MIN_CHUNK_CHARS = 5;
+    // 5 였는데 "시절에는," 같은 5자 조각이 0.6초만 스치고 지나갔다. 6 으로 올리면
+    // 앞 조각에 붙어 한 호흡으로 읽힌다(쉼표는 그대로 남아 끊는 지점은 보인다).
+    const MIN_CHUNK_CHARS = 6;
     for (let i = parts.length - 1; i > 0; i--) {
       if (parts[i].length < MIN_CHUNK_CHARS) {
         parts[i - 1] = `${parts[i - 1]} ${parts[i]}`;
@@ -107,11 +161,11 @@ export function captionChunks(
     // 문장 구간을 구절 글자수 비례로 분배.
     const total = parts.reduce((a, p) => a + p.length, 0) || 1;
     let acc = 0;
-    const span = s.end - s.start;
+    const sentSpan = s.end - s.start; // 바깥 span(씬 전체)과 헷갈리지 않게 이름을 나눈다
     for (const p of parts) {
-      const start = s.start + (acc / total) * span;
+      const start = s.start + (acc / total) * sentSpan;
       acc += p.length;
-      const end = s.start + (acc / total) * span;
+      const end = s.start + (acc / total) * sentSpan;
       out.push({ text: p, start, end });
     }
   }

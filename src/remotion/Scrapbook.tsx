@@ -122,7 +122,7 @@ const ScrapScene: React.FC<{
       )}
 
       {/* 하단 자막 — 큰 글자가 주인공이므로 자막은 작고 조용하게 */}
-      <ScrapCaption narration={scene.narration} durationInFrames={dur} />
+      <ScrapCaption narration={scene.narration} durationInFrames={dur} speechFrames={Math.round(scene.durationSec * fps)} />
 
       <FilmGrain seed={index} />
       <ProjectorFlash durationInFrames={dur} fps={fps} />
@@ -136,12 +136,13 @@ const ScrapScene: React.FC<{
  * illustrated 엔진의 자막은 화면 중앙 하단에 크고 굵게 들어가지만, 이 스타일에서는
  * 큰 타이포가 주인공이라 자막이 크면 둘이 싸운다. 참고 영상처럼 작은 검은 알약으로 깐다.
  */
-const ScrapCaption: React.FC<{ narration: string; durationInFrames: number }> = ({
+const ScrapCaption: React.FC<{ narration: string; durationInFrames: number; speechFrames: number }> = ({
   narration,
   durationInFrames,
+  speechFrames,
 }) => {
   const frame = useCurrentFrame();
-  const chunks = captionChunks(narration, durationInFrames, 22);
+  const chunks = captionChunks(narration, durationInFrames, 22, speechFrames);
   if (!chunks.length) return null;
   const cur = chunks.find((b) => frame >= b.start && frame < b.end) ?? chunks[chunks.length - 1];
   const pop = interpolate(frame - cur.start, [0, 5], [0, 1], {
