@@ -1,0 +1,57 @@
+name: branding
+
+# 채널 브랜딩 적용 — 배너·워터마크(·설명)를 유튜브에 올린다.
+#
+# 배너와 워터마크는 API 로 올릴 수 있는데도 매번 스튜디오에서 손으로 올리고 있었다.
+# 이미지는 저장소(public/brand/)에 있으므로, 채널이 늘어나도 같은 방식으로 적용된다.
+# 프로필 사진만은 API 에 엔드포인트가 없어 스튜디오에서 직접 올려야 한다.
+#
+# ★기본값이 ch2 가 아니다★ 브랜딩은 덮어쓰기라 실수로 본 채널을 덮으면 되돌리기 번거롭다.
+# 그래서 채널을 매번 명시적으로 고르게 두고, 스크립트가 적용 직전에 채널명을 찍는다.
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: '적용할 채널 (default | ch2)'
+        required: true
+        default: 'ch2'
+      apply_description:
+        description: '채널 설명도 적용 (true | false)'
+        required: false
+        default: 'false'
+  repository_dispatch:
+    types: [branding]
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'ch2' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      # config.ts 가 로드될 때 있어야 하는 값들 — 이 작업에는 쓰이지 않는다.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 브랜딩 적용
+        env:
+          BRAND_DESC_FILE: ${{ (github.event.inputs.apply_description == 'true' || github.event.client_payload.apply_description == 'true') && 'public/brand/description.txt' || '' }}
+        run: npx tsx scripts/branding.ts
