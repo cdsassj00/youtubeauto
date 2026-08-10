@@ -159,7 +159,17 @@ export const config = {
   videoEngine: optional('VIDEO_ENGINE', 'illustrated').toLowerCase(),
   // 나레이션 속도 배속(1=원속). 빠르게 하면 같은 시간에 더 많은 내용이 들어가므로
   // 대본 목표 글자 수도 이 비율만큼 늘려야 목표 길이가 맞는다.
-  narrationSpeed: Math.max(0.5, Math.min(2, Number(optional('NARRATION_SPEED', '1')))),
+  // ★배속은 말투에 따라 기본값이 다르다★
+  // 1.2 배는 정보를 빠르게 넘기는 설명 영상에 맞춰 올린 값이다. 그런데 인물의 일생을
+  // 다루는 영상에 그대로 적용되니 목소리가 들떠 들려서 내용과 정반대가 됐다. 회차마다
+  // 사람이 낮추게 두면 또 잊어버리므로(BGM 과 같은 이유) 말투에서 끌어온다.
+  // NARRATION_SPEED 에 값이 들어오면 그것이 언제나 우선한다.
+  narrationSpeed: (() => {
+    const raw = optional('NARRATION_SPEED', '').trim();
+    if (raw !== '') return Math.max(0.5, Math.min(2, Number(raw) || 1));
+    const tone = optional('NARRATION_TONE', '').trim().toLowerCase();
+    return tone === 'storytelling' || tone === 'mystery' ? 1.0 : 1.2;
+  })(),
 
   // 동작
   doUpload: optional('DO_UPLOAD', 'false').toLowerCase() === 'true',
