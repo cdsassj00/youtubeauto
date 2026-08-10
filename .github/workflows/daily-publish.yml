@@ -81,7 +81,9 @@ jobs:
       # 나레이션 배속(1=원속). 조금 빠르게 읽어 정보 밀도를 높인다.
       # 1.12 였는데 illustrated 엔진에서는 이 값이 아무 일도 하지 않았다(항상 1.0배로 나갔다).
       # 배선을 고치면서 요청대로 1.2 로 올린다 — 실제로 체감이 바뀌는 건 이번이 처음이다.
-      NARRATION_SPEED: ${{ github.event.client_payload.opts.speed || github.event.client_payload.speed || vars.NARRATION_SPEED || '1.2' }}
+      # 비우면 config.ts 가 말투에 맞춰 고른다(설명형 1.2 / 이야기형 1.0).
+      # 예전엔 여기서 '1.2' 를 못 박아 감동 서사에도 빠른 배속이 그대로 나갔다.
+      NARRATION_SPEED: ${{ github.event.client_payload.opts.speed || github.event.client_payload.speed || vars.NARRATION_SPEED || '' }}
       DO_UPLOAD: ${{ github.event.inputs.do_upload || github.event.client_payload.do_upload || 'true' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
