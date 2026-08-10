@@ -53,16 +53,36 @@ export default async function handler(req, res) {
   const html = (code, body) => res.status(code).setHeader('Content-Type', 'text/html; charset=utf-8').send(body);
 
   if (!YT_CLIENT_ID || !YT_CLIENT_SECRET) {
+    // ★어느 쪽이 왜 없는지까지 알려준다★
+    // "환경변수가 없습니다" 한 줄만 띄웠더니 이름 오타인지, Production 에 체크가 안 된 건지,
+    // 재배포가 반영이 안 된 건지 구분할 방법이 없어서 그 자리에서 막혔다.
+    // 값은 절대 노출하지 않고 '이름만' 훑어 보여주면 오타는 즉시 드러난다.
+    const seen = Object.keys(process.env)
+      .filter((k) => /^(YT_|YOUTUBE_)/.test(k))
+      .sort();
+    const miss = [!YT_CLIENT_ID && 'YT_CLIENT_ID', !YT_CLIENT_SECRET && 'YT_CLIENT_SECRET'].filter(Boolean);
     return html(
       500,
       page(
         '설정 필요',
         `<h1 class="bad">환경변수가 없습니다</h1>
-         <p>Vercel 프로젝트 환경변수에 아래 두 개를 넣고 다시 배포하세요.</p>
-         <pre>YT_CLIENT_ID
-YT_CLIENT_SECRET</pre>
-         <p>구글 클라우드 콘솔에서 <b>유형이 '웹 애플리케이션'인</b> OAuth 클라이언트를 만들고,
-         승인된 리디렉션 URI에 이 페이지 주소를 그대로 등록해야 합니다.</p>`,
+         <p>없는 값: <b>${esc(miss.join(', '))}</b></p>
+
+         <h2>지금 이 배포가 갖고 있는 이름들</h2>
+         <p>값은 표시하지 않습니다. 이름만 봅니다 — 여기 안 보이면 저장이 안 됐거나
+         이름이 다르거나, 재배포가 아직 반영되지 않은 것입니다.</p>
+         <pre>${esc(seen.length ? seen.join('\n') : '(YT_ / YOUTUBE_ 로 시작하는 값이 하나도 없음)')}</pre>
+
+         <h2>확인 순서</h2>
+         <ol>
+           <li>Vercel → Settings → Environment Variables 에 이름이 <b>정확히</b>
+               <code>YT_CLIENT_ID</code>, <code>YT_CLIENT_SECRET</code> 인지 (앞뒤 공백 주의)</li>
+           <li>Environment 에 <b>Production</b> 이 체크돼 있는지</li>
+           <li>저장 후 <b>재배포</b>했는지 — 환경변수는 새 배포부터 적용된다</li>
+         </ol>
+         <p>클라이언트는 구글 콘솔에서 <b>유형이 '웹 애플리케이션'</b> 이어야 하고,
+         승인된 리디렉션 URI 에 아래 주소가 그대로 있어야 합니다.</p>
+         <pre>${esc(process.env.YT_OAUTH_REDIRECT || `https://${req.headers.host}/api/ytauth`)}</pre>`,
       ),
     );
   }
