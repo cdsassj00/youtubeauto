@@ -26,7 +26,7 @@ import { generateScript } from '../lib/anthropic.js';
 import { generateDeck } from '../lib/deckgen.js';
 import { researchRecentInfo } from '../lib/research.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
-import { generateBgm } from '../lib/bgm.js';
+import { generateBgm, bgmStyleFromEnv } from '../lib/bgm.js';
 import { renderVideo } from '../lib/render.js';
 import { generateIllustrations } from '../lib/illustrate.js';
 import { generateCutouts } from '../lib/cutoutScene.js';
@@ -175,7 +175,7 @@ async function stepVoice(): Promise<RenderManifest | null> {
   // 배경음악(BGM) 생성 — public/audio/bgm.wav (Remotion staticFile 로 참조).
   let bgm: string | undefined;
   try {
-    generateBgm(`${AUDIO_DIR}/bgm.wav`);
+    generateBgm(`${AUDIO_DIR}/bgm.wav`, bgmStyleFromEnv());
     bgm = 'audio/bgm.wav';
     console.log('  · 배경음악 생성: audio/bgm.wav');
   } catch (e) {
@@ -227,7 +227,7 @@ function renderDeckVideo(): Promise<void> {
   let bgmPath = '';
   try {
     bgmPath = path.join(OUT_DIR, 'bgm.wav');
-    generateBgm(bgmPath);
+    generateBgm(bgmPath, bgmStyleFromEnv());
     console.log('  · 배경음악 생성:', bgmPath);
   } catch (e) {
     bgmPath = '';
@@ -388,7 +388,7 @@ async function stepRemixBgm(): Promise<void> {
   const bgmPath = path.join(OUT_DIR, 'bgm.wav');
   const outPath = path.join(OUT_DIR, 'video-bgm.mp4');
   console.log('▶ 배경음악 덧입히기 (영상 재인코딩 없음)');
-  generateBgm(bgmPath);
+  generateBgm(bgmPath, bgmStyleFromEnv());
 
   const volume = process.env.BGM_VOLUME || '0.085';
   const dur = await new Promise<number>((resolve) => {
