@@ -206,9 +206,10 @@ jobs:
             # 도식(등각 다이어그램·비교) 씬 수 — Footage.tsx 의 hasFigure() 와 같은 조건이다.
             # B롤과 같은 이유로 여기서 찍는다: 실사 위에 우리 그림이 실제로 올라갔는지는
             # 완성 영상을 다 보기 전에는 알 수 없는데, 이 숫자면 목록에서 바로 읽힌다.
-            FIG=$(jq -r '[.scenes[]? | select((.visual == "diagram" and ((.diagram.nodes // []) | length) > 0) or (.visual == "comparison" and .comparison != null))] | length' out/manifest.json)
+            FIG=$(jq -r '[.scenes[]? | select((.visual == "diagram" and ((.diagram.nodes // []) | length) > 0) or (.visual == "comparison" and .comparison != null) or (.visual == "metric" and (.metric.value // "") != "") or (.visual == "bars" and ((.bars.items // []) | length) > 0))] | length' out/manifest.json)
             echo "fig=$FIG" >> "$GITHUB_OUTPUT"
-            echo "── 도식 ── ${FIG}개 씬"
+            # 종류별 내역도 찍는다 — 총 개수만으로는 "diagram 만 반복"인지 알 수 없다.
+            echo "── 도식 ── ${FIG}개 씬  $(jq -r '[.scenes[]? | select(.visual|IN("diagram","comparison","metric","bars")) | .visual] | group_by(.) | map("\(.[0]):\(length)") | join(" / ")' out/manifest.json)"
             # ★if 로 써야 한다★ 이 스텝은 `bash -e` 로 돌고, 스크립트의 마지막 명령이
             # `[ ... ] && echo ...` 이면 조건이 거짓일 때 종료코드 1 이 되어 스텝이 실패한다.
             # 실제로 그렇게 터졌다 — 영상은 멀쩡히 다 만들어졌는데 집계 단계만 빨간불이 났다.

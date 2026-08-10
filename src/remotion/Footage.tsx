@@ -14,6 +14,7 @@ import { PRETENDARD } from './pretendard.js';
 import { captionChunks } from './components/beats.js';
 import { IsoDiagram, IsoComparison } from './components/iso.js';
 import { darkTheme } from './theme.js';
+import { MetricFigure, BarsFigure } from './components/figures.js';
 
 /**
  * 실사 푸티지 엔진.
@@ -175,6 +176,10 @@ const Shot: React.FC<{
 function hasFigure(scene: RenderManifest['scenes'][number]): boolean {
   if (scene.visual === 'diagram') return Boolean(scene.diagram?.nodes.length);
   if (scene.visual === 'comparison') return Boolean(scene.comparison);
+  // 상자·화살표가 없는 도식들. 데이터가 비어 있으면 도식 화면으로 잡지 않고 키노트로 떨어뜨린다
+  // (빈 도식이 뜨면 배경만 어두워지고 아무것도 안 보이는 화면이 된다).
+  if (scene.visual === 'metric') return Boolean(scene.metric?.value);
+  if (scene.visual === 'bars') return Boolean(scene.bars?.items?.length);
   return false;
 }
 
@@ -242,7 +247,11 @@ const FigureOverlay: React.FC<{
           {scene.heading}
         </div>
       )}
-      {scene.visual === 'diagram' && scene.diagram ? (
+      {scene.visual === 'metric' && scene.metric ? (
+        <MetricFigure metric={scene.metric} durationInFrames={durationInFrames} theme={darkTheme} />
+      ) : scene.visual === 'bars' && scene.bars ? (
+        <BarsFigure bars={scene.bars} durationInFrames={durationInFrames} theme={darkTheme} />
+      ) : scene.visual === 'diagram' && scene.diagram ? (
         <IsoDiagram
           diagram={scene.diagram}
           narration={scene.narration}

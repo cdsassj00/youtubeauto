@@ -36,8 +36,36 @@ export const VisualKind = z.enum([
   'quote', // 한 문장 강조
   'code', // 실제 파일/코드/설정 예시 한 화면
   'image', // AI 그림 한 장으로 보여주는 장면 (화풍 설정이 실제로 적용되는 유일한 씬 타입)
+  'metric', // 큰 숫자 하나 (상자·화살표 없음)
+  'bars', // 막대 비교 (길이로 크기 차이)
   'outro', // 마무리/구독 유도
 ]);
+
+/**
+ * 큰 숫자 한 개짜리 화면.
+ *
+ * 도식이 늘 "상자 + 화살표"로만 보이던 이유는 부품이 하나뿐이어서였다. 수치는 상자에
+ * 가두면 오히려 안 읽히므로, 숫자만 화면 가운데 크게 두는 별도 타입으로 뺀다.
+ */
+export const MetricSchema = z.object({
+  value: z.string(), // "82%", "3배", "1994년" — 단위·기호를 붙인 채로
+  label: z.string(), // 무엇의 수치인가 (16자 이내)
+  note: z.string().default(''), // 한 줄 부연 (선택)
+});
+
+/** 막대 비교 — 항목의 크기 차이를 길이로 보여준다. */
+export const BarsSchema = z.object({
+  unit: z.string().default(''), // "%", "만원", "초" 등 숫자 뒤에 붙일 단위
+  items: z
+    .array(
+      z.object({
+        label: z.string(), // 12자 이내
+        value: z.number(),
+      }),
+    )
+    .min(2)
+    .max(5),
+});
 
 /**
  * title/outro 씬에서 실제로 렌더링되는 평면(flat) 2D 라인 아이콘 목록(생활코딩 스타일 레퍼런스).
@@ -97,6 +125,8 @@ export const SceneSchema = z.object({
     })
     .optional(),
   code: CodeExampleSchema.optional(),
+  metric: MetricSchema.optional(),
+  bars: BarsSchema.optional(),
 });
 
 export type Scene = z.infer<typeof SceneSchema>;
