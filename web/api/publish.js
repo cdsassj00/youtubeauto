@@ -115,6 +115,12 @@ export default async function handler(req, res) {
     // 실제로 무엇이 전달됐는지 되돌려준다 — 업로드 여부/스타일이 의도와 다른지 즉시 확인 가능.
     applied: {
       do_upload: client_payload.do_upload,
+      // ★채널은 반드시 되돌려준다★
+      // 업로드 여부·스타일은 확인란에 있는데 채널만 빠져 있었다. 채널을 잘못 보내면
+      // 영상이 통째로 남의 채널에 올라가는, 되돌리기 가장 번거로운 사고인데 정작
+      // 응답만 봐서는 알 수가 없었다. 알 수 없는 값은 위에서 'default' 로 떨어뜨리므로
+      // 오타를 냈을 때도 여기 'default' 가 찍혀 바로 드러난다.
+      channel: client_payload.channel,
       style: client_payload.opts.style || '(워크플로 기본값)',
       privacy: client_payload.opts.privacy || '(워크플로 기본값)',
       target_minutes: client_payload.target_minutes,
