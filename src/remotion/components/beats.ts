@@ -79,8 +79,12 @@ export function revealFrames(
  * 자막이 발화 호흡과 맞는다. 부호는 앞 조각에 붙여 둔다(뒤로 넘기면 조각이 부호로 시작한다).
  */
 function splitClauses(text: string): string[] {
+  // ★숫자 안의 쉼표에서는 끊지 않는다★
+  // "1,411원" 처럼 천 단위 구분 쉼표가 들어간 수치가 "1," / "411원" 으로 쪼개져
+  // 자막에 "1," 만 0.3초 스치고 지나갔다. 쉼표 뒤가 곧바로 숫자면 그건 문장의 쉼이
+  // 아니라 자릿수 구분이므로 끊지 않는다(말하는 사람도 거기서 안 쉰다).
   return text
-    .split(/(?<=[,،、·:;])\s*/)
+    .split(/(?<=[,،、·:;])(?!\d)\s*/)
     .map((t) => t.trim())
     .filter(Boolean);
 }
@@ -95,6 +99,27 @@ function splitClauses(text: string): string[] {
  */
 const CLAUSE_TAIL = /(고|며|서|면|나|만|지만|는데|운데|어야|아야|으로|로|까지|부터|처럼|보다|이며|이고|라서|거나)$/;
 
+/**
+ * 줄 끝에 홀로 남으면 안 되는 말들.
+ *
+ * "2023년 1월 이후 첫 / 인상이었습니다" 처럼, 뒤에 오는 말을 꾸미는 단어가 앞줄 끝에
+ * 매달리면 그 줄이 미완성으로 읽힌다. 읽는 사람은 "첫..." 에서 한 박자 멈췄다가 다음
+ * 줄에서 "인상"을 만나는데, 말하는 사람은 그 사이에서 쉬지 않는다 — 자막과 소리가
+ * 어긋나는 지점이다. 이런 단어가 줄 끝에 오면 다음 줄로 넘긴다.
+ */
+const NO_TRAILING =
+  /^(첫|새|옛|헌|온갖|여러|각|매|다른|같은|어떤|무슨|이런|저런|그런|모든|약|총|더|덜|가장|제일|먼저|바로|곧|다시|아주|매우|훨씬|서로|이|그|저)$/;
+
+/** 줄 끝에 매달린 꾸밈말을 다음 줄로 넘긴다. 넘긴 단어들을 순서대로 돌려준다. */
+function peelDangling(cur: string[]): string[] {
+  const moved: string[] = [];
+  // 최소 한 단어는 남겨 둔다 — 다 넘기면 빈 줄이 된다.
+  while (cur.length > 1 && NO_TRAILING.test(cur[cur.length - 1])) {
+    moved.unshift(cur.pop() as string);
+  }
+  return moved;
+}
+
 function packWords(clause: string, maxChars: number): string[] {
   const words = clause.split(/\s+/).filter(Boolean);
   const parts: string[] = [];
@@ -107,11 +132,13 @@ function packWords(clause: string, maxChars: number): string[] {
       // 한 어절을 다음 줄로 넘겨 의미 단위를 살린다(단, 남는 조각이 있을 때만).
       if (cur.length >= 2 && !CLAUSE_TAIL.test(cur[cur.length - 1]) && CLAUSE_TAIL.test(cur[cur.length - 2])) {
         const moved = cur.pop() as string;
+        const dangling = peelDangling(cur);
         parts.push(cur.join(' '));
-        cur = [moved, w];
+        cur = [...dangling, moved, w];
       } else {
+        const dangling = peelDangling(cur);
         parts.push(cur.join(' '));
-        cur = [w];
+        cur = [...dangling, w];
       }
     } else {
       cur.push(w);
