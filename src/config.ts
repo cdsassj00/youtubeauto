@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { toneMedia } from './lib/tone.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -167,8 +168,7 @@ export const config = {
   narrationSpeed: (() => {
     const raw = optional('NARRATION_SPEED', '').trim();
     if (raw !== '') return Math.max(0.5, Math.min(2, Number(raw) || 1));
-    const tone = optional('NARRATION_TONE', '').trim().toLowerCase();
-    return tone === 'storytelling' || tone === 'mystery' ? 1.0 : 1.2;
+    return toneMedia(optional('NARRATION_TONE', '')).speed;
   })(),
 
   // 동작
