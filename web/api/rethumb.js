@@ -22,6 +22,8 @@ export default async function handler(req, res) {
 
   const client_payload = {
     video_id: videoId,
+    // 어느 채널의 영상인지 — 없으면 기본 채널 자격증명으로 남의 영상을 고치려 들어 실패한다.
+    channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
     title: String(body.title || '').slice(0, 200),
     topic: String(body.topic || '').slice(0, 500),
     headline: String(body.headline || '').slice(0, 60),
