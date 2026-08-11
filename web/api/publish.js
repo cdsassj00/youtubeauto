@@ -76,6 +76,8 @@ export default async function handler(req, res) {
       // 나레이션 말투(src/lib/tone.ts).
       narration_tone: TONES.includes(pick('tone', 'narration_tone')) ? pick('tone', 'narration_tone') : '',
       thumb_style: THUMB_STYLES.includes(pick('thumb', 'thumb_style')) ? pick('thumb', 'thumb_style') : '',
+      // 배경음악 결. 비우면 파이프라인이 말투를 보고 고른다(이야기형 warm / 설명형 lofi).
+      bgm_style: ['warm', 'lofi'].includes(pick('bgm', 'bgm_style')) ? pick('bgm', 'bgm_style') : '',
     },
   };
 
@@ -83,7 +85,7 @@ export default async function handler(req, res) {
   const KNOWN = new Set([
     'topic', 'mode', 'content_mode', 'level', 'content_level', 'upload', 'do_upload',
     'minutes', 'target_minutes', 'channel', 'privacy', 'style', 'speed', 'narration_speed', 'password',
-    'art', 'art_style', 'tone', 'narration_tone', 'thumb', 'thumb_style',
+    'art', 'art_style', 'tone', 'narration_tone', 'thumb', 'thumb_style', 'bgm', 'bgm_style',
   ]);
   const ignored = Object.keys(body).filter((k) => !KNOWN.has(k));
 
@@ -124,7 +126,8 @@ export default async function handler(req, res) {
       style: client_payload.opts.style || '(워크플로 기본값)',
       privacy: client_payload.opts.privacy || '(워크플로 기본값)',
       target_minutes: client_payload.target_minutes,
-      speed: client_payload.opts.speed || '(워크플로 기본값)',
+      speed: client_payload.opts.speed || '(말투에 맞춤)',
+      bgm: client_payload.opts.bgm_style || '(말투에 맞춤)',
       art_style: client_payload.opts.art_style || '(워크플로 기본값)',
       narration_tone: client_payload.opts.narration_tone || '(워크플로 기본값)',
       thumb_style: client_payload.opts.thumb_style || '(워크플로 기본값)',
