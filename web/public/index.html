@@ -779,7 +779,7 @@
         }
         const btn = $('btnRethumb'); btn.disabled = true; btn.textContent = '썸네일 재생성 중…';
         try {
-          await post('/api/rethumb', { videoId: r.videoId, topic: $('topic').value.trim(), headline: head.value.trim(), badge: badge.value.trim(), password: $('pw').value });
+          await post('/api/rethumb', { videoId: r.videoId, channel: $('channel').value, topic: $('topic').value.trim(), headline: head.value.trim(), badge: badge.value.trim(), password: $('pw').value });
           rvtoast('🖼️ 썸네일 재생성 요청됨! 1~2분 뒤 자동 새로고침됩니다.', 'info');
           setTimeout(() => { $('rvthumb').src = 'https://i.ytimg.com/vi/' + r.videoId + '/hqdefault.jpg?t=' + Date.now(); btn.disabled = false; btn.textContent = '🖼️ 썸네일만 수정'; }, 90000);
         } catch (e) { rvtoast('⚠️ ' + e.message, 'err'); btn.disabled = false; btn.textContent = '🖼️ 썸네일만 수정'; }

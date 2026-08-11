@@ -7,6 +7,10 @@ on:
   # 수동 실행 — 문구/배지만 바꿔가며 썸네일을 튜닝할 때.
   workflow_dispatch:
     inputs:
+      channel:
+        description: '영상이 있는 채널 (default | ch2)'
+        required: false
+        default: 'default'
       video_id:
         description: '대상 videoId'
         required: true
@@ -40,9 +44,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
+      # ★채널을 받아야 한다★ 이게 없으면 늘 기본 채널 자격증명으로 동작해서, 두 번째 채널
+      # 영상의 썸네일을 바꾸려 하면 "내 영상이 아니다"로 실패한다. 얼굴 합성 여부도
+      # 채널에 따라 갈리므로(USE_PRESENTER) 여기서 같이 정해져야 한다.
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'default' }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      # 채널별로 얼굴 합성을 끌 수 있게 한다. 미지정이면 config 가 채널 기준으로 정한다
+      # (기본 채널만 켜짐).
+      USE_PRESENTER: ${{ vars.USE_PRESENTER }}
+      USE_PRESENTER_CH2: ${{ vars.USE_PRESENTER_CH2 }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
