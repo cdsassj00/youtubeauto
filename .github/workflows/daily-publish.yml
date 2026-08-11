@@ -211,7 +211,18 @@ jobs:
             FIG=$(jq -r '[.scenes[]? | select((.visual == "diagram" and ((.diagram.nodes // []) | length) > 0) or (.visual == "comparison" and .comparison != null) or (.visual == "metric" and (.metric.value // "") != "") or (.visual == "bars" and ((.bars.items // []) | length) > 0))] | length' out/manifest.json)
             echo "fig=$FIG" >> "$GITHUB_OUTPUT"
             # 종류별 내역도 찍는다 — 총 개수만으로는 "diagram 만 반복"인지 알 수 없다.
-            echo "── 도식 ── ${FIG}개 씬  $(jq -r '[.scenes[]? | select(.visual|IN("diagram","comparison","metric","bars")) | .visual] | group_by(.) | map("\(.[0]):\(length)") | join(" / ")' out/manifest.json)"
+            KINDS=$(jq -r '[.scenes[]? | select(.visual|IN("diagram","comparison","metric","bars")) | .visual] | group_by(.) | map("\(.[0]):\(length)") | join(" / ")' out/manifest.json)
+            echo "── 도식 ── ${FIG}개 씬  ${KINDS}"
+            # ★잡 요약에도 남긴다★
+            # 이 줄은 로그에 찍히지만 바로 뒤에 오는 환경변수 덤프가 로그 꼬리를 다 채워서
+            # 실제로는 찾아 읽기가 어렵다(B롤 때와 같은 문제다). 요약에 두면 실행 페이지 맨
+            # 위에서 바로 보인다.
+            {
+              echo "### 이번 영상"
+              echo ""
+              echo "- 실사 B롤: **${BR}컷** / ${SC}개 씬 (전체 ${TOT}개 씬)"
+              echo "- 도식: **${FIG}개** — ${KINDS:-없음}"
+            } >> "$GITHUB_STEP_SUMMARY"
             # ★if 로 써야 한다★ 이 스텝은 `bash -e` 로 돌고, 스크립트의 마지막 명령이
             # `[ ... ] && echo ...` 이면 조건이 거짓일 때 종료코드 1 이 되어 스텝이 실패한다.
             # 실제로 그렇게 터졌다 — 영상은 멀쩡히 다 만들어졌는데 집계 단계만 빨간불이 났다.
