@@ -35,7 +35,10 @@ export async function generateThumbnail(params: {
   if (!apiKey) return false;
 
   let presenter: Buffer | null = null;
-  if (config.presenterImageUrl) {
+  // 얼굴을 쓰지 않는 채널이면 사진을 아예 읽지 않는다(프롬프트도 인물 없는 구도로 바뀐다).
+  if (!config.usePresenter) {
+    console.log('  · 썸네일: 인물 합성 없음 (USE_PRESENTER 꺼짐)');
+  } else if (config.presenterImageUrl) {
     const r = await fetch(config.presenterImageUrl);
     if (r.ok) presenter = Buffer.from(await r.arrayBuffer());
   } else if (fs.existsSync(PRESENTER_IMAGE_PATH)) {

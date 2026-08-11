@@ -139,7 +139,14 @@ export const config = {
   narrationTone: optional('NARRATION_TONE', 'documentary').toLowerCase(),
 
   // 진행자 사진을 URL 로 줄 경우(저장소에 커밋하기 싫을 때). 비면 assets/presenter.png 사용.
-  presenterImageUrl: optional('PRESENTER_IMAGE_URL', ''),
+  presenterImageUrl: chOptional('PRESENTER_IMAGE_URL', ''),
+  // ★썸네일에 진행자 얼굴을 합성할지★
+  // assets/presenter.png 는 본인 사진이고, 지금까지는 그 파일이 있으면 채널과 무관하게
+  // 무조건 합성됐다. 그래서 새 채널을 만들자마자 첫 영상 썸네일에 얼굴이 들어갔다.
+  // 얼굴은 한 번 올라가면 되돌리기 어려우므로 기본값을 채널별로 나눈다 —
+  // 기본 채널만 켜 두고, 다른 채널은 명시적으로 켤 때만(USE_PRESENTER_CH2=true) 쓴다.
+  usePresenter:
+    chOptional('USE_PRESENTER', TARGET_CHANNEL === 'default' ? 'true' : 'false').toLowerCase() === 'true',
   // 썸네일 배경 톤: dark(칠판) | cream(종이) — thumbnailStyle 로 대체됐지만 기존 배선 호환용으로 남긴다.
   thumbnailTone: optional('THUMBNAIL_TONE', 'dark'),
   // 썸네일 스타일 프리셋(src/lib/thumbStyle.ts) — 배경·글씨체·액센트를 한 벌로 정한다.
