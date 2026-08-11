@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { toneMedia } from './tone.js';
 
 /**
  * 배경음악(BGM) 생성기 — 외부 파일/저작권 없이 순수 Node 로 합성.
@@ -175,8 +176,7 @@ function generateWarm(outPath: string): string {
 export function bgmStyleFromEnv(): BgmStyle {
   const explicit = (process.env.BGM_STYLE || '').trim().toLowerCase();
   if (explicit === 'warm' || explicit === 'lofi') return explicit;
-  const tone = (process.env.NARRATION_TONE || '').trim().toLowerCase();
-  return tone === 'storytelling' || tone === 'mystery' ? 'warm' : 'lofi';
+  return toneMedia(process.env.NARRATION_TONE || '').bgm;
 }
 
 /** BGM 루프를 WAV(16-bit PCM mono)로 생성해 저장. */

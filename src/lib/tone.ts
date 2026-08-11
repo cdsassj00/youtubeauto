@@ -31,6 +31,22 @@ export const TONES: Tone[] = [
       '"~입니다", "~했습니다" 로 끝나는 완결된 서술문 위주.',
   },
   {
+    id: 'plain',
+    label: '쉽게 풀어주는 라디오',
+    guide:
+      '경제·시사를 일반인에게 쉽게 풀어주는 라디오 코너처럼 쓴다. 다섯 가지를 지켜라. ' +
+      '(1) ★용어보다 현상이 먼저다★ "기준금리란 ~입니다"로 시작하지 말고, 듣는 사람이 이미 겪은 장면부터 꺼낸 뒤 ' +
+      '"이걸 부르는 말이 있습니다" 로 이름을 나중에 붙인다. ' +
+      '(2) ★숫자는 체감 단위로 바꿔라★ 퍼센트와 지수를 그대로 두지 말고 "1억 빌리면 한 달에 얼마" 처럼 ' +
+      '손에 잡히는 크기로 환산해 함께 말한다(환산에 필요한 값이 자료에 없으면 환산하지 말고 그대로 둔다). ' +
+      '(3) ★한 문장에 한 가지만★ 접속사로 길게 잇지 말고 짧게 끊는다. 문장이 길어지면 듣는 사람이 놓친다. ' +
+      '(4) ★스스로 되묻고 답해라★ "그럼 왜 바로 안 내려갈까요." 처럼 질문을 던지고 바로 답하는 리듬을 섞는다. ' +
+      '다만 물음표를 남발하지 말고 한 씬에 하나를 넘기지 않는다. ' +
+      '(5) ★결론을 미루지 마라★ 각 대목의 핵심을 먼저 말하고 설명을 뒤에 붙인다. ' +
+      '"쉽게 말해", "한마디로", "결론부터 말하면" 같은 상투구를 반복하지 마라 — 그렇게 말하지 않아도 쉬워야 한다. ' +
+      '아는 척하는 전문용어, 영어 약자를 그대로 두는 것, 훈계조는 금지한다.',
+  },
+  {
     id: 'humorous',
     label: '유머러스',
     guide:
@@ -70,4 +86,34 @@ export function resolveTone(id: string | undefined): Tone {
 /** 대본 프롬프트에 넣을 최종 지시문. */
 export function buildToneGuide(tone: Tone): string {
   return `${tone.guide} ${TRUTH_GUARD}`;
+}
+
+/**
+ * 말투가 정하는 나레이션 배속과 배경음악.
+ *
+ * ★왜 여기에 두나★
+ * 예전에는 config.ts 와 bgm.ts 에 각각 `tone === 'storytelling' || tone === 'mystery'`
+ * 라는 조건이 흩어져 있었다. 말투를 하나 추가할 때 두 군데를 같이 고쳐야 하는데, 한쪽을
+ * 잊으면 "말투는 바뀌었는데 음악만 그대로"인 상태가 조용히 만들어진다. 말투 목록 옆에
+ * 표로 두면 새 말투를 추가할 때 이 줄을 안 쓰고 지나갈 수가 없다.
+ *
+ * 지정되지 않은 말투는 설명형 기본값(1.2 / lofi)을 쓴다.
+ */
+export type ToneMedia = { speed: number; bgm: 'warm' | 'lofi' };
+
+const TONE_MEDIA: Record<string, ToneMedia> = {
+  documentary: { speed: 1.2, bgm: 'lofi' }, // 정보를 빠르게 넘긴다
+  humorous: { speed: 1.2, bgm: 'lofi' },
+  // 라디오처럼 말을 거는 결이라 아주 빠르면 조급해 보인다. 살짝 늦춘다.
+  plain: { speed: 1.1, bgm: 'lofi' },
+  // 이야기는 느리고 조용해야 한다. 비트가 깔리면 리듬을 따라가느라 이야기가 안 들린다.
+  storytelling: { speed: 1.0, bgm: 'warm' },
+  mystery: { speed: 1.0, bgm: 'warm' },
+};
+
+const FALLBACK_MEDIA: ToneMedia = { speed: 1.2, bgm: 'lofi' };
+
+/** 말투에 맞는 배속·배경음악. 모르는 값이면 설명형 기본값. */
+export function toneMedia(id: string | undefined): ToneMedia {
+  return TONE_MEDIA[(id || '').trim().toLowerCase()] ?? FALLBACK_MEDIA;
 }

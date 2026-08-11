@@ -3,7 +3,7 @@
 // 허용값 목록은 src/lib/artStyle.ts / src/lib/tone.ts 의 프리셋 id 와 일치해야 한다.
 // (여기서 걸러진 값만 워크플로로 넘어가고, 나머지는 기본값으로 떨어진다.)
 const ART_STYLES = ['auto', 'isometric', 'comic', 'watercolor', 'cinematic', 'retro', 'clay', 'pixar'];
-const TONES = ['documentary', 'humorous', 'storytelling', 'mystery'];
+const TONES = ['documentary', 'plain', 'humorous', 'storytelling', 'mystery'];
 // 썸네일 스타일(src/lib/thumbStyle.ts). 썸네일은 엔진과 무관하게 항상 생성되므로
 // 어떤 영상 스타일을 골라도 그대로 적용된다 — 모순 조합이 없다.
 const THUMB_STYLES = ['auto', 'chalk', 'paper', 'impact', 'neon', 'magazine', 'scrap'];
