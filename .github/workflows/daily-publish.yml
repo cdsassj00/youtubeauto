@@ -84,6 +84,8 @@ jobs:
       # 비우면 config.ts 가 말투에 맞춰 고른다(설명형 1.2 / 이야기형 1.0).
       # 예전엔 여기서 '1.2' 를 못 박아 감동 서사에도 빠른 배속이 그대로 나갔다.
       NARRATION_SPEED: ${{ github.event.client_payload.opts.speed || github.event.client_payload.speed || vars.NARRATION_SPEED || '' }}
+      # 배경음악 결. 비우면 config 가 말투를 보고 고른다(이야기형 warm / 설명형 lofi).
+      BGM_STYLE: ${{ github.event.client_payload.opts.bgm_style || vars.BGM_STYLE || '' }}
       DO_UPLOAD: ${{ github.event.inputs.do_upload || github.event.client_payload.do_upload || 'true' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}

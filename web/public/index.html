@@ -161,6 +161,23 @@
       .review .acts button.pub { background: linear-gradient(135deg, var(--ok), #37b24d); border: none; }
       .review .acts button:active { transform: scale(0.99); }
       .review .acts button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      /* 채널 관리 — 발행 흐름과 섞이지 않게 접어 두고, 색도 한 단계 낮춘다 */
+      .mgmt { margin-top: 22px; border: 1px solid #2a2f39; border-radius: 14px; background: #171a20; }
+      .mgmt > summary { cursor: pointer; padding: 14px 16px; font-weight: 700; font-size: 15px; list-style: none; }
+      .mgmt > summary::-webkit-details-marker { display: none; }
+      .mgmt > summary::before { content: '▸ '; opacity: .6; }
+      .mgmt[open] > summary::before { content: '▾ '; }
+      .mgmt-hint { font-weight: 500; font-size: 12px; opacity: .55; margin-left: 6px; }
+      .mgmt-body { padding: 0 16px 16px; }
+      .mgmt-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+      .mgmt-row label { margin: 0; white-space: nowrap; }
+      .mgmt-row select { flex: 1; max-width: 220px; }
+      .mgmt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+      .mgmt-grid button { text-align: left; padding: 12px 14px; line-height: 1.35; }
+      .mgmt-grid button em { display: block; font-style: normal; font-size: 12px; opacity: .6; margin-top: 3px; }
+      /* 기본 링크색이 어두운 남색이라 이 배경에서는 글자가 묻힌다(스크린샷으로 확인). */
+      .mgmt a { color: #7cc0ff; text-decoration: underline; text-underline-offset: 2px; }
     </style>
   </head>
   <body>
@@ -253,6 +270,30 @@
               <option value="mystery">미스터리</option>
             </select>
           </div>
+          <!--
+            배속·음악은 원래 말투에서 자동으로 정해진다(설명형=빠르고 경쾌 / 이야기형=느리고 차분).
+            대부분은 자동이 맞지만, 같은 말투 안에서도 소재에 따라 바꾸고 싶을 때가 있어서 열어 둔다.
+            비워 두면(자동) 코드가 말투를 보고 고른다 — 기본값을 '자동'으로 두는 이유다.
+          -->
+          <div>
+            <label for="speed">나레이션 배속</label>
+            <select id="speed">
+              <option value="" selected>자동 (말투에 맞춤)</option>
+              <option value="0.95">0.95배 — 아주 차분히</option>
+              <option value="1.0">1.0배 — 보통</option>
+              <option value="1.1">1.1배</option>
+              <option value="1.2">1.2배 — 정보 밀도</option>
+              <option value="1.3">1.3배 — 빠르게</option>
+            </select>
+          </div>
+          <div>
+            <label for="bgm">배경음악</label>
+            <select id="bgm">
+              <option value="" selected>자동 (말투에 맞춤)</option>
+              <option value="warm">따뜻하게 — 드럼 없는 패드</option>
+              <option value="lofi">경쾌하게 — lo-fi 비트</option>
+            </select>
+          </div>
         </div>
 
         <p class="hint" id="artHint"></p>
@@ -319,6 +360,56 @@
         </div>
 
         <div class="runlist" id="runlist"></div>
+
+        <!--
+          ★채널 관리★
+          여기 있는 것들은 전부 돈이 들지 않는 점검·설정 작업이다. 지금까지는 명령줄로만
+          돌릴 수 있어서 사람 손을 빌려야 했다. 영상 발행과 섞이지 않게 접힌 상태로 둔다.
+        -->
+        <details class="mgmt">
+          <summary>⚙️ 채널 관리 · 점검 <span class="mgmt-hint">모두 무료</span></summary>
+          <div class="mgmt-body">
+            <div class="mgmt-row">
+              <label for="mgmtChannel">대상 채널</label>
+              <select id="mgmtChannel">
+                <option value="default" selected>기본 채널</option>
+                <option value="ch2">두 번째 채널</option>
+              </select>
+            </div>
+
+            <div class="mgmt-grid">
+              <button data-ev="channel-check" data-need-channel="1">
+                🔎 채널 확인
+                <em>이 자격증명이 실제로 어느 채널을 여는지</em>
+              </button>
+              <button data-ev="voices">
+                🎙️ 목소리 목록
+                <em>ElevenLabs 목소리 이름과 ID</em>
+              </button>
+              <button data-ev="stock-check">
+                🖼️ 스톡 키 점검
+                <em>Pexels · Pixabay · Unsplash</em>
+              </button>
+              <button data-ev="branding" data-need-channel="1" data-confirm="1">
+                🎨 브랜딩 적용
+                <em>배너 · 워터마크 (덮어씁니다)</em>
+              </button>
+            </div>
+
+            <div class="switch" style="margin-top:10px">
+              <input id="mgmtDesc" type="checkbox" />
+              <label for="mgmtDesc" style="margin:0">브랜딩 적용 시 채널 설명도 덮어쓰기</label>
+            </div>
+
+            <p class="hint">
+              채널을 새로 연결하려면
+              <a id="ytauthLink" href="#" target="_blank" rel="noopener">여기서 유튜브 인증</a>을 하세요.
+              나온 토큰은 GitHub Secrets 에 넣습니다. 프로필 사진만은 API 로 바꿀 수 없어
+              유튜브 스튜디오에서 직접 올려야 합니다.
+            </p>
+            <div id="mgmtToast" class="toast"></div>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -400,6 +491,8 @@
               upload: $('upload').checked, password: $('pw').value,
               style: $('style').value,
               art: $('art').value, tone: $('tone').value, thumb: $('thumb').value,
+              // 빈 문자열이면 서버가 옵션을 안 넘기고, 파이프라인이 말투를 보고 자동으로 고른다.
+              speed: $('speed').value, bgm: $('bgm').value,
               // 업로드를 켜면 먼저 '미등록(unlisted)'으로 올려 확인 후 발행하는 리뷰 흐름.
               privacy: $('upload').checked ? 'unlisted' : '',
             }),
@@ -700,6 +793,57 @@
       $('go').addEventListener('click', publish);
       // 여러 줄 입력이므로 Enter 는 줄바꿈, Ctrl/Cmd+Enter 로 발행.
       $('topic').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) publish(); });
+
+      // ── 채널 관리 ─────────────────────────────────────────────────────────
+      // 버튼마다 다른 함수를 두지 않고 data-ev 로 이벤트 이름만 바꿔 한 곳으로 보낸다.
+      // 서버(/api/dispatch)도 같은 구조라, 워크플로가 늘어도 양쪽에 한 줄씩만 추가된다.
+      const mgmtToast = (msg, kind = 'info') => {
+        const t = $('mgmtToast');
+        t.textContent = msg;
+        t.className = 'toast ' + (kind === 'err' ? 'err' : 'info');
+      };
+
+      // 인증 링크는 비밀번호를 쿼리로 받으므로, 입력한 값을 그때그때 붙인다.
+      $('ytauthLink').addEventListener('click', (e) => {
+        e.preventDefault();
+        const pw = encodeURIComponent($('pw').value || '');
+        window.open('/api/ytauth?password=' + pw, '_blank', 'noopener');
+      });
+
+      document.querySelectorAll('.mgmt-grid button').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const ev = btn.dataset.ev;
+          const channel = $('mgmtChannel').value;
+          // ★브랜딩만 확인을 받는다★ 배너·워터마크를 덮어쓰므로 되돌리기가 번거롭다.
+          if (btn.dataset.confirm) {
+            const label = channel === 'ch2' ? '두 번째 채널' : '기본 채널';
+            if (!confirm(`${label}의 배너와 워터마크를 덮어씁니다. 진행할까요?`)) return;
+          }
+          const body = { event: ev, password: $('pw').value };
+          if (btn.dataset.needChannel) body.channel = channel;
+          if (ev === 'branding') body.apply_description = $('mgmtDesc').checked;
+
+          const label = btn.textContent.trim().split('\n')[0];
+          btn.disabled = true;
+          try {
+            const res = await fetch('/api/dispatch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || '요청 실패');
+            mgmtToast(`✅ ${label} 실행했어요. 결과는 GitHub Actions 로그에서 볼 수 있어요.`, 'info');
+            // 관리 작업도 실행 목록에 뜨므로 잠깐 뒤 한 번 갱신해 준다
+            // (repository_dispatch 는 등록에 몇 초 걸려서, 바로 부르면 아직 안 보인다).
+            setTimeout(poll, 4000);
+          } catch (e) {
+            mgmtToast('⚠️ ' + e.message, 'err');
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
       // 누적 비용 — 실행마다 남긴 사용량 아티팩트를 합산해 보여준다.
       async function loadCost() {
         try {
