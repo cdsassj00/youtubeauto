@@ -218,7 +218,7 @@ function buildPrompt(
 
   return [
     'Create a professional, high-CTR YouTube thumbnail image in 16:9 landscape, in the style of top Korean educational tech YouTubers.',
-    'IMPORTANT CONTEXT: this channel exclusively covers AI / software engineering / LLM agent topics for developers — never physical hardware, electrical wiring, automotive parts, or manufacturing.',
+    `IMPORTANT CONTEXT: ${config.thumbnailContext}.`,
     `Video title: "${title}". Video topic: "${topic}".`,
     'DISAMBIGUATION (read carefully before drawing): Korean tech terms in the topic can have an unrelated everyday industrial meaning — pick the SOFTWARE/AI meaning, never the physical one. ' +
       'Specifically: if the topic mentions "하네스"(harness), it means an AI AGENT\'S SOFTWARE SCAFFOLDING/RUNTIME (the code+config wrapper around an LLM, like Claude Code or a coding agent) — draw a laptop/terminal window, a flowchart of an agent loop, or a code editor, NEVER a physical wire harness, cable bundle, connector, wiring loom, robot arm, car, or airplane part. Do the same kind of correction for any other term that could be misread as physical/industrial hardware.',
@@ -239,7 +239,9 @@ function buildPrompt(
         'all the same size, evenly spaced in one straight row, the row together spanning roughly one third of the frame width. ' +
         'THIS ROW IS THE ONLY VISUAL ELEMENT besides the title and the person.'
       : `${layout.symbol} It must be ONE single bold hand-drawn symbol that captures the idea at a glance ` +
-        '(for example: a giant up-arrow, a price tag, a balance scale, a rocket, a brain, a padlock, a stopwatch — whichever fits the topic).',
+        (config.thumbnailFocus === 'visual'
+          ? ' In this composition the "symbol" IS the main photographic scene — draw a real, specific situation a Korean viewer would recognize (for example a hospital reception desk, a pile of banknotes, a pharmacy counter, a subway turnstile), not an abstract icon.'
+          : ' (for example: a giant up-arrow, a price tag, a balance scale, a rocket, a brain, a padlock, a stopwatch — whichever fits the topic).'),
     'CRITICAL: do NOT draw a diagram, flowchart, or multiple labeled boxes. Do NOT add small explanatory text, bullet lists, checkmark lists, or captions anywhere.',
     productIcons
       ? 'Do NOT write the product names as text anywhere. Do NOT add any other large symbol (no trophy, no arrow, no medal) — the row of product symbols takes its place. Everything else stays EMPTY.'
@@ -259,6 +261,16 @@ function buildPrompt(
     dramatic
       ? 'Overall: dramatic, cinematic, maximum contrast and tension like a top breaking-news tech thumbnail; the title must be legible even as a tiny phone thumbnail. No watermark, no extra logos.'
       : 'Overall: energetic, high contrast, strong visual hierarchy; the title must be legible even as a tiny phone thumbnail. No watermark, no extra logos.',
-    'FINAL CHECK: the Korean title must occupy roughly 40% of the frame and be the first thing the eye lands on. If any element competes with it, remove that element.',
+    // ★글자만 큼지막한 썸네일에서 벗어나기★
+    // text 모드는 제목이 화면의 40%를 먹고 그림은 보조다. 정보형 채널에는 맞지만,
+    // 대중 대상 채널에서는 "글씨만 큰 판때기"로 보여 손이 안 간다. visual 모드는
+    // 그 비중을 뒤집어, 한 장면이 화면을 채우고 제목은 아래 좁은 띠에만 얹는다.
+    config.thumbnailFocus === 'visual'
+      ? 'FINAL CHECK — COMPOSITION IS VISUAL-FIRST: a single vivid, concrete real-world SCENE or OBJECT must fill roughly 70% of the frame and be the first thing the eye lands on. ' +
+        'Shoot it like a striking photograph: one clear subject, shallow depth, dramatic directional light, rich color. ' +
+        'Place the Korean title in a compact band across the BOTTOM of the frame, occupying no more than 25% of the height, in 1-2 short lines — bold and perfectly legible, but NOT filling the frame. ' +
+        'Put a solid or gradient backing behind the title band so it stays readable over the image. ' +
+        'The image must make someone curious before they read a single word.'
+      : 'FINAL CHECK: the Korean title must occupy roughly 40% of the frame and be the first thing the eye lands on. If any element competes with it, remove that element.',
   ].join(' ');
 }

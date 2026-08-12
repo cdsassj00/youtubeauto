@@ -61,6 +61,12 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
       PRESENTER_IMAGE_URL: ${{ secrets.PRESENTER_IMAGE_URL || vars.PRESENTER_IMAGE_URL || '' }}
+      # 썸네일 구성: text(글씨가 주인공) | visual(장면이 주인공). 비우면 채널별 기본값.
+      THUMBNAIL_FOCUS: ${{ vars.THUMBNAIL_FOCUS }}
+      THUMBNAIL_FOCUS_CH2: ${{ vars.THUMBNAIL_FOCUS_CH2 }}
+      # 이 채널이 무엇을 다루는지 — 그림 소재를 정하는 문장. 비우면 채널별 기본값.
+      THUMBNAIL_CONTEXT: ${{ vars.THUMBNAIL_CONTEXT }}
+      THUMBNAIL_CONTEXT_CH2: ${{ vars.THUMBNAIL_CONTEXT_CH2 }}
       THUMBNAIL_TONE: ${{ vars.THUMBNAIL_TONE || 'dark' }}
       # 스타일만 바꿔 다시 뽑을 수 있게 — 렌더 없이 썸네일만이라 장당 비용으로 끝난다.
       THUMBNAIL_STYLE: ${{ github.event.client_payload.thumb_style || vars.THUMBNAIL_STYLE || 'chalk' }}

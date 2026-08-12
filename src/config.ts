@@ -152,6 +152,20 @@ export const config = {
   // 썸네일 스타일 프리셋(src/lib/thumbStyle.ts) — 배경·글씨체·액센트를 한 벌로 정한다.
   // auto 면 회차마다 날짜 기준으로 회전. 비우면 기존 칠판 마커.
   thumbnailStyle: optional('THUMBNAIL_STYLE', 'chalk').toLowerCase(),
+  // ★썸네일이 무엇을 주인공으로 삼는가★
+  //  text   : 큰 글씨가 화면의 40%를 먹고 그림은 보조 (기존 동작)
+  //  visual : 장면·사물이 화면을 채우고 글씨는 아래쪽 좁은 띠로 (글씨만 큼지막한 인상 탈피)
+  // 채널마다 결이 다르므로 기본값을 나눈다 — 기본 채널은 지금까지의 인상을 유지한다.
+  thumbnailFocus: chOptional('THUMBNAIL_FOCUS', TARGET_CHANNEL === 'default' ? 'text' : 'visual').toLowerCase(),
+  // ★이 채널이 무엇을 다루는가★
+  // 예전엔 "이 채널은 개발자용 AI/소프트웨어만 다룬다"가 프롬프트에 하드코딩돼 있었다.
+  // 그래서 건강보험 같은 소재를 줘도 개발자용 AI 이미지를 그리라는 지시가 함께 나갔다.
+  thumbnailContext: chOptional(
+    'THUMBNAIL_CONTEXT',
+    TARGET_CHANNEL === 'default'
+      ? 'this channel covers AI / software engineering / LLM agent topics for developers — never physical hardware, electrical wiring, automotive parts, or manufacturing'
+      : 'this channel explains everyday IT, economy and society topics for a general Korean audience — draw ordinary Korean life scenes and familiar objects, never developer or coding imagery',
+  ),
 
   // 대본 전 최신정보 리서치(웹서치) 담당 provider: openai(기본, 저비용) | anthropic(Claude 웹서치).
   // 검색은 대본 작성만큼 비싼 모델이 필요 없는 작업이라 기본은 OpenAI 로 비용을 아낀다.
