@@ -28,6 +28,7 @@ import { researchRecentInfo } from '../lib/research.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { generateBgm, bgmStyleFromEnv } from '../lib/bgm.js';
 import { renderVideo } from '../lib/render.js';
+import { renderHyperVideo, assertHyperRuntime } from '../lib/hyperframes.js';
 import { generateIllustrations } from '../lib/illustrate.js';
 import { generateCutouts } from '../lib/cutoutScene.js';
 import { planBroll } from '../lib/broll.js';
@@ -271,6 +272,11 @@ async function stepRender(): Promise<void> {
   console.log(`▶ [3/4] 영상 렌더링 (엔진: ${config.videoEngine})`);
   if (config.videoEngine === 'web3d') {
     await render3dVideo();
+  } else if (config.videoEngine === 'hyper') {
+    // hyper 엔진 — HyperFrames(HTML → MP4). Remotion 도 web3d-deck 도 거치지 않는
+    // 세 번째 렌더 경로다. 대본·나레이션(1·2단계)은 그대로 쓰므로 여기서만 갈라진다.
+    // AI 그림·스톡 영상을 한 장도 쓰지 않아 이미지 비용이 0 이다.
+    await renderHyperVideo(manifest, VIDEO_PATH);
   } else if (config.videoEngine === 'footage') {
     // 실사 푸티지 엔진 — AI 그림을 한 장도 만들지 않는다. 화면을 전부 스톡으로 채운다.
     await attachFootage(manifest);
@@ -616,6 +622,10 @@ async function stepSetPrivacy(): Promise<void> {
 
 async function main() {
   await fs.mkdir(OUT_DIR, { recursive: true });
+
+  // ★유료 단계 전에 확인한다★ hyper 엔진은 Node 22 이상에서만 렌더된다. 렌더는 3단계라
+  // 여기서 안 막으면 대본(Claude)·나레이션(ElevenLabs) 값을 다 치르고 마지막에 실패한다.
+  if (config.videoEngine === 'hyper') assertHyperRuntime();
 
   const onlyArg = process.argv.find((a) => a.startsWith('--only='));
   const only = onlyArg?.split('=')[1] as Step | undefined;

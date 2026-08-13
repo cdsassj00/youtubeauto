@@ -33,7 +33,7 @@ on:
         required: false
         default: ''
       style:
-        description: '영상 스타일 (illustrated=2D 벡터 | scrapbook=빈티지 판화 스크랩북 | footage=실사 스톡 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D)'
+        description: '영상 스타일 (illustrated=2D 벡터 | scrapbook=빈티지 판화 스크랩북 | footage=실사 스톡 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D | hyper=모션 타이포/HyperFrames)'
         required: false
         default: ''
   # 웹앱/외부에서 트리거 (client_payload 로 topic 전달)
@@ -127,7 +127,11 @@ jobs:
       - name: Node 설치
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # ★22 이상이어야 한다★ hyper 엔진이 쓰는 HyperFrames 가 Node >= 22 를 요구하고,
+          # 미달이면 bin 래퍼가 시작하자마자 거부한다. 렌더는 대본·나레이션(유료)을 다 만든
+          # 뒤 3단계에서 도는 단계라, 여기서 버전이 낮으면 돈을 다 쓰고 마지막에 실패한다.
+          # (Actions 도 Node 20 을 지원 종료 중이라 어차피 올려야 하는 값이다.)
+          node-version: 22
           cache: 'npm'
 
       - name: 한국어 폰트 & Chromium 의존성 설치
