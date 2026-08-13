@@ -184,4 +184,10 @@ export type RenderManifest = {
   theme?: 'light' | 'dark';
   /** 배경음악 staticFile 상대경로 (예: audio/bgm.wav). 없으면 무음. */
   bgm?: string;
+  /**
+   * 효과음(audio/sfx/*.wav)이 실제로 만들어졌는가.
+   * ★플래그가 필요한 이유★ 파일이 없는데 staticFile 로 참조하면 렌더가 통째로 실패한다.
+   * 소리 하나 때문에 20분짜리 영상을 잃지 않도록, 만들어졌을 때만 화면이 참조한다.
+   */
+  sfx?: boolean;
 };
