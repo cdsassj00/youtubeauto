@@ -72,7 +72,7 @@ jobs:
       TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'default' }}
       # 합성 콘텐츠 공개 표시 — 목소리 클론 나레이션 + 비실사 일러스트는 YouTube 명시적 예외 대상이라 기본 false.
       SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'false' }}
-      TOPIC: ${{ github.event.inputs.topic || github.event.client_payload.topic || '' }}
+      # TOPIC 은 잡 수준에 두지 않는다 — '대본 생성' 스텝에만 있다(위 주석 참고).
       CONTENT_MODE: ${{ github.event.inputs.content_mode || github.event.client_payload.content_mode || vars.CONTENT_MODE || 'auto' }}
       # 대본 난이도/전문성: basic | intermediate | expert. 기본 expert(전문가용).
       CONTENT_LEVEL: ${{ github.event.inputs.content_level || github.event.client_payload.content_level || vars.CONTENT_LEVEL || 'expert' }}
@@ -152,6 +152,14 @@ jobs:
       # ── 여기부터 4단계: 웹앱 진행바가 이 스텝 이름으로 진행도를 표시 ──
       - name: 대본 생성
         run: npm run generate:script
+        # ★TOPIC 은 여기서만 준다★
+        # 잡 수준 env 에 두면 GitHub 가 "모든" 스텝의 시작에 env 덤프를 찍으면서
+        # 브리프 전문(수백 줄)이 스텝 수만큼 반복돼 로그 꼬리를 통째로 채운다.
+        # 그래서 정작 마지막에 찍은 집계(B롤·도식 개수)를 로그로는 꺼내 볼 수가 없었다.
+        # TOPIC 을 실제로 읽는 곳은 config.customTopic → 대본 생성 하나뿐이라
+        # 이 스텝에만 두면 덤프가 1회로 줄고 나머지 스텝 로그가 읽을 수 있게 된다.
+        env:
+          TOPIC: ${{ github.event.inputs.topic || github.event.client_payload.topic || '' }}
 
       - name: 나레이션 생성
         run: npm run generate:voice
@@ -217,8 +225,32 @@ jobs:
             FIG=$(jq -r '[.scenes[]? | select((.visual == "diagram" and ((.diagram.nodes // []) | length) > 0) or (.visual == "comparison" and .comparison != null) or (.visual == "metric" and (.metric.value // "") != "") or (.visual == "bars" and ((.bars.items // []) | length) > 0))] | length' out/manifest.json)
             echo "fig=$FIG" >> "$GITHUB_OUTPUT"
             # 종류별 내역도 찍는다 — 총 개수만으로는 "diagram 만 반복"인지 알 수 없다.
-            KINDS=$(jq -r '[.scenes[]? | select(.visual|IN("diagram","comparison","metric","bars")) | .visual] | group_by(.) | map("\(.[0]):\(length)") | join(" / ")' out/manifest.json)
+            # ★FIG 과 같은 유효성 조건을 쓴다★ 예전엔 여기만 .visual 값으로 세서,
+            # 내용이 빈 씬이 내역에는 잡히고 FIG 에는 안 잡혀 합이 안 맞았다.
+            KINDS=$(jq -r '
+              def ok: (.visual == "diagram" and ((.diagram.nodes // []) | length) > 0)
+                   or (.visual == "comparison" and .comparison != null)
+                   or (.visual == "metric" and (.metric.value // "") != "")
+                   or (.visual == "bars" and ((.bars.items // []) | length) > 0);
+              [.scenes[]? | select(ok) | .visual] | group_by(.) | map("\(.[0]):\(length)") | join(" / ")
+            ' out/manifest.json)
             echo "── 도식 ── ${FIG}개 씬  ${KINDS}"
+            # ★내역을 아티팩트 이름에도 넣는다★
+            # 로그와 잡 요약에만 두면 실행 페이지를 눈으로 열어야만 읽힌다. 아티팩트
+            # 이름은 API 목록만으로 보여서, 지난 회차들의 도식 편중을 한눈에 비교할 수 있다.
+            # (이름에는 ':' '/' 를 못 쓰므로 dg/cp/mt/bs 약어에 개수를 붙인 형태로 만든다.)
+            KSLUG=$(jq -r '
+              def ok: (.visual == "diagram" and ((.diagram.nodes // []) | length) > 0)
+                   or (.visual == "comparison" and .comparison != null)
+                   or (.visual == "metric" and (.metric.value // "") != "")
+                   or (.visual == "bars" and ((.bars.items // []) | length) > 0);
+              [.scenes[]? | select(ok) | .visual] as $v
+              | "dg\($v | map(select(. == "diagram")) | length)"
+              + "-cp\($v | map(select(. == "comparison")) | length)"
+              + "-mt\($v | map(select(. == "metric")) | length)"
+              + "-bs\($v | map(select(. == "bars")) | length)"
+            ' out/manifest.json)
+            echo "kslug=$KSLUG" >> "$GITHUB_OUTPUT"
             # ★잡 요약에도 남긴다★
             # 이 줄은 로그에 찍히지만 바로 뒤에 오는 환경변수 덤프가 로그 꼬리를 다 채워서
             # 실제로는 찾아 읽기가 어렵다(B롤 때와 같은 문제다). 요약에 두면 실행 페이지 맨
@@ -238,13 +270,14 @@ jobs:
           else
             echo "br=0" >> "$GITHUB_OUTPUT"
             echo "fig=0" >> "$GITHUB_OUTPUT"
+            echo "kslug=none" >> "$GITHUB_OUTPUT"
           fi
 
       - name: 사용량 아티팩트
         if: always() && steps.usage.outputs.has == '1'
         uses: actions/upload-artifact@v4
         with:
-          name: usage__ci-${{ steps.usage.outputs.ci }}__co-${{ steps.usage.outputs.co }}__oi-${{ steps.usage.outputs.oi }}__oo-${{ steps.usage.outputs.oo }}__img-${{ steps.usage.outputs.img }}__gimg-${{ steps.usage.outputs.gimg }}__tts-${{ steps.usage.outputs.tts }}__br-${{ steps.usage.outputs.br }}__fig-${{ steps.usage.outputs.fig }}
+          name: usage__ci-${{ steps.usage.outputs.ci }}__co-${{ steps.usage.outputs.co }}__oi-${{ steps.usage.outputs.oi }}__oo-${{ steps.usage.outputs.oo }}__img-${{ steps.usage.outputs.img }}__gimg-${{ steps.usage.outputs.gimg }}__tts-${{ steps.usage.outputs.tts }}__br-${{ steps.usage.outputs.br }}__fig-${{ steps.usage.outputs.fig }}__k-${{ steps.usage.outputs.kslug }}
           path: out/usage.json
           retention-days: 90
 
