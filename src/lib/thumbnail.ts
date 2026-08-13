@@ -174,7 +174,7 @@ function pickVariation(): Variation {
   const pose = POSES[Math.floor(Math.random() * POSES.length)];
   const base = LAYOUTS[Math.floor(Math.random() * LAYOUTS.length)];
   const mirror = Math.random() < 0.5;
-  const layout = mirror
+  const flipped = mirror
     ? {
         person: mirrorText(base.person),
         title: mirrorText(base.title),
@@ -182,6 +182,11 @@ function pickVariation(): Variation {
         badge: mirrorText(base.badge),
       }
     : base;
+  // ★배지는 오른쪽 아래에 두지 않는다★ 목록에서 그 자리에 재생시간 배지가 덧씌워져
+  // 통째로 가려진다. 배지는 작고 어디든 놓을 수 있으니 위로 올린다. 좌우 반전을 하면
+  // BOTTOM-LEFT 가 BOTTOM-RIGHT 로 바뀌므로 반전 여부와 상관없이 마지막에 한 번 걸러낸다.
+  // (제목은 자리를 옮길 수 없어, 프롬프트에서 "그 구석까지 늘리지 말라"로 따로 처리한다.)
+  const layout = flipped.badge === 'BOTTOM-RIGHT' ? { ...flipped, badge: 'TOP-RIGHT' } : flipped;
   return { outfit, pose, layout, mirror };
 }
 
@@ -251,7 +256,12 @@ function buildPrompt(
       : `${style.accent} Lively and clear, NOT cluttered, with real depth.`,
     `Add a HUGE, BOLD Korean title in ${style.lettering}, reading EXACTLY these characters with NOTHING added or dropped: "${headline}".`,
     `Render the Korean text with PERFECT, correct Hangul spelling — every syllable exactly as written, do not merge, drop, or repeat any character — ${dramatic ? 'enormous and ultra-thick, dominating the frame' : 'very large and thick'}, broken into lines as described in the layout above, ${inkTitle}, as the clear focal point.`,
-    'Keep ALL text fully inside the frame with a safe margin — never let letters touch or get cut off by any edge.',
+    // ★"프레임 안"만으로는 부족하다★ 실제로 글자가 오른쪽 끝에서 11px 떨어진 썸네일이 나왔다.
+    // 잘리지는 않았지만 숨이 막히고, 무엇보다 유튜브가 목록에서 오른쪽 아래에 재생시간
+    // 배지를 얹기 때문에 그 자리에 글자를 두면 가려진다. 여백을 %로 못박고,
+    // 오른쪽 아래 모서리는 아예 비워 두게 한다.
+    'Keep ALL text fully inside the frame with a generous safe margin of at least 5% of the frame width from every edge — being merely "not cut off" is NOT enough; text crowding an edge looks cramped.',
+    'The video duration stamp is overlaid in the BOTTOM-RIGHT corner in listings, so keep that zone clear: no letters inside the rightmost 20% of the width within the bottom 14% of the height. If a line of the title runs along the bottom, END IT BEFORE that zone instead of extending it to the right edge — shorten or re-break the line rather than letting it reach the corner.',
     // 문구를 8~14자로 짧게 쓰게 하는 대신, "무엇에 대한 영상인지"는 이 작은 배지가 책임진다.
     badge && !productIcons
       ? `In the ${layout.badge} corner, add ONE small flat rectangular badge (about 1/8 of the frame width) filled with ${dramatic ? 'red (#e03131)' : style.badgeColor}, containing ONLY this short text in clean white letters, spelled exactly: "${badge}". Keep it small and secondary — it must never compete with or overlap the big title or the person.`
