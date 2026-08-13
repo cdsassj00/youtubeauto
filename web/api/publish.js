@@ -19,6 +19,7 @@ const ENGINES = {
   signal3d: { artStyle: false, broll: false },
   deck3d: { artStyle: false, broll: false },
   hyper: { artStyle: false, broll: false },
+  handdrawn: { artStyle: false, broll: false },
 };
 
 export default async function handler(req, res) {
@@ -68,7 +69,7 @@ export default async function handler(req, res) {
       // 공개 상태. 리뷰 흐름은 'unlisted'(미등록)로 올려 확인 후 발행. 빈 값이면 워크플로 기본값.
       privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : '',
       // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
-      style: ['illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d', 'hyper'].includes(body.style)
+      style: ['illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d', 'hyper', 'handdrawn'].includes(body.style)
         ? body.style
         : '',
       // 나레이션 배속(0.8~1.4). 비우면 워크플로 기본값.

@@ -326,8 +326,17 @@ async function stepRender(): Promise<void> {
     const made = Object.keys(imgMap).length;
     console.log(`  · 일러스트 ${made}/${needsAiImage.length}장 완료 → Remotion 합성`);
     await renderVideo(manifest, 'AiIllustrated');
+  } else if (config.videoEngine === 'handdrawn') {
+    // 손그림 — 이 파이프라인의 첫 화면 스타일(종이 배경 + 도식 + 자막).
+    // ★한동안 아무도 고를 수 없었다★ illustrated 엔진이 생기면서 기본값이 그쪽으로 넘어갔고,
+    // 손그림은 맨 아래 "그 외" 폴백 자리로 밀렸는데, 고를 수 있는 엔진이 전부 위 분기에서
+    // 잡히는 바람에 여기까지 내려올 값이 하나도 없었다. 컴포지션은 멀쩡히 살아 있었으므로
+    // 엔진 목록에 정식으로 올리고 자기 분기를 준다.
+    await renderVideo(manifest, 'AiExplainer');
   } else {
-    await renderVideo(manifest); // 손그림(Remotion)
+    // 알 수 없는 VIDEO_ENGINE 값에 대한 폴백. 여기 오면 설정이 잘못된 것이므로 알린다.
+    console.warn(`  · 알 수 없는 엔진 '${config.videoEngine}' — 손그림으로 대체합니다`);
+    await renderVideo(manifest, 'AiExplainer');
   }
   console.log('  · 저장:', VIDEO_PATH);
 

@@ -14,7 +14,7 @@
  *  무시되는 옵션이 다시 생긴다.)
  */
 
-export type EngineId = 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper';
+export type EngineId = 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper' | 'handdrawn';
 
 /** 엔진과 무관하게 항상 적용되는 옵션은 여기 적지 않는다(주제·길이·모드·채널·배속). */
 export interface EngineCaps {
@@ -87,6 +87,17 @@ export const ENGINES: EngineCaps[] = [
     id: 'deck3d',
     label: '3D 기하학 도형',
     blurb: '3D 공간에 카드가 놓이고 카메라가 이동한다. 화풍·영상컷은 안 들어간다.',
+    artStyle: false,
+    broll: false,
+    level: true,
+    tone: true,
+  },
+  {
+    id: 'handdrawn',
+    label: '손그림 (종이 위 도식)',
+    blurb:
+      '종이 질감 배경 위에 손으로 그린 듯한 도식과 자막이 올라간다. 이 파이프라인의 첫 화면 스타일로, ' +
+      'AI 그림도 스톡 영상도 안 써서 이미지 비용이 0 이다.',
     artStyle: false,
     broll: false,
     level: true,
