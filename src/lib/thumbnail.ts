@@ -278,7 +278,8 @@ function buildPrompt(
     config.thumbnailFocus === 'visual'
       ? 'FINAL CHECK — COMPOSITION IS VISUAL-FIRST: a single vivid, concrete real-world SCENE or OBJECT must fill roughly 70% of the frame and be the first thing the eye lands on. ' +
         'Shoot it like a striking photograph: one clear subject, shallow depth, dramatic directional light, rich color. ' +
-        'Place the Korean title in a compact band across the BOTTOM of the frame, occupying no more than 25% of the height, in 1-2 short lines — bold and perfectly legible, but NOT filling the frame. ' +
+        'Place the Korean title in a compact band low in the frame, occupying no more than 25% of the height, in 1-2 short lines — bold and perfectly legible, but NOT filling the frame. ' +
+        'The band must NOT run the full width to the bottom-right: end the text before the rightmost 22% of the width, and keep it clear of the bottom 12% of the height. That bottom-right area stays image only — the video duration stamp is overlaid there in listings and would cover the last characters. If the title does not fit, break it into 2 lines or shorten the band rather than pushing it into that corner. ' +
         'Put a solid or gradient backing behind the title band so it stays readable over the image. ' +
         'The image must make someone curious before they read a single word.'
       : 'FINAL CHECK: the Korean title must occupy roughly 40% of the frame and be the first thing the eye lands on. If any element competes with it, remove that element.',
