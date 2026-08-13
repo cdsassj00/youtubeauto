@@ -17,6 +17,7 @@ import { captionChunks } from './components/beats.js';
 import { IsoDiagram, IsoComparison } from './components/iso.js';
 import { BulletSlide, QuoteSlide, CodeSlide } from './components/slides.js';
 import { FlatIconSlide } from './components/flatIcon.js';
+import { SceneSfx } from './components/Sfx.js';
 
 /**
  * 일러스트 영상: 씬마다 흑백 라인아트 이미지를 배경에 꽉 채워 보여주고(줌인/줌아웃),
@@ -61,6 +62,7 @@ export const AiIllustrated: React.FC<RenderManifest> = (manifest) => {
             />
           )}
           <Audio src={staticFile(scene.audioPath)} />
+          <SceneSfx scene={scene} enabled={manifest.sfx} />
         </Sequence>
       ))}
       {manifest.bgm && <BackgroundMusic src={manifest.bgm} total={manifest.totalDurationInFrames} />}

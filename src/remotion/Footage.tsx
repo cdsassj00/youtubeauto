@@ -15,6 +15,7 @@ import { captionChunks } from './components/beats.js';
 import { IsoDiagram, IsoComparison } from './components/iso.js';
 import { darkTheme } from './theme.js';
 import { MetricFigure, BarsFigure } from './components/figures.js';
+import { SceneSfx } from './components/Sfx.js';
 
 /**
  * 실사 푸티지 엔진.
@@ -64,6 +65,7 @@ export const Footage: React.FC<RenderManifest> = (manifest) => {
           />
           {scene.sourceNote && <SourceNote text={scene.sourceNote} />}
           {scene.audioPath && <Audio src={staticFile(scene.audioPath)} />}
+          <SceneSfx scene={scene} enabled={manifest.sfx} />
         </Sequence>
       ))}
       {manifest.bgm && <BackgroundMusic src={manifest.bgm} total={manifest.totalDurationInFrames} />}

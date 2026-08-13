@@ -28,6 +28,7 @@ import { buildSignalDeck } from '../lib/deckFromScript.js';
 import { researchRecentInfo } from '../lib/research.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { generateBgm, bgmStyleFromEnv } from '../lib/bgm.js';
+import { generateSfx } from '../lib/sfx.js';
 import { renderVideo } from '../lib/render.js';
 import { renderHyperVideo, assertHyperRuntime } from '../lib/hyperframes.js';
 import { generateIllustrations } from '../lib/illustrate.js';
@@ -192,6 +193,12 @@ async function stepVoice(): Promise<RenderManifest | null> {
     console.warn('  · 배경음악 생성 실패(무시, 무음 진행):', (e as Error).message);
   }
 
+  // 효과음(장면 전환 '휙' / 숫자 등장 '띵') — 배경음악과 같은 방식으로 합성한다.
+  // 실패해도 영상은 나가야 하므로 플래그만 내리고 넘어간다.
+  const sfxMade = generateSfx(AUDIO_DIR);
+  const sfx = sfxMade.length === 3;
+  console.log(sfx ? `  · 효과음 생성: ${sfxMade.join(', ')}` : '  · 효과음 생성 실패(무시, 효과음 없이 진행)');
+
   // 라이트/다크 테마를 영상 단위로 한 번 정해 매니페스트에 저장 — 코드로 그리는 발표자료/등각
   // 도식과 AI 일러스트 전체가 이 값을 그대로 따른다(매번 같은 흰 배경으로 안 보이게).
   const visualTheme = pickVisualThemeMode(script.title);
@@ -206,6 +213,7 @@ async function stepVoice(): Promise<RenderManifest | null> {
     totalDurationInFrames: startFrame,
     scenes,
     createdAt: new Date().toISOString(),
+    sfx,
     theme: visualTheme,
     bgm,
   };
