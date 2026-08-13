@@ -24,6 +24,7 @@ import {
 import { ScriptSchema, type Script, type RenderManifest, type SceneWithAudio } from '../schema.js';
 import { generateScript } from '../lib/anthropic.js';
 import { generateDeck } from '../lib/deckgen.js';
+import { buildSignalDeck } from '../lib/deckFromScript.js';
 import { researchRecentInfo } from '../lib/research.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { generateBgm, bgmStyleFromEnv } from '../lib/bgm.js';
@@ -42,8 +43,16 @@ import { pickVisualThemeMode } from '../lib/visualTheme.js';
 
 type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail' | 'rethumb' | 'setprivacy' | 'remixbgm';
 
-/** deck 기반 엔진(3D 기하학 / SIGNAL)인가 — 대본 스키마와 렌더 경로가 illustrated 와 완전히 다르다. */
-const DECK_ENGINES = ['signal', 'signal3d', 'deck3d'];
+/**
+ * 전용 대본(deck.json)을 쓰는 엔진인가.
+ *
+ * ★signal 은 여기서 빠졌다★ 이제 표준 대본(script.json)을 쓴다. 덱 형식이 따로 있으면
+ * 자막 분절·도식 4종·나레이션 생성이 전부 두 벌이 되어 한쪽만 낡는다. signal 은
+ * deckFromScript.ts 가 표준 대본을 슬라이드로 옮겨주므로 화면 스타일만 담당한다.
+ * signal3d/deck3d 는 렌더러(deck-timed.js)가 슬라이드 타입이 달라 아직 옛 경로에 남겨둔다 —
+ * 확인하지 않은 것을 옮기면 화면이 통째로 비는 쪽으로 조용히 실패한다.
+ */
+const DECK_ENGINES = ['signal3d', 'deck3d'];
 const isDeckEngine = () => DECK_ENGINES.includes(config.videoEngine);
 
 /** 업로드/썸네일이 쓰는 메타 — 엔진에 따라 script.json 또는 deck-meta.json 에서 읽는다. */
@@ -221,7 +230,7 @@ function render3dVideo(): Promise<void> {
 }
 
 /** deck 기반 엔진 렌더 — web3d-deck/narrate-deck.mjs 가 비트별 TTS + 프레임렌더 + mux 를 한다. */
-function renderDeckVideo(): Promise<void> {
+function renderDeckVideo(deckPath: string = DECK_PATH, clipsJson = ''): Promise<void> {
   const script = path.join(WEB3D_DIR, 'narrate-deck.mjs');
   // 배경음악 — deck 엔진(signal/deck3d)은 나레이션만 mux 해서 음악이 아예 없었다.
   // (illustrated 엔진만 Remotion 에서 BGM 을 깔고 있었다.) 여기서 만들어 경로를 넘긴다.
@@ -235,7 +244,7 @@ function renderDeckVideo(): Promise<void> {
     console.warn('  · 배경음악 생성 실패(무시, 음악 없이 진행):', (e as Error).message);
   }
   return new Promise((resolve, reject) => {
-    const child = spawn('node', [script, DECK_PATH, VIDEO_PATH], {
+    const child = spawn('node', [script, deckPath, VIDEO_PATH], {
       stdio: 'inherit',
       env: {
         ...process.env,
@@ -244,6 +253,9 @@ function renderDeckVideo(): Promise<void> {
         FPS: String(FPS),
         NARRATION_SPEED: String(config.narrationSpeed),
         BGM_PATH: bgmPath,
+        // 비어 있으면 렌더러가 예전처럼 자기 손으로 TTS 를 돌린다(signal3d/deck3d).
+        // 값이 있으면 2단계가 만든 mp3 를 그대로 쓴다(signal).
+        CLIPS_JSON: clipsJson,
         USAGE_PATH: path.join(OUT_DIR, 'usage.json'),
         BGM_VOLUME: process.env.BGM_VOLUME || '0.085',
         // 워크플로 변수(ELEVENLABS_VOICE_ID)가 비어 있어도 config 의 기본값이 적용되도록 명시 전달.
@@ -326,6 +338,16 @@ async function stepRender(): Promise<void> {
     const made = Object.keys(imgMap).length;
     console.log(`  · 일러스트 ${made}/${needsAiImage.length}장 완료 → Remotion 합성`);
     await renderVideo(manifest, 'AiIllustrated');
+  } else if (config.videoEngine === 'signal') {
+    // SIGNAL — 화면은 덱 렌더러가 그리지만 대본·나레이션은 표준 경로 것을 그대로 쓴다.
+    // manifest 를 슬라이드로 옮기고, 2단계가 만들어 둔 mp3 목록을 함께 넘긴다.
+    const { deck, clips } = buildSignalDeck(manifest, AUDIO_DIR);
+    const deckPath = path.join(OUT_DIR, 'deck-from-script.json');
+    const clipsPath = path.join(OUT_DIR, 'deck-clips.json');
+    await writeJson(deckPath, deck);
+    await writeJson(clipsPath, clips);
+    console.log(`  · 표준 대본 → SIGNAL 슬라이드 ${deck.slides.length}개 (나레이션 재사용)`);
+    await renderDeckVideo(deckPath, clipsPath);
   } else if (config.videoEngine === 'handdrawn') {
     // 손그림 — 이 파이프라인의 첫 화면 스타일(종이 배경 + 도식 + 자막).
     // ★한동안 아무도 고를 수 없었다★ illustrated 엔진이 생기면서 기본값이 그쪽으로 넘어갔고,

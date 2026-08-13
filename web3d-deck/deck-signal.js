@@ -215,7 +215,11 @@ const estDur = t => Math.max(2.4, String(t || '').length / 6.6 + 0.9);
 function splitCap(s) {
   s = String(s || '').trim(); if (!s) return [];
   const D = '';
-  const parts = s.replace(/([.!?])\s+/g, '$1' + D).replace(/(,)\s*/g, '$1' + D).split(D).map(x => x.trim()).filter(Boolean);
+  // 쉼표 뒤에 숫자가 오면 자르지 않는다 — 천 단위 구분자다.
+  // 예전엔 "173,717km" 가 "173," / "717km" 로 쪼개져 자막에 나갔다.
+  // (Remotion 쪽 자막은 src/remotion/components/beats.ts 에서 같은 규칙으로 고쳤다.
+  //  이 파일은 브라우저에서 도는 .js 라 그 모듈을 import 할 수 없어 규칙만 맞춰 둔다.)
+  const parts = s.replace(/([.!?])\s+/g, '$1' + D).replace(/(,)(?!\d)\s*/g, '$1' + D).split(D).map(x => x.trim()).filter(Boolean);
   const out = [];
   parts.forEach(p => { while (p.length > 30) { let cut = p.lastIndexOf(' ', 30); if (cut < 15) cut = 30; out.push(p.slice(0, cut).trim()); p = p.slice(cut).trim(); } if (p) out.push(p); });
   return out;

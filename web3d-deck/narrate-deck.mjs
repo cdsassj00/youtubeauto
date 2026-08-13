@@ -23,7 +23,12 @@ const KEY = process.env.ELEVENLABS_API_KEY, VOICE = process.env.ELEVENLABS_VOICE
 
 const [deckPath, outPath] = process.argv.slice(2);
 if (!deckPath || !outPath) { console.error('사용: node narrate-deck.mjs deck.json out.mp4'); process.exit(1); }
-if (!KEY || !VOICE) { console.error('ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID 필요'); process.exit(1); }
+// 나레이션을 미리 받아오면(CLIPS_JSON) TTS 를 안 하므로 키가 필요 없다.
+// 예전엔 무조건 요구해서, 쓰지도 않을 키가 없다고 시작도 못 하는 상황이 생겼다.
+if (!process.env.CLIPS_JSON && (!KEY || !VOICE)) {
+  console.error('ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID 필요 (CLIPS_JSON 을 주면 불필요)');
+  process.exit(1);
+}
 
 const work = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'narr-'));
 const deck = JSON.parse(fs.readFileSync(deckPath, 'utf8'));
@@ -49,7 +54,12 @@ slides.forEach((s) => {
     (s.nodes || []).forEach((n) => { if (typeof n === 'string') n = { label: n }; beats.push({ obj: n, say: n.say || n.label, spoken: n.spoken }); });
   } else beats.push({ obj: s, say: s.say || s.title || s.head || s.quote || '', spoken: s.spoken });
 });
-console.log(`비트 ${beats.length}개 · TTS(${VOICE})…`);
+// CLIPS_JSON 이면 TTS 를 안 하는데도 "TTS(undefined)" 라고 찍혀 오해를 샀다.
+console.log(
+  process.env.CLIPS_JSON
+    ? `비트 ${beats.length}개 · 나레이션 재사용…`
+    : `비트 ${beats.length}개 · TTS(${VOICE})…`,
+);
 
 // 사용량 장부 — TS 쪽 recordUsage 와 같은 파일에 이어 쓴다(여긴 .mjs 라 import 불가).
 const USAGE_PATH = process.env.USAGE_PATH || '';
@@ -68,9 +78,31 @@ function ffDuration(file) {
   return m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : null;
 }
 
-// 1) 비트별 TTS + 길이 → dur 주입
+// 1) 비트별 나레이션 확보 + 길이 → dur 주입
+//
+// ★CLIPS_JSON 이 있으면 TTS 를 돌리지 않는다★
+// 예전에는 이 렌더러가 자기 손으로 ElevenLabs 를 다시 호출했다. 파이프라인 2단계가
+// 이미 같은 일을 하고 있었으므로 같은 코드가 두 벌이었고, 배속·사용량 집계·목소리 설정을
+// 양쪽에 따로 넣어야 했다. 표준 대본으로 통일한 뒤로는 2단계가 만든 mp3 를 그대로 받는다.
+// (형식: [{ "file": "/abs/path.mp3", "dur": 8.4 }, ...] — 비트 순서와 1:1)
 const clips = [];
-for (let i = 0; i < beats.length; i++) {
+const CLIPS_JSON = (process.env.CLIPS_JSON || '').trim();
+if (CLIPS_JSON) {
+  const pre = JSON.parse(fs.readFileSync(CLIPS_JSON, 'utf8'));
+  // 개수가 어긋나면 화면 타임라인이 오디오와 안 맞아 렌더가 중간에 멈춘다.
+  // 조용히 진행하지 말고 여기서 끊는다 — 20분 렌더를 마친 뒤 발견하면 늦다.
+  if (pre.length !== beats.length) {
+    console.error(`나레이션 클립 ${pre.length}개 / 비트 ${beats.length}개 — 개수가 다릅니다`);
+    process.exit(1);
+  }
+  pre.forEach((p, i) => {
+    if (!fs.existsSync(p.file)) { console.error('클립 없음:', p.file); process.exit(1); }
+    beats[i].obj.dur = p.dur + PAD;
+    clips.push({ clip: p.file, dur: p.dur });
+  });
+  console.log(`  나레이션 ${clips.length}개 재사용(2단계 산출물, TTS 건너뜀)`);
+}
+for (let i = 0; CLIPS_JSON ? false : i < beats.length; i++) {
   const b = beats[i];
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE}`, {
     method: 'POST', headers: { 'xi-api-key': KEY, 'Content-Type': 'application/json' },
