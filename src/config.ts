@@ -179,6 +179,8 @@ export const config = {
   //  signal3d    : signal 디자인 + 3D 깊이 카메라(텍스트는 DOM 이라 선명)
   //  web3d/remotion : 구버전 엔진
   videoEngine: optional('VIDEO_ENGINE', 'illustrated').toLowerCase(),
+  /** 목록형 엔진이 쓸 자료 폴더 이름 (assets/listing/<이름>/items.json). */
+  listingSet: optional('LISTING_SET', '').trim(),
   // 나레이션 속도 배속(1=원속). 빠르게 하면 같은 시간에 더 많은 내용이 들어가므로
   // 대본 목표 글자 수도 이 비율만큼 늘려야 목표 길이가 맞는다.
   // ★배속은 말투에 따라 기본값이 다르다★

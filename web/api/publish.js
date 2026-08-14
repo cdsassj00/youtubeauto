@@ -20,6 +20,7 @@ const ENGINES = {
   deck3d: { artStyle: false, broll: false },
   hyper: { artStyle: false, broll: false },
   handdrawn: { artStyle: false, broll: false },
+  listing: { artStyle: false, broll: false },
 };
 
 export default async function handler(req, res) {
@@ -69,7 +70,7 @@ export default async function handler(req, res) {
       // 공개 상태. 리뷰 흐름은 'unlisted'(미등록)로 올려 확인 후 발행. 빈 값이면 워크플로 기본값.
       privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : '',
       // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
-      style: ['illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d', 'hyper', 'handdrawn'].includes(body.style)
+      style: ['illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d', 'hyper', 'handdrawn', 'listing'].includes(body.style)
         ? body.style
         : '',
       // 나레이션 배속(0.8~1.4). 비우면 워크플로 기본값.
@@ -82,6 +83,8 @@ export default async function handler(req, res) {
       thumb_style: THUMB_STYLES.includes(pick('thumb', 'thumb_style')) ? pick('thumb', 'thumb_style') : '',
       // 배경음악 결. 비우면 파이프라인이 말투를 보고 고른다(이야기형 warm / 설명형 lofi).
       bgm_style: ['warm', 'lofi'].includes(pick('bgm', 'bgm_style')) ? pick('bgm', 'bgm_style') : '',
+      // 목록형 엔진이 쓸 자료 폴더 이름(assets/listing/<이름>). 영문·숫자·-_ 만 허용.
+      listing_set: String(pick('listing', 'listing_set') || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 60),
     },
   };
 
@@ -90,6 +93,7 @@ export default async function handler(req, res) {
     'topic', 'mode', 'content_mode', 'level', 'content_level', 'upload', 'do_upload',
     'minutes', 'target_minutes', 'channel', 'privacy', 'style', 'speed', 'narration_speed', 'password',
     'art', 'art_style', 'tone', 'narration_tone', 'thumb', 'thumb_style', 'bgm', 'bgm_style',
+    'listing', 'listing_set',
   ]);
   const ignored = Object.keys(body).filter((k) => !KNOWN.has(k));
 
@@ -135,6 +139,7 @@ export default async function handler(req, res) {
       art_style: client_payload.opts.art_style || '(워크플로 기본값)',
       narration_tone: client_payload.opts.narration_tone || '(워크플로 기본값)',
       thumb_style: client_payload.opts.thumb_style || '(워크플로 기본값)',
+      listing_set: client_payload.opts.listing_set || '(없음)',
     },
     // 지정했지만 이 엔진에서 안 먹는 옵션을 알려준다 — 조용히 무시되면
     // 결과물을 보고도 왜 반영이 안 됐는지 알 수 없다.

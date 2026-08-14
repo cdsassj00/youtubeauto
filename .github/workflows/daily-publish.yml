@@ -33,7 +33,7 @@ on:
         required: false
         default: ''
       style:
-        description: '영상 스타일 (illustrated=2D 벡터 | scrapbook=빈티지 판화 스크랩북 | footage=실사 스톡 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D | hyper=모션 타이포 | handdrawn=손그림)'
+        description: '영상 스타일 (illustrated=2D 벡터 | scrapbook=빈티지 판화 스크랩북 | footage=실사 스톡 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D | hyper=모션 타이포 | handdrawn=손그림 | listing=목록형 사진카드)'
         required: false
         default: ''
   # 웹앱/외부에서 트리거 (client_payload 로 topic 전달)
@@ -105,6 +105,8 @@ jobs:
       THUMBNAIL_STYLE: ${{ github.event.client_payload.opts.thumb_style || vars.THUMBNAIL_STYLE || 'chalk' }}
       # 영상 엔진: illustrated(AI 흑백 일러스트) | web3d(3D 웹녹화) | remotion(손그림). 기본 illustrated.
       VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.opts.style || github.event.client_payload.style || vars.VIDEO_ENGINE || 'illustrated' }}
+      # 목록형 엔진이 쓸 자료 폴더(assets/listing/<이름>/items.json).
+      LISTING_SET: ${{ github.event.client_payload.opts.listing_set || '' }}
       # 씬 일러스트 화풍(src/lib/artStyle.ts). 'auto' 는 회차마다 날짜 기준으로 회전.
       # 기본은 isometric — 지정이 없을 때 기존 채널 그림체가 유지되도록.
       ART_STYLE: ${{ github.event.client_payload.opts.art_style || github.event.client_payload.art_style || vars.ART_STYLE || 'isometric' }}
