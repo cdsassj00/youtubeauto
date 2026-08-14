@@ -14,7 +14,7 @@
  *  무시되는 옵션이 다시 생긴다.)
  */
 
-export type EngineId = 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper' | 'handdrawn';
+export type EngineId = 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper' | 'handdrawn' | 'listing';
 
 /** 엔진과 무관하게 항상 적용되는 옵션은 여기 적지 않는다(주제·길이·모드·채널·배속). */
 export interface EngineCaps {
@@ -90,6 +90,17 @@ export const ENGINES: EngineCaps[] = [
     artStyle: false,
     broll: false,
     level: true,
+    tone: true,
+  },
+  {
+    id: 'listing',
+    label: '목록형 소개 (사진 카드)',
+    blurb:
+      '자료가 준 사진을 한 장씩 화면에 꽉 채우고 이름·위치 카드를 얹는다. "N곳 소개" 같은 목록 자료 전용. ' +
+      '사진과 사실은 자료에서 그대로 오고 나레이션 문장만 AI 가 쓴다. 스톡 영상·AI 그림을 안 쓴다.',
+    artStyle: false,
+    broll: false,
+    level: false,
     tone: true,
   },
   {

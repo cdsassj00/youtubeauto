@@ -25,6 +25,7 @@ import { ScriptSchema, type Script, type RenderManifest, type SceneWithAudio } f
 import { generateScript } from '../lib/anthropic.js';
 import { generateDeck } from '../lib/deckgen.js';
 import { buildSignalDeck } from '../lib/deckFromScript.js';
+import { loadListingSpec, stageListingPhotos, generateListingScript } from '../lib/listing.js';
 import { researchRecentInfo } from '../lib/research.js';
 import { synthesizeSpeech } from '../lib/elevenlabs.js';
 import { generateBgm, bgmStyleFromEnv } from '../lib/bgm.js';
@@ -132,6 +133,19 @@ async function stepScript(): Promise<Script> {
     console.log(`  · 제목: ${meta.title}`);
     console.log(`  · 슬라이드 수: ${deck.slides.length} (스타일: ${style})`);
     return null as unknown as Script; // deck 엔진은 Script 를 쓰지 않는다
+  }
+
+  // 목록형 — 자료(items.json)가 사실을 쥐고, Claude 는 문장만 쓴다.
+  // 일반 대본 생성기에 맡기면 자료에 없는 걸 지어내거나 있는 걸 빠뜨린다(실제로 겪었다).
+  if (config.videoEngine === 'listing') {
+    const { spec } = loadListingSpec(config.listingSet);
+    console.log(`  · 목록 자료: ${spec.title} (항목 ${spec.items.length}개)`);
+    const listingScript = await generateListingScript(spec, config.targetMinutes);
+    await writeJson(SCRIPT_PATH, listingScript);
+    await writeJson(`${OUT_DIR}/history.json`, { titles: [...recentTitles, listingScript.title] });
+    console.log(`  · 제목: ${listingScript.title}`);
+    console.log(`  · 씬 수: ${listingScript.scenes.length} (도입 + 항목 ${spec.items.length} + 마무리)`);
+    return listingScript;
   }
 
   const script = await generateScript({
@@ -356,6 +370,18 @@ async function stepRender(): Promise<void> {
     await writeJson(clipsPath, clips);
     console.log(`  · 표준 대본 → SIGNAL 슬라이드 ${deck.slides.length}개 (나레이션 재사용)`);
     await renderDeckVideo(deckPath, clipsPath);
+  } else if (config.videoEngine === 'listing') {
+    // 목록형 — 자료의 사진을 그대로 씬에 꽂는다. 스톡도 AI 그림도 부르지 않는다.
+    const { spec, dir } = loadListingSpec(config.listingSet);
+    const photos = stageListingPhotos(spec, dir);
+    // 씬 순서: [도입] + 항목 N개 + [마무리]. 그래서 항목 i 는 씬 i+1 이다.
+    manifest.scenes = manifest.scenes.map((s, i) => {
+      const p = photos.get(i - 1);
+      return p ? { ...s, imagePath: p } : s;
+    });
+    await writeJson(MANIFEST_PATH, manifest);
+    console.log(`  · 사진 ${photos.size}장 배치 → Remotion 합성`);
+    await renderVideo(manifest, 'Listing');
   } else if (config.videoEngine === 'handdrawn') {
     // 손그림 — 이 파이프라인의 첫 화면 스타일(종이 배경 + 도식 + 자막).
     // ★한동안 아무도 고를 수 없었다★ illustrated 엔진이 생기면서 기본값이 그쪽으로 넘어갔고,
