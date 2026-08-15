@@ -33,7 +33,7 @@ on:
         required: false
         default: ''
       style:
-        description: '영상 스타일 (illustrated=2D 벡터 | scrapbook=빈티지 판화 스크랩북 | footage=실사 스톡 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D | hyper=모션 타이포 | handdrawn=손그림 | listing=목록형 사진카드)'
+        description: '영상 스타일 (illustrated=2D 벡터 | scrapbook=빈티지 판화 스크랩북 | footage=실사 스톡 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D | hyper=모션 타이포 | handdrawn=손그림 | listing=목록형 사진카드 | whiteboard=화이트보드)'
         required: false
         default: ''
   # 웹앱/외부에서 트리거 (client_payload 로 topic 전달)
