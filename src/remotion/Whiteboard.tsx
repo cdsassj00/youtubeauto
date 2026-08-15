@@ -12,6 +12,7 @@ import type { RenderManifest, SceneWithAudio } from '../schema.js';
 import { captionChunks } from './components/beats.js';
 import { InkReveal, drawProgress } from './components/whiteboard.js';
 import { SceneSfx } from './components/Sfx.js';
+import { SceneVisual } from './components/Scenes.js';
 
 /**
  * 화이트보드 엔진 — 따뜻한 종이 위에 그림이 손으로 그려진다.
@@ -57,6 +58,15 @@ const Board: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   // 제목은 그림보다 먼저 손으로 쓴 것처럼 살짝 앞서 들어온다.
   const titleIn = interpolate(frame, [0, Math.round(fps * 0.5)], [0, 1], { extrapolateRight: 'clamp' });
 
+  // ★그림이 없는 씬은 손그림 도식 렌더러에 통째로 맡긴다★
+  // 예전엔 불릿 목록으로 떨어뜨렸는데, 실제 회차를 재보니 도식 13개 중 12개가
+  // diagram/comparison 이었다(k-dg9-cp3). 그 12개가 전부 글머리표 나열이 됐을 것이다.
+  // SceneVisual 은 이미 rough.js 로 선을 그려 나가는 컴포넌트라 화이트보드 결과도 맞고,
+  // 손그림 엔진과 코드를 공유하므로 한쪽만 낡을 일도 없다.
+  if (!scene.imagePath) {
+    return <SceneVisual scene={scene} dur={durationInFrames} />;
+  }
+
   return (
     <AbsoluteFill>
       <div
@@ -91,51 +101,9 @@ const Board: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
 
       {/* 그림판 — 자막 자리를 비워 두고 가운데에 크게. */}
       <div style={{ position: 'absolute', left: 180, right: 180, top: 220, bottom: 250 }}>
-        {scene.imagePath ? (
-          <InkReveal src={scene.imagePath} progress={p} />
-        ) : (
-          <BulletBoard scene={scene} progress={p} />
-        )}
+        <InkReveal src={scene.imagePath} progress={p} />
       </div>
     </AbsoluteFill>
-  );
-};
-
-/**
- * 그림이 없는 씬(도입·마무리·인용 등)은 요점을 한 줄씩 손으로 적어 나가는 것처럼 보여준다.
- * 빈 화면을 오래 두면 "그리는 영상"의 리듬이 끊긴다.
- */
-const BulletBoard: React.FC<{ scene: SceneWithAudio; progress: number }> = ({ scene, progress }) => {
-  const lines = scene.bullets.length ? scene.bullets : [scene.heading];
-  const shown = Math.ceil(progress * lines.length);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 34, justifyContent: 'center', height: '100%' }}>
-      {lines.map((b, i) => {
-        // 각 줄이 자기 차례에 왼쪽에서 밀려 들어온다.
-        const local = Math.max(0, Math.min(1, progress * lines.length - i));
-        if (i >= shown) return null;
-        return (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 22,
-              opacity: local,
-              transform: `translateX(${(1 - local) * 24}px)`,
-              fontFamily: 'Pretendard, sans-serif',
-              fontSize: 46,
-              fontWeight: 600,
-              color: INK,
-              wordBreak: 'keep-all',
-            }}
-          >
-            <span style={{ color: '#E8B21E', fontWeight: 900 }}>—</span>
-            <span>{b}</span>
-          </div>
-        );
-      })}
-    </div>
   );
 };
 
