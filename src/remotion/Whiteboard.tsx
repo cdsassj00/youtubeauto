@@ -64,7 +64,22 @@ const Board: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   // SceneVisual 은 이미 rough.js 로 선을 그려 나가는 컴포넌트라 화이트보드 결과도 맞고,
   // 손그림 엔진과 코드를 공유하므로 한쪽만 낡을 일도 없다.
   if (!scene.imagePath) {
-    return <SceneVisual scene={scene} dur={durationInFrames} />;
+    // ★도식에도 잉크 마스크와 손을 붙인다★
+    // 앞서 SceneVisual 을 그냥 그리게 했더니 도식이 "저 혼자 나타나기"만 했다.
+    // 그러면 화이트보드의 정체인 "손이 그려 나가는 것"이 그림 씬에만 붙어, 이 엔진을
+    // 고를 이유가 없어진다. 이제 도식도 같은 마스크를 통과한다.
+    //
+    // dur 을 짧게 넘기는 것이 핵심이다. SceneVisual 은 나레이션 비트에 맞춰 요소를
+    // 하나씩 등장시키는데, 그 위에 마스크까지 겹치면 "가려진 채로 나타났다가 다시
+    // 드러나는" 이중 연출이 된다. 짧은 dur 을 주면 요소가 즉시 다 그려진 상태가 되고,
+    // 등장 순서는 마스크(=손이 지나가는 순서)가 온전히 맡는다.
+    return (
+      <AbsoluteFill>
+        <InkReveal progress={p}>
+          <SceneVisual scene={scene} dur={Math.round(fps * 0.6)} />
+        </InkReveal>
+      </AbsoluteFill>
+    );
   }
 
   return (
