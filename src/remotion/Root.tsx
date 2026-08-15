@@ -5,6 +5,7 @@ import { AiIllustrated } from './Illustrated.js';
 import { Scrapbook } from './Scrapbook.js';
 import { Footage } from './Footage.js';
 import { Listing } from './Listing.js';
+import { Whiteboard } from './Whiteboard.js';
 import { FlatIconSlide, FLAT_ICON_KINDS } from './components/flatIcon.js';
 import type { RenderManifest } from '../schema.js';
 
@@ -158,6 +159,16 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="Scrapbook"
         component={Scrapbook}
+        durationInFrames={sampleManifest.totalDurationInFrames}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
+        defaultProps={sampleManifest}
+        calculateMetadata={calcMeta}
+      />
+      <Composition
+        id="Whiteboard"
+        component={Whiteboard}
         durationInFrames={sampleManifest.totalDurationInFrames}
         fps={FPS}
         width={WIDTH}

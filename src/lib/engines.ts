@@ -14,7 +14,7 @@
  *  무시되는 옵션이 다시 생긴다.)
  */
 
-export type EngineId = 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper' | 'handdrawn' | 'listing';
+export type EngineId = 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper' | 'handdrawn' | 'listing' | 'whiteboard';
 
 /** 엔진과 무관하게 항상 적용되는 옵션은 여기 적지 않는다(주제·길이·모드·채널·배속). */
 export interface EngineCaps {
@@ -88,6 +88,17 @@ export const ENGINES: EngineCaps[] = [
     label: '3D 기하학 도형',
     blurb: '3D 공간에 카드가 놓이고 카메라가 이동한다. 화풍·영상컷은 안 들어간다.',
     artStyle: false,
+    broll: false,
+    level: true,
+    tone: true,
+  },
+  {
+    id: 'whiteboard',
+    label: '화이트보드 (손으로 그려지는 그림)',
+    blurb:
+      '따뜻한 종이 위에 그림이 손으로 그려지듯 한 획씩 드러난다. 화풍을 고를 수 있고(그림을 AI 가 그린다), ' +
+      '설명형 개념 영상에 잘 맞는다. 기법은 geeklee/srt-whiteboard-animation(MIT)에서 가져왔다.',
+    artStyle: true,
     broll: false,
     level: true,
     tone: true,

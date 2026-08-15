@@ -334,7 +334,7 @@ async function stepRender(): Promise<void> {
     await writeJson(MANIFEST_PATH, manifest);
     console.log(`  · 컷아웃 ${Object.keys(cutMap).length}/${needsArt.length}장 완료 → Remotion 합성`);
     await renderVideo(manifest, 'Scrapbook');
-  } else if (config.videoEngine === 'illustrated') {
+  } else if (config.videoEngine === 'illustrated' || config.videoEngine === 'whiteboard') {
     // diagram/comparison/bullets/quote 씬은 AI 그림 대신 코드로 그린 등각 모션 그래픽·발표자료
     // 슬라이드로 렌더하므로(Illustrated.tsx 의 IsoDiagram/IsoComparison/BulletSlide/QuoteSlide 참고)
     // AI 일러스트 생성을 건너뛰어 비용을 아끼고, 영상 전체가 AI 그림 한 가지로만 도배되는 걸 막는다.
@@ -359,7 +359,9 @@ async function stepRender(): Promise<void> {
     await writeJson(MANIFEST_PATH, manifest); // imagePath 반영 저장(재실행 대비)
     const made = Object.keys(imgMap).length;
     console.log(`  · 일러스트 ${made}/${needsAiImage.length}장 완료 → Remotion 합성`);
-    await renderVideo(manifest, 'AiIllustrated');
+    // 화이트보드는 같은 그림을 쓰되 화면에서 '그려지는' 연출만 다르다.
+    // 그림 생성 단계를 공유하므로 비용은 illustrated 와 같다.
+    await renderVideo(manifest, config.videoEngine === 'whiteboard' ? 'Whiteboard' : 'AiIllustrated');
   } else if (config.videoEngine === 'signal') {
     // SIGNAL — 화면은 덱 렌더러가 그리지만 대본·나레이션은 표준 경로 것을 그대로 쓴다.
     // manifest 를 슬라이드로 옮기고, 2단계가 만들어 둔 mp3 목록을 함께 넘긴다.
