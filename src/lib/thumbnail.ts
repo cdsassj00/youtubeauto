@@ -83,7 +83,21 @@ export async function generateThumbnail(params: {
   recordUsage({ kind: 'openai-image', step: 'thumbnail', model: config.openaiImageModel, images: 1 });
 
   // 16:9 (1280x720) 로 크롭·리사이즈.
-  await sharp(Buffer.from(b64, 'base64')).resize(W, H, { fit: 'cover', position: 'centre' }).png().toFile(outPath);
+  //
+  // ★PNG 가 아니라 JPEG 로 쓴다★ 유튜브 썸네일 상한은 2MB 다. 칠판처럼 매끈한 그림은
+  // PNG 로도 들어가지만, 종이 질감처럼 잔무늬가 많으면 같은 1280x720 인데도 그 선을
+  // 넘어 업로드가 통째로 거부된다(실제로 겪었다 — "The provided image content is invalid").
+  // 화질 차이는 사실상 없다: 유튜브는 어차피 받은 이미지를 JPEG 으로 다시 굽는다.
+  const cropped = sharp(Buffer.from(b64, 'base64')).resize(W, H, { fit: 'cover', position: 'centre' });
+  let buf = await cropped.clone().jpeg({ quality: 90, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
+  // 재본 최악값이 1.4MB 라 q90 으로 넘칠 일은 사실상 없지만, 넘으면 조용히 거부당하는
+  // 대신 화질을 조금 내려서라도 반드시 들어가게 한다.
+  if (buf.length > 1.8 * 1024 * 1024) {
+    buf = await cropped.clone().jpeg({ quality: 80, mozjpeg: true }).toBuffer();
+    console.log('  · 썸네일이 커서 화질을 낮춰 다시 인코딩했습니다');
+  }
+  await fsp.writeFile(outPath, buf);
+  console.log(`  · 썸네일 파일: ${(buf.length / 1024).toFixed(0)}KB (유튜브 상한 2048KB)`);
   return true;
 }
 

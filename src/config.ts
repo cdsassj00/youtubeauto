@@ -14,7 +14,11 @@ export const AUDIO_DIR = path.join(PUBLIC_DIR, 'audio');
 export const SCRIPT_PATH = path.join(OUT_DIR, 'script.json');
 export const MANIFEST_PATH = path.join(OUT_DIR, 'manifest.json');
 export const VIDEO_PATH = path.join(OUT_DIR, 'video.mp4');
-export const THUMBNAIL_PATH = path.join(OUT_DIR, 'thumbnail.png');
+// ★JPEG 다★ 예전엔 PNG 였는데, 유튜브 썸네일은 2MB 가 상한이고 종이 질감처럼
+// 잔무늬가 많은 그림은 1280x720 PNG 로도 그 선을 넘는다. 실제로 '크림 종이' 스타일
+// 회차에서 업로드가 "The provided image content is invalid" 로 거부됐다(BAnnxcEovCU).
+// JPEG 은 같은 그림이 수백 KB 라 내용에 상관없이 안전하다.
+export const THUMBNAIL_PATH = path.join(OUT_DIR, 'thumbnail.jpg');
 // 업로드 결과(videoId·공개상태 등) — "업로드 전 리뷰" 흐름에서 웹앱이 읽어 미리보기/발행 제어에 씀.
 export const UPLOAD_RESULT_PATH = path.join(OUT_DIR, 'upload-result.json');
 // deck 기반 엔진(signal / deck3d)용 산출물 — 슬라이드 데이터와 업로드 메타(제목·설명·태그).

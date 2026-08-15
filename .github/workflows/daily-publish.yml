@@ -183,7 +183,7 @@ jobs:
           name: video-output
           path: |
             out/video.mp4
-            out/thumbnail.png
+            out/thumbnail.jpg
             out/script.json
             out/manifest.json
             out/deck.json
