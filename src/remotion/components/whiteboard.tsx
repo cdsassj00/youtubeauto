@@ -24,7 +24,10 @@ import { Img, staticFile, interpolate } from 'remotion';
 const BANDS = 9;
 
 export interface InkRevealProps {
-  src: string;
+  /** 그릴 이미지. children 을 주면 그쪽이 우선한다. */
+  src?: string;
+  /** 이미지 대신 그릴 것 — 코드로 그리는 도식을 그대로 넣을 수 있다. */
+  children?: React.ReactNode;
   /** 0~1. 이 값이 1 이 되면 그림이 다 그려진 상태다. */
   progress: number;
   /** 손을 그릴지 — 다 그린 뒤에는 치운다. */
@@ -45,29 +48,31 @@ function frontier(progress: number) {
   return { band, q, leftToRight, x, yTop, yBottom, done: p >= 1 };
 }
 
-export const InkReveal: React.FC<InkRevealProps> = ({ src, progress, showHand = true }) => {
+export const InkReveal: React.FC<InkRevealProps> = ({ src, progress, showHand = true, children }) => {
   const f = frontier(progress);
-  const pct = (v: number) => `${(v * 100).toFixed(3)}%`;
 
-  // 다 그린 띠들 — 위에서부터 현재 띠 시작선까지 통째로 보인다.
-  const doneClip = `inset(0 0 ${pct(1 - f.yTop)} 0)`;
-  // 지금 그리는 띠 — 세로는 이 띠로 묶고, 가로만 진행 방향으로 연다.
-  const bandClip = f.leftToRight
-    ? `inset(${pct(f.yTop)} ${pct(1 - f.q)} ${pct(1 - f.yBottom)} 0)`
-    : `inset(${pct(f.yTop)} 0 ${pct(1 - f.yBottom)} ${pct(1 - f.q)})`;
+  // ★클립을 한 겹으로 만든다★
+  // 처음엔 "다 그린 띠"와 "지금 그리는 띠"를 두 겹으로 겹쳐 그렸는데, 그러면 내용물을
+  // 두 번 렌더해야 한다. 이미지는 싸지만 도식(rough.js)은 매 프레임 경로를 새로 만들어
+  // 비용이 두 배가 된다. 계단 모양 다각형 하나면 한 겹으로 같은 결과가 나온다.
+  const P = (v: number) => `${(v * 100).toFixed(3)}%`;
+  const yT = P(f.yTop);
+  const yB = P(f.yBottom);
+  const clip = f.done
+    ? undefined
+    : f.leftToRight
+      // 위쪽은 전부 + 현재 띠는 왼쪽에서 q 까지
+      ? `polygon(0% 0%, 100% 0%, 100% ${yT}, ${P(f.q)} ${yT}, ${P(f.q)} ${yB}, 0% ${yB})`
+      // 위쪽은 전부 + 현재 띠는 오른쪽에서 q 만큼
+      : `polygon(0% 0%, 100% 0%, 100% ${yB}, ${P(1 - f.q)} ${yB}, ${P(1 - f.q)} ${yT}, 0% ${yT})`;
 
-  const imgStyle: React.CSSProperties = {
-    position: 'absolute',
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
-  };
+  const fill: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%' };
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      <Img src={staticFile(src)} style={{ ...imgStyle, clipPath: doneClip }} />
-      {!f.done && <Img src={staticFile(src)} style={{ ...imgStyle, clipPath: bandClip }} />}
+      <div style={{ ...fill, clipPath: clip }}>
+        {children ?? (src ? <Img src={staticFile(src)} style={{ ...fill, objectFit: 'contain' }} /> : null)}
+      </div>
       {showHand && !f.done && <DrawingHand xRatio={f.x} yRatio={(f.yTop + f.yBottom) / 2} />}
     </div>
   );
