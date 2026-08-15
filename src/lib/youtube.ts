@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import { google } from 'googleapis';
 import { config } from '../config.js';
 import type { Script } from '../schema.js';
@@ -79,11 +80,25 @@ export async function uploadVideo(params: {
   return videoId;
 }
 
+/** 유튜브 썸네일 파일 상한. 넘으면 업로드가 통째로 거부된다. */
+const THUMB_MAX_BYTES = 2 * 1024 * 1024;
+
 /** 이미 올라간 영상의 썸네일만 새 이미지로 교체한다 (rethumb 파이프라인 단계용). */
 export async function setThumbnail(videoId: string, thumbnailPath: string): Promise<void> {
+  // ★거부되기 전에 여기서 걸러 이유를 말한다★
+  // 유튜브가 상한을 넘긴 파일에 돌려주는 말은 "The provided image content is invalid" 로,
+  // 파일이 깨진 것인지 큰 것인지 구분이 안 된다. 실제로 그 메시지만 보고는 원인을
+  // 찾을 수 없었다(BAnnxcEovCU). 크기를 먼저 재서 숫자로 알려준다.
+  const bytes = (await fsp.stat(thumbnailPath)).size;
+  const kb = (n: number) => `${(n / 1024).toFixed(0)}KB`;
+  if (bytes > THUMB_MAX_BYTES) {
+    throw new Error(`썸네일이 유튜브 상한을 넘었습니다 — ${kb(bytes)} > ${kb(THUMB_MAX_BYTES)} (${thumbnailPath})`);
+  }
+  const mimeType = thumbnailPath.endsWith('.png') ? 'image/png' : 'image/jpeg';
   const auth = createOAuthClient();
   const youtube = google.youtube({ version: 'v3', auth });
-  await youtube.thumbnails.set({ videoId, media: { body: fs.createReadStream(thumbnailPath) } });
+  await youtube.thumbnails.set({ videoId, media: { mimeType, body: fs.createReadStream(thumbnailPath) } });
+  console.log(`  · 썸네일 설정 완료 (${kb(bytes)}, ${mimeType})`);
 }
 
 /**

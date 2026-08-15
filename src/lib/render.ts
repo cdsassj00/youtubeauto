@@ -58,6 +58,9 @@ export async function renderVideo(manifest: RenderManifest, compositionId = 'AiE
       composition,
       serveUrl,
       output: THUMBNAIL_PATH,
+      // 확장자에서 유추되긴 하지만 명시해 둔다 — 경로가 바뀌어도 형식이 따라 흔들리지 않게.
+      imageFormat: 'jpeg',
+      jpegQuality: 90,
       frame: Math.min(45, composition.durationInFrames - 1),
       inputProps: manifest,
     });
