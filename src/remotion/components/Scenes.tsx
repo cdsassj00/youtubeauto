@@ -3,7 +3,7 @@ import { AbsoluteFill, useCurrentFrame, interpolate, Easing } from 'remotion';
 import type { Scene } from '../../schema.js';
 import { theme, nodeColors } from '../theme.js';
 import { Heading, usePopIn, useDrawProgress } from './Layout.js';
-import { RoughBox, RoughEllipse, RoughArrow } from './Rough.js';
+import { RoughBox, RoughEllipse, RoughArrow, RoughLine } from './Rough.js';
 import { revealFrames, activeIndex } from './beats.js';
 
 /**
@@ -23,10 +23,111 @@ export const SceneVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, du
       return <QuoteVisual scene={scene} />;
     case 'outro':
       return <OutroVisual scene={scene} dur={dur} />;
+    case 'metric':
+      // ★metric/bars 는 나중에 추가된 도식이라 여기 없었다★ default 로 떨어져
+      // 불릿 화면으로 렌더됐고, 숫자가 통째로 사라졌다(빈 화면에 가까웠다).
+      return scene.metric?.value ? <MetricVisual scene={scene} dur={dur} /> : <BulletsVisual scene={scene} dur={dur} />;
+    case 'bars':
+      return scene.bars?.items?.length ? <BarsVisual scene={scene} dur={dur} /> : <BulletsVisual scene={scene} dur={dur} />;
     case 'bullets':
     default:
       return <BulletsVisual scene={scene} dur={dur} />;
   }
+};
+
+/**
+ * 큰 숫자 하나 — 손으로 크게 쓴 것처럼. 상자·화살표 없이 숫자가 화면의 주인공이다.
+ * 자릿수가 많으면 글자를 줄여 화면 밖으로 안 나가게 한다.
+ */
+const MetricVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, dur }) => {
+  const frame = useCurrentFrame();
+  const f = useFloat(7, 6, 0.6);
+  const value = scene.metric?.value ?? '';
+  // 등장은 나레이션 첫 문장에 맞춘다 — 말보다 먼저 튀어나오면 김이 샌다.
+  const [at] = revealFrames(scene.narration, dur, 1, { head: 0.08, tail: 0.5 });
+  const pop = interpolate(frame, [at, at + 18], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const size = value.length > 10 ? 150 : value.length > 6 ? 200 : 260;
+  const underline = interpolate(frame, [at + 14, at + 40], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+
+  return (
+    <AbsoluteFill>
+      <Heading text={scene.heading} />
+      <div style={{ position: 'absolute', top: 300, left: 160, right: 160, transform: `translateY(${f.y}px)` }}>
+        <div
+          style={{
+            fontSize: size,
+            fontWeight: 800,
+            color: theme.accent,
+            letterSpacing: '-.04em',
+            lineHeight: 1.05,
+            opacity: pop,
+            transform: `scale(${0.9 + pop * 0.1})`,
+            transformOrigin: 'left center',
+          }}
+        >
+          {value}
+        </div>
+        {/* 숫자 밑에 손으로 그은 밑줄 — 강조가 손그림 결을 유지하게 */}
+        <svg width="900" height="26" style={{ display: 'block', marginTop: 6 }}>
+          <RoughLine x1={4} y1={14} x2={4 + 880 * underline} y2={16} stroke={theme.accent} strokeWidth={6} seed={7} />
+        </svg>
+        {scene.metric?.label && (
+          <div style={{ marginTop: 18, fontSize: 44, color: theme.ink, opacity: pop }}>{scene.metric.label}</div>
+        )}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/** 막대 비교 — 길이로 크기 차이를 보여준다. 막대도 손으로 그린 상자로 그린다. */
+const BarsVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, dur }) => {
+  const frame = useCurrentFrame();
+  const items = (scene.bars?.items ?? []).slice(0, 5);
+  const unit = scene.bars?.unit ?? '';
+  // 최댓값이 0 이면 나눗셈이 NaN 이 되어 막대가 통째로 사라진다.
+  const max = Math.max(...items.map((i) => Number(i.value) || 0), 1);
+  const revealAt = revealFrames(scene.narration, dur, items.length, { head: 0.1, tail: 0.76 });
+  const TRACK = 900;
+
+  return (
+    <AbsoluteFill>
+      <Heading text={scene.heading} />
+      <div style={{ position: 'absolute', top: 300, left: 160, right: 120 }}>
+        {items.map((it, i) => {
+          const start = revealAt[i];
+          const grow = interpolate(frame, [start, start + 26], [0, 1], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          });
+          const w = Math.max(8, (Number(it.value) / max) * TRACK) * grow;
+          const top = Number(it.value) >= max;
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 26 }}>
+              <div style={{ width: 300, fontSize: 38, color: theme.ink, opacity: grow > 0 ? 1 : 0 }}>{it.label}</div>
+              <svg width={TRACK + 10} height="62">
+                <RoughBox
+                  x={4}
+                  y={8}
+                  width={Math.max(8, w)}
+                  height={44}
+                  progress={1}
+                  stroke={top ? theme.accent : theme.ink}
+                  fill={top ? theme.accent : undefined}
+                  fillStyle="hachure"
+                  strokeWidth={3}
+                  seed={i + 3}
+                />
+              </svg>
+              <div style={{ width: 190, fontSize: 38, fontWeight: 700, color: theme.ink, opacity: grow }}>
+                {it.value}
+                {unit}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
 };
 
 /** 아주 느린 상시 부유(浮遊) — 화면이 절대 완전히 멈추지 않게. */
