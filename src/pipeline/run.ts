@@ -353,9 +353,17 @@ async function stepRender(): Promise<void> {
     console.log(`  · 씬별 흑백 일러스트 생성 중... (${needsAiImage.length}/${manifest.scenes.length}, 도식/비교/불릿/인용/아이콘 씬은 코드 렌더링으로 대체)`);
     // manifest.theme(다크로 정해졌으면) 에 맞춰 AI 일러스트도 색을 반전해, title/outro 씬만
     // 흰 배경으로 튀지 않고 영상 전체가 한 톤으로 보이게 한다.
-    const imgMap = await generateIllustrations(needsAiImage, manifest.theme === 'dark');
+    // ★화이트보드는 예외★ 배경이 종이색(#F4EDE0)으로 못박혀 있어서, 테마 추첨이 dark 로
+    // 떨어지면 흰선/검은바탕 그림이 베이지 종이 위에 검은 사각형으로 얹힌다. 종이 위에
+    // 그리는 엔진이므로 그림도 항상 밝은 쪽이어야 한다.
+    const isWhiteboard = config.videoEngine === 'whiteboard';
+    const imgMap = await generateIllustrations(needsAiImage, !isWhiteboard && manifest.theme === 'dark');
     manifest.scenes = manifest.scenes.map((s) => ({ ...s, imagePath: imgMap[s.id] }));
-    await attachBroll(manifest);
+    // ★B롤은 illustrated 전용★ engines.ts 에서 화이트보드는 broll:false 인데 여기서는
+    // 엔진을 안 보고 붙이고 있었다. Whiteboard.tsx 는 scene.broll 을 읽지 않으니 화면에는
+    // 안 나오지만, 붙은 클립이 영상 설명의 Pexels 출처 표기에 그대로 들어가 "화면에 없는
+    // 소재를 출처로 밝히는" 설명이 만들어진다.
+    if (!isWhiteboard) await attachBroll(manifest);
     await writeJson(MANIFEST_PATH, manifest); // imagePath 반영 저장(재실행 대비)
     const made = Object.keys(imgMap).length;
     console.log(`  · 일러스트 ${made}/${needsAiImage.length}장 완료 → Remotion 합성`);
