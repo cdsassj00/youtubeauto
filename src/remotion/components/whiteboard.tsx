@@ -68,9 +68,19 @@ export const InkReveal: React.FC<InkRevealProps> = ({ src, progress, showHand = 
 
   const fill: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%' };
 
+  // ★흰 배경을 종이에 녹인다★
+  // AI 그림은 흰 바탕으로 생성되는데 이 엔진의 배경은 종이색이다. 그대로 얹으면
+  // 그려질수록 베이지 종이 위에 흰 종이가 펼쳐지는 꼴이 된다(첫 회차에서 실제로 그랬다).
+  // 곱하기 블렌드를 걸면 흰색은 배경을 그대로 통과시키고 선만 남는다.
+  //
+  // ★반드시 이 클립 레이어에 걸어야 한다★ img 에 걸면 아무 효과가 없다 —
+  // clip-path 가 쌓임 맥락(stacking context)을 만들어 블렌드가 바깥 종이까지 닿지 못한다.
+  // 브라우저에서 네 경우를 그려 확인했다. 도식(children)은 배경이 이미 투명하므로 그대로 둔다.
+  const blend: React.CSSProperties = children ? {} : { mixBlendMode: 'multiply' };
+
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      <div style={{ ...fill, clipPath: clip }}>
+      <div style={{ ...fill, clipPath: clip, ...blend }}>
         {children ?? (src ? <Img src={staticFile(src)} style={{ ...fill, objectFit: 'contain' }} /> : null)}
       </div>
       {showHand && !f.done && <DrawingHand xRatio={f.x} yRatio={(f.yTop + f.yBottom) / 2} />}
