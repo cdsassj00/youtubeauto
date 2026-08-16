@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import { config, PRESENTER_IMAGE_PATH } from '../config.js';
 import { recordUsage } from './usage.js';
 import { resolveThumbStyle, type ThumbStyle } from './thumbStyle.js';
+import { compositeStrip, type StripSpec } from './seriesStrip.js';
 
 const W = 1280;
 const H = 720;
@@ -29,8 +30,13 @@ export async function generateThumbnail(params: {
   outPath: string;
   /** 파격 모드 — 사건형/충격 트렌드 뉴스일 때 긴장감 있는 강렬한 구도로. (기초 영상은 false 로 차분하게.) */
   dramatic?: boolean;
+  /**
+   * 시리즈 띠 — 여러 편짜리 시리즈에서 왼쪽 아래에 고정으로 얹는 라벨(회차 번호 + 공통 문구).
+   * 그림 모델이 아니라 코드가 그리므로 편마다 픽셀 단위로 똑같다. 켜면 모델 배지는 끈다.
+   */
+  seriesStrip?: StripSpec;
 }): Promise<boolean> {
-  const { title, topic, headline, badge, productIcons, outPath, dramatic = false } = params;
+  const { title, topic, headline, badge, productIcons, outPath, dramatic = false, seriesStrip } = params;
   const apiKey = config.openaiApiKey;
   if (!apiKey) return false;
 
@@ -51,7 +57,10 @@ export async function generateThumbnail(params: {
   // 스타일 프리셋(배경·글씨체·액센트 한 벌). 'auto' 면 회차마다 날짜 기준으로 회전한다.
   const thumbStyle = resolveThumbStyle(config.thumbnailStyle);
   console.log(`  · 썸네일 스타일: ${thumbStyle.label} / 인물 ${variation.mirror ? '좌' : '우'}측 배치`);
-  const prompt = buildPrompt(headline?.trim() || title, topic, title, thumbStyle, Boolean(presenter), variation, dramatic, badge?.trim() || '', productIcons?.trim() || '');
+  // 시리즈 띠를 코드로 얹는 회차는 모델 배지를 끈다 — 같은 구실을 하는 글자 덩어리가
+  // 둘이면 서로 싸우고, 모델이 그려야 할 한글이 줄수록 큰 제목의 철자가 정확해진다.
+  const modelBadge = seriesStrip ? '' : badge?.trim() || '';
+  const prompt = buildPrompt(headline?.trim() || title, topic, title, thumbStyle, Boolean(presenter), variation, dramatic, modelBadge, productIcons?.trim() || '', Boolean(seriesStrip));
 
   let b64: string | undefined;
   if (presenter) {
@@ -88,7 +97,16 @@ export async function generateThumbnail(params: {
   // PNG 로도 들어가지만, 종이 질감처럼 잔무늬가 많으면 같은 1280x720 인데도 그 선을
   // 넘어 업로드가 통째로 거부된다(실제로 겪었다 — "The provided image content is invalid").
   // 화질 차이는 사실상 없다: 유튜브는 어차피 받은 이미지를 JPEG 으로 다시 굽는다.
-  const cropped = sharp(Buffer.from(b64, 'base64')).resize(W, H, { fit: 'cover', position: 'centre' });
+  const resized = sharp(Buffer.from(b64, 'base64')).resize(W, H, { fit: 'cover', position: 'centre' });
+  let cropped = resized;
+  if (seriesStrip) {
+    // ★크롭 뒤에 얹는다★ 먼저 얹으면 cover 크롭이 띠를 함께 잘라낸다.
+    // 한 번 PNG 로 구워서 다시 물리는 것은, composite 이 걸린 파이프라인을 clone() 하면
+    // 아래 재인코딩 분기에서 띠가 두 번 얹히기 때문이다.
+    const stamped = await compositeStrip(resized, seriesStrip, W, H);
+    cropped = sharp(await stamped.png().toBuffer());
+    console.log(`  · 시리즈 띠: [${String(seriesStrip.order).padStart(2, '0')}] ${seriesStrip.label}`);
+  }
   let buf = await cropped.clone().jpeg({ quality: 90, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
   // 재본 최악값이 1.4MB 라 q90 으로 넘칠 일은 사실상 없지만, 넘으면 조용히 거부당하는
   // 대신 화질을 조금 내려서라도 반드시 들어가게 한다.
@@ -214,6 +232,7 @@ function buildPrompt(
   dramatic: boolean,
   badge: string,
   productIcons: string,
+  reserveStripZone: boolean,
 ): string {
   const layout = variation.layout;
   // 배경·글씨체·액센트는 스타일 프리셋이 한 벌로 정한다(src/lib/thumbStyle.ts).
@@ -276,6 +295,13 @@ function buildPrompt(
     // 오른쪽 아래 모서리는 아예 비워 두게 한다.
     'Keep ALL text fully inside the frame with a generous safe margin of at least 5% of the frame width from every edge — being merely "not cut off" is NOT enough; text crowding an edge looks cramped.',
     'The video duration stamp is overlaid in the BOTTOM-RIGHT corner in listings, so keep that zone clear: no letters inside the rightmost 20% of the width within the bottom 14% of the height. If a line of the title runs along the bottom, END IT BEFORE that zone instead of extending it to the right edge — shorten or re-break the line rather than letting it reach the corner.',
+    // 시리즈 띠는 나중에 코드가 왼쪽 아래에 정확히 얹는다. 모델은 그 자리를 모르므로
+    // 여기서 비워두라고 못박지 않으면 제목이나 인물이 그 밑에 깔려 띠가 지저분해진다.
+    // 띠는 폭 37%·높이 하단 15% 안에 들어가지만, 그림 모델은 경계를 정확히 못 지키므로
+    // 넉넉히 45%/22% 로 잡는다.
+    reserveStripZone
+      ? 'RESERVED ZONE — LEAVE IT EMPTY: the BOTTOM-LEFT area (the leftmost 45% of the width within the bottom 22% of the height) must contain NOTHING — no text, no symbol, no part of the person, no icon. Keep it as plain, uncluttered background only (a series label is composited there afterwards). Shift the title upward and re-break its lines if needed so that no letter enters this zone.'
+      : '',
     // 문구를 8~14자로 짧게 쓰게 하는 대신, "무엇에 대한 영상인지"는 이 작은 배지가 책임진다.
     badge && !productIcons
       ? `In the ${layout.badge} corner, add ONE small flat rectangular badge (about 1/8 of the frame width) filled with ${dramatic ? 'red (#e03131)' : style.badgeColor}, containing ONLY this short text in clean white letters, spelled exactly: "${badge}". Keep it small and secondary — it must never compete with or overlap the big title or the person.`

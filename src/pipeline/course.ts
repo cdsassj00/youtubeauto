@@ -14,6 +14,7 @@ import { OUT_DIR, THUMBNAIL_PATH, config } from '../config.js';
 import { downloadDriveFile } from '../lib/drive.js';
 import { generateCourseMeta } from '../lib/courseMeta.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
+import { groupAccent, type StripSpec } from '../lib/seriesStrip.js';
 import { uploadVideo, uploadCaption, ensurePlaylist, addToPlaylist, updateVideoMeta, setThumbnail } from '../lib/youtube.js';
 import { printUsage } from '../lib/usage.js';
 
@@ -68,6 +69,19 @@ async function main(): Promise<void> {
   // 설명 맨 위에 후킹 한 줄을 얹는다 — 검색 결과와 추천 카드에서 앞부분만 보이기 때문이다.
   const description = `${hook} · ${hookSub}\n\n${body}`;
 
+  // ★썸네일에서 큰 글씨와 시리즈 표식의 역할★
+  //
+  // 처음엔 거꾸로였다: 큰 글씨에 시리즈 공통 후킹("돈 주고도 못 듣는 강의")을 넣고,
+  // 이번 편 문구는 구석 배지로 밀어 놨다. 한 편만 보면 세 보이지만 40편을 목록에 세우면
+  // 제일 큰 글씨가 40장 모두 똑같아서 어느 것을 눌러야 할지 알 수 없다 — 시리즈로 보이는
+  // 대신 그냥 중복으로 보인다.
+  //
+  // 그래서 뒤집었다.
+  //  · 큰 글씨 = 이 회차만의 문구. 무엇을 눌러야 할지를 정하는 건 이쪽이다.
+  //  · 시리즈 표식 = 왼쪽 아래 고정 띠(회차 번호 + 공통 문구). 자리·모양·색이 매 편
+  //    똑같아서 눈이 하나의 표식으로 학습한다. 색은 일차별로 나눠 목록에 구획을 만든다.
+  const strip: StripSpec = { label: hook, order, accent: groupAccent(moduleLabel, order) };
+
   const metaOut = {
     moduleLabel,
     title: fullTitle,
@@ -76,6 +90,7 @@ async function main(): Promise<void> {
     chapters,
     thumbnailHeadline: meta.thumbnailHeadline,
     thumbnailHook: hook,
+    seriesStrip: strip,
     thumbnailBadge: meta.thumbnailBadge,
     srtCues: parsed.cues.length,
     durationSec: Math.round(parsed.durationSec),
@@ -86,7 +101,7 @@ async function main(): Promise<void> {
   console.log(`제목: ${fullTitle}`);
   console.log(`길이: ${Math.round(parsed.durationSec / 60)}분 · 자막 ${parsed.cues.length}줄`);
   console.log(`태그: ${meta.tags.join(', ')}`);
-  console.log(`썸네일: 큰 문구 "${hook}" / 회차 문구 "${meta.thumbnailHeadline}" / 배지 ${meta.thumbnailBadge}`);
+  console.log(`썸네일: 큰 글씨 "${meta.thumbnailHeadline}" / 시리즈 띠 [${String(order).padStart(2, '0')}] ${hook} (${strip.accent})`);
   console.log(`\n${description}\n────────────────────────────────────\n`);
 
   if (dryRun) {
@@ -101,8 +116,8 @@ async function main(): Promise<void> {
     const ok = await generateThumbnail({
       title: fullTitle,
       topic: `${courseName} — ${topic}`,
-      headline: hook,
-      badge: `${seriesTitle} ${order ? `[${order}]` : ''} · ${meta.thumbnailHeadline}`.trim(),
+      headline: meta.thumbnailHeadline,
+      seriesStrip: strip,
       outPath: THUMBNAIL_PATH,
     });
     if (ok) await setThumbnail(updateVideoId, THUMBNAIL_PATH);
@@ -119,9 +134,9 @@ async function main(): Promise<void> {
   const madeThumb = await generateThumbnail({
     title: fullTitle,
     topic: `${courseName} — ${topic}`,
-    // 큰 글씨는 시리즈 공통 후킹, 배지에 회차와 이번 편 문구를 넣는다.
-    headline: hook,
-    badge: `${seriesTitle} ${order ? `[${order}]` : ''} · ${meta.thumbnailHeadline}`.trim(),
+    // 큰 글씨는 이 회차만의 문구, 시리즈 표식은 코드가 얹는 왼쪽 아래 띠가 맡는다(위 설명 참고).
+    headline: meta.thumbnailHeadline,
+    seriesStrip: strip,
     outPath: THUMBNAIL_PATH,
   });
   console.log(madeThumb ? '  · 완료' : '  · 건너뜀(OPENAI_API_KEY 없음)');
