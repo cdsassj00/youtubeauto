@@ -120,3 +120,79 @@ export async function setPrivacy(videoId: string, privacyStatus: 'public' | 'unl
     },
   });
 }
+
+// ── 직접 만든 강의 영상 업로드용 ────────────────────────────────────────────
+// 자막 트랙과 재생목록은 자동 생성 파이프라인에는 필요 없었지만, 사람이 만든 강의를
+// 시리즈로 올릴 때는 둘 다 있어야 자료 구실을 한다.
+
+/**
+ * 이미 올라간 영상에 자막(SRT) 트랙을 붙인다.
+ *
+ * 자동 생성 자막에 기대지 않는 이유: 강의에는 고유명사·영문 용어가 많아 인식 정확도가
+ * 크게 떨어진다. 사람이 만든 자막이 이미 있으면 그것이 언제나 낫다.
+ */
+export async function uploadCaption(params: {
+  videoId: string;
+  srtPath: string;
+  /** BCP-47 언어 코드. 한국어 강의면 'ko'. */
+  language?: string;
+  /** 유튜브 자막 목록에 표시될 이름. */
+  name?: string;
+}): Promise<void> {
+  const { videoId, srtPath, language = 'ko', name = '한국어' } = params;
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  await youtube.captions.insert({
+    part: ['snippet'],
+    requestBody: { snippet: { videoId, language, name, isDraft: false } },
+    media: { mimeType: 'application/octet-stream', body: fs.createReadStream(srtPath) },
+  });
+  console.log(`  · 자막 트랙 첨부 완료 (${language})`);
+}
+
+/**
+ * 제목이 같은 재생목록을 찾고, 없으면 만든다.
+ *
+ * ★매번 새로 만들지 않는다★ 하루에 하나씩 올리는 구조라 이 함수가 회차마다 호출된다.
+ * 그냥 insert 하면 같은 이름의 재생목록이 37개 생긴다.
+ */
+export async function ensurePlaylist(params: {
+  title: string;
+  description?: string;
+  privacyStatus?: 'public' | 'unlisted' | 'private';
+}): Promise<string> {
+  const { title, description = '', privacyStatus = 'public' } = params;
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+
+  let pageToken: string | undefined;
+  do {
+    const res = await youtube.playlists.list({ part: ['snippet'], mine: true, maxResults: 50, pageToken });
+    const hit = res.data.items?.find((p) => p.snippet?.title === title);
+    if (hit?.id) {
+      console.log(`  · 재생목록 재사용: ${title}`);
+      return hit.id;
+    }
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+
+  const created = await youtube.playlists.insert({
+    part: ['snippet', 'status'],
+    requestBody: { snippet: { title, description }, status: { privacyStatus } },
+  });
+  const id = created.data.id;
+  if (!id) throw new Error('재생목록 생성에 실패했습니다.');
+  console.log(`  · 재생목록 생성: ${title}`);
+  return id;
+}
+
+/** 영상을 재생목록 맨 뒤에 넣는다. 이미 들어 있으면 중복으로 또 들어가므로 호출부가 관리한다. */
+export async function addToPlaylist(playlistId: string, videoId: string): Promise<void> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  await youtube.playlistItems.insert({
+    part: ['snippet'],
+    requestBody: { snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } } },
+  });
+  console.log('  · 재생목록에 추가 완료');
+}
