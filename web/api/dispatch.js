@@ -20,6 +20,20 @@ const EVENTS = {
   // 업로드 대상 채널 확인 — channels.list 한 번(할당량 1).
   'channel-check': (b) => ({ channel: pickChannel(b.channel) || 'ch2' }),
 
+  // 강의 영상 메타데이터 미리보기 — 자막을 읽어 제목·설명·챕터만 만들어 본다.
+  //
+  // ★여기서는 예행 모드만 허용한다★ 같은 워크플로가 dry_run=false 면 실제로 영상을
+  // 올린다. 이 파일의 규칙("돈이 들거나 되돌리기 어려운 것은 두지 않는다")을 지키려면
+  // 값을 받아 넘기면 안 되고, 여기서 true 로 못박아야 한다. 실제 업로드는 워크플로를
+  // 직접 실행해서만 되게 남겨 둔다.
+  'course-upload': (b) => ({
+    drive_srt_id: String(b.drive_srt_id || b.srtId || '').trim(),
+    drive_video_id: String(b.drive_video_id || b.videoId || '').trim(),
+    module_label: String(b.module_label || b.moduleLabel || '').slice(0, 60),
+    course_topic: String(b.course_topic || b.topic || '').slice(0, 200),
+    dry_run: 'true',
+  }),
+
   // 채널 브랜딩(배너·워터마크·설명) 적용.
   // ★채널 기본값을 두지 않는다★ 브랜딩은 덮어쓰기라 실수로 본 채널을 덮으면 되돌리기가
   // 번거롭다. 값을 안 보내면 조용히 default 로 떨어뜨리지 않고 거절한다.
