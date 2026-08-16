@@ -196,3 +196,33 @@ export async function addToPlaylist(playlistId: string, videoId: string): Promis
   });
   console.log('  · 재생목록에 추가 완료');
 }
+
+/**
+ * 이미 올라간 영상의 제목·설명·태그를 바꾼다.
+ *
+ * 영상 파일은 그대로 두고 메타데이터만 고친다. 제목 형식이나 후킹 문구를 나중에 바꿔도
+ * 수십 MB 를 다시 올릴 이유가 없다. 조회수·댓글·링크도 모두 유지된다.
+ *
+ * ★categoryId 를 반드시 함께 보낸다★ videos.update 는 snippet 을 통째로 갈아끼우는지라,
+ * 빼먹으면 카테고리가 지워졌다며 400 으로 거절한다.
+ */
+export async function updateVideoMeta(params: {
+  videoId: string;
+  title: string;
+  description: string;
+  tags: string[];
+}): Promise<void> {
+  const { videoId, title, description, tags } = params;
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  const footer = config.youtubeDescriptionFooter.replace(/\\n/g, '\n').trim();
+  const full = (footer ? `${description.trim()}\n\n${footer}` : description.trim()).slice(0, 5000);
+  await youtube.videos.update({
+    part: ['snippet'],
+    requestBody: {
+      id: videoId,
+      snippet: { title: title.slice(0, 100), description: full, tags, categoryId: config.youtubeCategoryId },
+    },
+  });
+  console.log(`  · 제목·설명 교체 완료: ${title}`);
+}
