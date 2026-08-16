@@ -33,6 +33,9 @@ export default async function handler(req, res) {
       course_order: String(body.order || body.course_order || '').replace(/[^0-9]/g, '').slice(0, 3),
       // 값이 있으면 새로 올리지 않고 그 영상의 제목·설명·썸네일만 교체한다.
       update_video_id: String(body.updateVideoId || body.update_video_id || '').slice(0, 20),
+      // 썸네일 큰 글씨를 이 회차만 직접 정할 때. 비우면 자막을 읽고 회차마다 새로 뽑는다
+      // — 40편이 같은 문구가 되면 목록에서 전부 같은 영상으로 보이므로 기본은 비움이다.
+      course_headline: String(body.headline || body.course_headline || '').slice(0, 40),
       channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
       privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : 'unlisted',
       // 여기서는 실제 업로드가 목적이므로 명시적으로 끈다.

@@ -41,6 +41,10 @@ async function main(): Promise<void> {
   // ★이미 올라간 영상 고치기★ 값이 있으면 새로 올리지 않고 그 영상의 제목·설명·썸네일만
   // 갈아끼운다. 형식을 바꿨다고 76MB 를 다시 올릴 이유가 없고, 조회수·링크도 유지된다.
   const updateVideoId = env('UPDATE_VIDEO_ID');
+  // ★이 회차만 큰 글씨를 사람이 정하고 싶을 때★ 비워 두는 것이 기본이고, 그러면 지금까지처럼
+  // 자막을 읽고 모델이 회차마다 새로 뽑는다. 40편이 같은 문구가 되면 안 되므로 이 값은
+  // 회차별로 넘기는 일회용이지 시리즈 공통 설정이 아니다(시리즈 공통 문구는 COURSE_HOOK 이다).
+  const headlineOverride = env('COURSE_HEADLINE');
 
   if (!srtFileId) throw new Error('DRIVE_SRT_ID 가 필요합니다.');
   if (!dryRun && !videoFileId) throw new Error('DRIVE_VIDEO_ID 가 필요합니다.');
@@ -81,6 +85,7 @@ async function main(): Promise<void> {
   //  · 시리즈 표식 = 왼쪽 아래 고정 띠(회차 번호 + 공통 문구). 자리·모양·색이 매 편
   //    똑같아서 눈이 하나의 표식으로 학습한다. 색은 일차별로 나눠 목록에 구획을 만든다.
   const strip: StripSpec = { label: hook, order, accent: groupAccent(moduleLabel, order) };
+  const headline = headlineOverride || meta.thumbnailHeadline;
 
   const metaOut = {
     moduleLabel,
@@ -88,7 +93,7 @@ async function main(): Promise<void> {
     description,
     tags: meta.tags,
     chapters,
-    thumbnailHeadline: meta.thumbnailHeadline,
+    thumbnailHeadline: headline,
     thumbnailHook: hook,
     seriesStrip: strip,
     thumbnailBadge: meta.thumbnailBadge,
@@ -101,7 +106,7 @@ async function main(): Promise<void> {
   console.log(`제목: ${fullTitle}`);
   console.log(`길이: ${Math.round(parsed.durationSec / 60)}분 · 자막 ${parsed.cues.length}줄`);
   console.log(`태그: ${meta.tags.join(', ')}`);
-  console.log(`썸네일: 큰 글씨 "${meta.thumbnailHeadline}" / 시리즈 띠 [${String(order).padStart(2, '0')}] ${hook} (${strip.accent})`);
+  console.log(`썸네일: 큰 글씨 "${headline}"${headlineOverride ? " (지정)" : ""} / 시리즈 띠 [${String(order).padStart(2, '0')}] ${hook} (${strip.accent})`);
   console.log(`\n${description}\n────────────────────────────────────\n`);
 
   if (dryRun) {
@@ -116,7 +121,7 @@ async function main(): Promise<void> {
     const ok = await generateThumbnail({
       title: fullTitle,
       topic: `${courseName} — ${topic}`,
-      headline: meta.thumbnailHeadline,
+      headline,
       seriesStrip: strip,
       outPath: THUMBNAIL_PATH,
     });
@@ -135,7 +140,7 @@ async function main(): Promise<void> {
     title: fullTitle,
     topic: `${courseName} — ${topic}`,
     // 큰 글씨는 이 회차만의 문구, 시리즈 표식은 코드가 얹는 왼쪽 아래 띠가 맡는다(위 설명 참고).
-    headline: meta.thumbnailHeadline,
+    headline,
     seriesStrip: strip,
     outPath: THUMBNAIL_PATH,
   });
