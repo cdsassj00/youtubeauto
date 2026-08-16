@@ -30,6 +30,9 @@ export default async function handler(req, res) {
       drive_video_id: driveVideoId,
       module_label: String(body.moduleLabel || body.module_label || '').slice(0, 60),
       course_topic: String(body.topic || body.course_topic || '').slice(0, 200),
+      course_order: String(body.order || body.course_order || '').replace(/[^0-9]/g, '').slice(0, 3),
+      // 값이 있으면 새로 올리지 않고 그 영상의 제목·설명·썸네일만 교체한다.
+      update_video_id: String(body.updateVideoId || body.update_video_id || '').slice(0, 20),
       channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
       privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : 'unlisted',
       // 여기서는 실제 업로드가 목적이므로 명시적으로 끈다.

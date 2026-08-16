@@ -14,7 +14,7 @@ import { OUT_DIR, THUMBNAIL_PATH, config } from '../config.js';
 import { downloadDriveFile } from '../lib/drive.js';
 import { generateCourseMeta } from '../lib/courseMeta.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
-import { uploadVideo, uploadCaption, ensurePlaylist, addToPlaylist } from '../lib/youtube.js';
+import { uploadVideo, uploadCaption, ensurePlaylist, addToPlaylist, updateVideoMeta, setThumbnail } from '../lib/youtube.js';
 import { printUsage } from '../lib/usage.js';
 
 const env = (k: string, fallback = '') => (process.env[k] ?? '').trim() || fallback;
@@ -24,11 +24,22 @@ async function main(): Promise<void> {
   const srtFileId = env('DRIVE_SRT_ID');
   const moduleLabel = env('MODULE_LABEL');
   const topic = env('COURSE_TOPIC');
-  const courseName = env('COURSE_NAME', 'AI 챔피언 강사양성과정');
+  const courseName = env('COURSE_NAME', 'AI챔피언 강사양성과정');
+  // 제목 앞에 붙는 시리즈명과 회차. 회차는 드라이브 파일명 순번을 그대로 받는다.
+  const seriesTitle = env('SERIES_TITLE', courseName);
+  const order = Number(env('COURSE_ORDER', '0')) || 0;
+  // ★썸네일 공통 후킹 문구★ 회차마다 바뀌지 않는다 — 37편이 한 시리즈로 보이게 하는 장치이자,
+  // "유료 과정을 공짜로 푼다"는 이 시리즈에서 가장 센 사실이다. 코드가 아니라 환경변수로 둔 것은
+  // 문구를 바꾸려고 배포를 다시 하지 않아도 되게 하기 위해서다.
+  const hook = env('COURSE_HOOK', '돈 주고도 못 듣는 강의');
+  const hookSub = env('COURSE_HOOK_SUB', '무조건 구독 · 소장');
   const playlistTitle = env('PLAYLIST_TITLE', courseName);
   // ★기본이 예행 모드다★ 실수로 트리거했을 때 영상이 올라가 있는 것보다,
   // 아무것도 안 올라간 채 메타데이터만 나와 있는 편이 낫다.
   const dryRun = env('DRY_RUN', 'true').toLowerCase() !== 'false';
+  // ★이미 올라간 영상 고치기★ 값이 있으면 새로 올리지 않고 그 영상의 제목·설명·썸네일만
+  // 갈아끼운다. 형식을 바꿨다고 76MB 를 다시 올릴 이유가 없고, 조회수·링크도 유지된다.
+  const updateVideoId = env('UPDATE_VIDEO_ID');
 
   if (!srtFileId) throw new Error('DRIVE_SRT_ID 가 필요합니다.');
   if (!dryRun && !videoFileId) throw new Error('DRIVE_VIDEO_ID 가 필요합니다.');
@@ -43,14 +54,19 @@ async function main(): Promise<void> {
 
   console.log('▶ [2/5] 자막을 읽어 제목·설명·챕터 생성');
   const srt = await fs.readFile(srtPath, 'utf8');
-  const { meta, parsed, chapters, description } = await generateCourseMeta({
+  const { meta, parsed, chapters, description: body } = await generateCourseMeta({
     srt,
     moduleLabel,
     filenameTopic: topic,
     courseName,
+    seriesTitle,
+    order,
   });
-  // 제목에 모듈 표시를 앞에 붙인다 — 시리즈는 목록에서 순서가 보여야 한다.
-  const fullTitle = (moduleLabel ? `[${moduleLabel}] ${meta.title}` : meta.title).slice(0, 100);
+  // 제목 = 시리즈명 [회차] 내용. 목록에서 순서와 소속이 한눈에 보여야 한다.
+  const prefix = order ? `${seriesTitle} [${order}] ` : `${seriesTitle} `;
+  const fullTitle = `${prefix}${meta.title}`.slice(0, 100);
+  // 설명 맨 위에 후킹 한 줄을 얹는다 — 검색 결과와 추천 카드에서 앞부분만 보이기 때문이다.
+  const description = `${hook} · ${hookSub}\n\n${body}`;
 
   const metaOut = {
     moduleLabel,
@@ -59,6 +75,7 @@ async function main(): Promise<void> {
     tags: meta.tags,
     chapters,
     thumbnailHeadline: meta.thumbnailHeadline,
+    thumbnailHook: hook,
     thumbnailBadge: meta.thumbnailBadge,
     srtCues: parsed.cues.length,
     durationSec: Math.round(parsed.durationSec),
@@ -69,11 +86,27 @@ async function main(): Promise<void> {
   console.log(`제목: ${fullTitle}`);
   console.log(`길이: ${Math.round(parsed.durationSec / 60)}분 · 자막 ${parsed.cues.length}줄`);
   console.log(`태그: ${meta.tags.join(', ')}`);
-  console.log(`썸네일 문구: ${meta.thumbnailHeadline} / 배지: ${meta.thumbnailBadge}`);
+  console.log(`썸네일: 큰 문구 "${hook}" / 회차 문구 "${meta.thumbnailHeadline}" / 배지 ${meta.thumbnailBadge}`);
   console.log(`\n${description}\n────────────────────────────────────\n`);
 
   if (dryRun) {
     console.log('▶ 예행 모드 — 여기서 멈춥니다. 실제 업로드는 DRY_RUN=false 로 다시 실행하세요.');
+    printUsage();
+    return;
+  }
+
+  if (updateVideoId) {
+    console.log(`▶ 기존 영상 고치기 (${updateVideoId}) — 영상은 다시 올리지 않습니다`);
+    await updateVideoMeta({ videoId: updateVideoId, title: fullTitle, description, tags: meta.tags });
+    const ok = await generateThumbnail({
+      title: fullTitle,
+      topic: `${courseName} — ${topic}`,
+      headline: hook,
+      badge: `${seriesTitle} ${order ? `[${order}]` : ''} · ${meta.thumbnailHeadline}`.trim(),
+      outPath: THUMBNAIL_PATH,
+    });
+    if (ok) await setThumbnail(updateVideoId, THUMBNAIL_PATH);
+    console.log(`\n✅ 교체 완료: https://youtu.be/${updateVideoId}`);
     printUsage();
     return;
   }
@@ -86,8 +119,9 @@ async function main(): Promise<void> {
   const madeThumb = await generateThumbnail({
     title: fullTitle,
     topic: `${courseName} — ${topic}`,
-    headline: meta.thumbnailHeadline,
-    badge: meta.thumbnailBadge,
+    // 큰 글씨는 시리즈 공통 후킹, 배지에 회차와 이번 편 문구를 넣는다.
+    headline: hook,
+    badge: `${seriesTitle} ${order ? `[${order}]` : ''} · ${meta.thumbnailHeadline}`.trim(),
     outPath: THUMBNAIL_PATH,
   });
   console.log(madeThumb ? '  · 완료' : '  · 건너뜀(OPENAI_API_KEY 없음)');
