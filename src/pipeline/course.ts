@@ -133,11 +133,16 @@ async function main(): Promise<void> {
     thumbnailPath: madeThumb ? THUMBNAIL_PATH : undefined,
   });
 
-  // 자막과 재생목록은 실패해도 영상 자체는 이미 올라가 있다 — 통째로 죽이지 않고 알린다.
-  try {
-    await uploadCaption({ videoId, srtPath });
-  } catch (e) {
-    console.warn('  · 자막 트랙 첨부 실패(무시):', (e as Error).message);
+  // ★자막 트랙은 기본으로 붙이지 않는다★
+  // 이 강의 영상들은 자막이 이미 화면에 구워져 있어서 트랙이 중복이다. 게다가
+  // captions.insert 는 youtube.force-ssl 범위를 요구하는데 지금 리프레시 토큰에는 없어서
+  // 매번 "Insufficient Permission" 만 남긴다. 필요해지면 재인증 후 켜면 된다.
+  if (env('COURSE_CAPTIONS', 'false').toLowerCase() === 'true') {
+    try {
+      await uploadCaption({ videoId, srtPath });
+    } catch (e) {
+      console.warn('  · 자막 트랙 첨부 실패(무시):', (e as Error).message);
+    }
   }
   try {
     const playlistId = await ensurePlaylist({
