@@ -15,9 +15,46 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: '앱 비밀번호가 올바르지 않습니다' });
   }
 
+  // ★두 가지 출처를 받는다★
+  //  (1) 파이프라인이 만든 영상  — source_run_id (기존)
+  //  (2) 직접 만든 강의 영상     — 드라이브 파일 ID (course-upload)
+  // 둘 다 "이미 완성된 영상을 유튜브에 올린다"는 같은 일이고, 둘 다 돈이 들고 되돌리기가
+  // 번거롭다. 그래서 무료 점검용 범용 트리거(dispatch.js)가 아니라 이 전용 엔드포인트에 둔다.
+  // (dispatch.js 쪽 course-upload 는 예행 모드로 못박혀 있어 실제 업로드가 안 된다.)
+  const driveSrtId = String(body.driveSrtId || body.drive_srt_id || '').trim();
+  if (driveSrtId) {
+    const driveVideoId = String(body.driveVideoId || body.drive_video_id || '').trim();
+    if (!driveVideoId) return res.status(400).json({ error: '영상 파일 ID(driveVideoId)가 필요합니다' });
+    const coursePayload = {
+      drive_srt_id: driveSrtId,
+      drive_video_id: driveVideoId,
+      module_label: String(body.moduleLabel || body.module_label || '').slice(0, 60),
+      course_topic: String(body.topic || body.course_topic || '').slice(0, 200),
+      channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
+      privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : 'unlisted',
+      // 여기서는 실제 업로드가 목적이므로 명시적으로 끈다.
+      dry_run: 'false',
+    };
+    const cr = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      body: JSON.stringify({ event_type: 'course-upload', client_payload: coursePayload }),
+    });
+    if (cr.status !== 204) {
+      const detail = await cr.text().catch(() => '');
+      return res.status(502).json({ error: `GitHub 트리거 실패 (${cr.status})`, detail: detail.slice(0, 300) });
+    }
+    return res.status(200).json({ ok: true, kind: 'course-upload', applied: coursePayload });
+  }
+
   const sourceRunId = String(body.runId || body.source_run_id || '').trim();
   if (!/^\d+$/.test(sourceRunId)) {
-    return res.status(400).json({ error: '영상이 들어 있는 실행 ID(runId)가 필요합니다' });
+    return res.status(400).json({ error: '영상이 들어 있는 실행 ID(runId), 또는 강의 업로드면 driveSrtId 가 필요합니다' });
   }
 
   const client_payload = {
