@@ -5,20 +5,21 @@ import { theme, nodeColors } from '../theme.js';
 import { Heading, usePopIn, useDrawProgress } from './Layout.js';
 import { RoughBox, RoughEllipse, RoughArrow, RoughLine } from './Rough.js';
 import { revealFrames, activeIndex } from './beats.js';
+import { PenHand, perimeterPoint } from './whiteboard.js';
 
 /**
  * 씬 종류에 따라 알맞은 비주얼을 그린다.
  * dur(씬 전체 프레임)과 narration 을 받아, 시각 요소가 씬 내내 나레이션에 맞춰
  * 순차로 살아 움직이게 한다(첫 몇 초에 다 그려지고 멈추던 문제 해결).
  */
-export const SceneVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, dur }) => {
+export const SceneVisual: React.FC<{ scene: Scene; dur: number; hand?: boolean }> = ({ scene, dur, hand }) => {
   switch (scene.visual) {
     case 'title':
       return <TitleVisual scene={scene} dur={dur} />;
     case 'diagram':
-      return <DiagramVisual scene={scene} dur={dur} />;
+      return <DiagramVisual scene={scene} dur={dur} hand={hand} />;
     case 'comparison':
-      return <ComparisonVisual scene={scene} dur={dur} />;
+      return <ComparisonVisual scene={scene} dur={dur} hand={hand} />;
     case 'quote':
       return <QuoteVisual scene={scene} />;
     case 'outro':
@@ -239,7 +240,7 @@ const BulletsVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, dur }) 
   );
 };
 
-const DiagramVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, dur }) => {
+const DiagramVisual: React.FC<{ scene: Scene; dur: number; hand?: boolean }> = ({ scene, dur, hand }) => {
   const frame = useCurrentFrame();
   const diagram = scene.diagram;
   if (!diagram || diagram.nodes.length === 0) return <BulletsVisual scene={scene} dur={dur} />;
@@ -299,6 +300,35 @@ const DiagramVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, dur }) 
   const cfx = interpolate(frame, camKeys, camX, easeOpt) + driftX;
   const cfy = interpolate(frame, camKeys, camY, easeOpt) + driftY;
   const cam = `translate(${960 - cfx * cs} ${540 - cfy * cs}) scale(${cs})`;
+
+  // ★손은 지금 그리는 상자에 붙어야 한다★
+  // 예전엔 화면 전체를 위에서 아래로 훑는 띠 마스크에 손을 매달았다. 도식은 상자 몇 개가
+  // 위쪽에 모여 있어서 띠가 그 구간을 지나는 순간 한 줄이 통째로 나타났고 — 그리는 게 아니라
+  // 튀어나오는 것으로 보였다 — 그 뒤로 손은 빈 종이만 쓸고 다녔다. 실제 영상에서 그랬다.
+  // 이제 상자의 그리기 진행도를 그대로 써서 펜이 테두리를 따라가고, 다 그리면 다음 상자로
+  // 옮겨 가고, 마지막까지 그리고 나면 손을 치운다.
+  const NODE_DRAW = 20; // 상자 하나를 그리는 프레임 수(아래 RoughBox progress 와 같아야 한다)
+  const penAt = (() => {
+    if (!hand) return null;
+    let i = 0;
+    for (let k = 0; k < nodes.length; k++) if (frame >= nodeReveal[k]) i = k;
+    const p = pos[nodes[i].id];
+    if (!p) return null;
+    const start = nodeReveal[i] ?? 0;
+    const drawEnd = start + NODE_DRAW;
+    if (frame <= drawEnd) {
+      const t = interpolate(frame, [start, drawEnd], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+      return perimeterPoint(p.x, p.y, boxW, boxH, t);
+    }
+    // 다 그린 뒤: 다음 상자로 건너간다. 다음이 없으면 손을 치운다(빈 종이를 헤매지 않게).
+    const next = nodes[i + 1];
+    if (!next) return null;
+    const q = pos[next.id];
+    if (!q) return null;
+    const nextStart = Math.max(nodeReveal[i + 1] ?? drawEnd, drawEnd + 1);
+    const t = interpolate(frame, [drawEnd, nextStart], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    return { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t };
+  })();
 
   return (
     <AbsoluteFill>
@@ -399,17 +429,35 @@ const DiagramVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, dur }) 
               </g>
             );
           })}
+          {/* 손 — 도식과 같은 좌표계 안에 두어 카메라 이동·확대를 그대로 따라간다. */}
+          {penAt && <PenHand x={penAt.x} y={penAt.y} scale={1 / cs} />}
         </g>
       </svg>
     </AbsoluteFill>
   );
 };
 
-const ComparisonVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, dur }) => {
+const ComparisonVisual: React.FC<{ scene: Scene; dur: number; hand?: boolean }> = ({ scene, dur, hand }) => {
+  const frame = useCurrentFrame();
   const cmp = scene.comparison;
   const leftDraw = useDrawProgress(14, 22);
   const rightDraw = useDrawProgress(Math.round(dur * 0.42), 22);
   if (!cmp) return <BulletsVisual scene={scene} dur={dur} />;
+  // 손은 지금 그려지는 쪽 상자의 테두리를 따라간다. 두 상자를 다 그리고 나면 치운다.
+  // 상자 위치는 아래 Col 의 값과 같다(svg top:280 + RoughBox y:20 → 화면 300).
+  const LEFT_X = 140;
+  const RIGHT_X = 1000;
+  const BOX_W = 780;
+  const BOX_H = 600;
+  const BOX_Y = 300;
+  const rightStart = Math.round(dur * 0.42);
+  const penAt = !hand
+    ? null
+    : frame <= 14 + 22
+      ? perimeterPoint(LEFT_X, BOX_Y, BOX_W, BOX_H, leftDraw)
+      : frame >= rightStart && frame <= rightStart + 22
+        ? perimeterPoint(RIGHT_X, BOX_Y, BOX_W, BOX_H, rightDraw)
+        : null;
   // 왼쪽 항목은 앞부분, 오른쪽 항목은 뒷부분 나레이션에 맞춰 등장.
   const leftAt = revealFrames(scene.narration, dur, cmp.leftItems.length, { head: 0.12, tail: 0.44 });
   const rightAt = revealFrames(scene.narration, dur, cmp.rightItems.length, { head: 0.5, tail: 0.82 });
@@ -432,6 +480,11 @@ const ComparisonVisual: React.FC<{ scene: Scene; dur: number }> = ({ scene, dur 
         VS
       </div>
       <Col title={cmp.rightTitle} items={cmp.rightItems} color={theme.accent} x={980} draw={rightDraw} at={rightAt} />
+      {penAt && (
+        <svg width={1920} height={1080} viewBox="0 0 1920 1080" style={{ position: 'absolute', inset: 0 }}>
+          <PenHand x={penAt.x} y={penAt.y} />
+        </svg>
+      )}
     </AbsoluteFill>
   );
 };
