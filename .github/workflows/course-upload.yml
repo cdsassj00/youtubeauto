@@ -32,6 +32,10 @@ on:
         description: '이미 올라간 영상의 제목·설명·썸네일만 교체 (영상 재업로드 없음)'
         required: false
         default: ''
+      course_headline:
+        description: '썸네일 큰 글씨를 직접 지정 (비우면 자막을 읽고 회차마다 새로 뽑는다)'
+        required: false
+        default: ''
       privacy:
         description: '공개 상태 (public | unlisted | private)'
         required: false
@@ -72,6 +76,7 @@ jobs:
       COURSE_TOPIC: ${{ github.event.inputs.course_topic || github.event.client_payload.course_topic }}
       COURSE_ORDER: ${{ github.event.inputs.course_order || github.event.client_payload.course_order }}
       UPDATE_VIDEO_ID: ${{ github.event.inputs.update_video_id || github.event.client_payload.update_video_id }}
+      COURSE_HEADLINE: ${{ github.event.inputs.course_headline || github.event.client_payload.course_headline }}
       COURSE_NAME: ${{ vars.COURSE_NAME || 'AI챔피언 강사양성과정' }}
       SERIES_TITLE: ${{ vars.COURSE_SERIES_TITLE || 'AI챔피언 강사양성과정' }}
       COURSE_HOOK: ${{ vars.COURSE_HOOK || '돈 주고도 못 듣는 강의' }}
