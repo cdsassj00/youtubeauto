@@ -1,0 +1,107 @@
+name: 강의 영상 업로드 (드라이브 → 유튜브)
+
+# 직접 만든 강의 영상을 올린다. 파일 선택은 Claude 세션이 드라이브 폴더를 보고 정해
+# 파일 ID 로 넘긴다 — 러너는 공개 링크로 내려받기만 하므로 드라이브 자격증명이 필요 없다.
+on:
+  workflow_dispatch:
+    inputs:
+      drive_video_id:
+        description: '영상 파일 ID (드라이브). 예행 모드면 비워도 된다.'
+        required: false
+        default: ''
+      drive_srt_id:
+        description: '자막(SRT) 파일 ID (드라이브)'
+        required: true
+      module_label:
+        description: '모듈 표시 — 제목 앞에 붙는다. 예: 2일차 오전 M01'
+        required: false
+        default: ''
+      course_topic:
+        description: '파일명이 말하는 주제 (모델에게 주는 힌트)'
+        required: false
+        default: ''
+      dry_run:
+        description: '예행 모드 (true=메타데이터만 만들고 업로드 안 함)'
+        required: false
+        default: 'true'
+      privacy:
+        description: '공개 상태 (public | unlisted | private)'
+        required: false
+        default: 'public'
+      channel:
+        description: '업로드 채널 (default | ch2)'
+        required: false
+        default: 'default'
+  repository_dispatch:
+    types: [course-upload]
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-4-8' }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'default' }}
+      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || github.event.client_payload.privacy || 'public' }}
+      YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
+      YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
+      # 강의 영상은 사람이 직접 찍고 편집한 것이라 합성 미디어 표시 대상이 아니다.
+      SYNTHETIC_MEDIA_DISCLOSURE: 'false'
+      # 썸네일에 얼굴을 넣을지는 채널 기본값을 따른다(기본 채널은 켜져 있다).
+      THUMBNAIL_STYLE: ${{ vars.COURSE_THUMBNAIL_STYLE || 'impact' }}
+      DRIVE_VIDEO_ID: ${{ github.event.inputs.drive_video_id || github.event.client_payload.drive_video_id }}
+      DRIVE_SRT_ID: ${{ github.event.inputs.drive_srt_id || github.event.client_payload.drive_srt_id }}
+      MODULE_LABEL: ${{ github.event.inputs.module_label || github.event.client_payload.module_label }}
+      COURSE_TOPIC: ${{ github.event.inputs.course_topic || github.event.client_payload.course_topic }}
+      COURSE_NAME: ${{ vars.COURSE_NAME || 'AI 챔피언 강사양성과정' }}
+      PLAYLIST_TITLE: ${{ vars.COURSE_PLAYLIST_TITLE || 'AI 챔피언 강사양성과정' }}
+      DRY_RUN: ${{ github.event.inputs.dry_run || github.event.client_payload.dry_run || 'true' }}
+
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 업로드 실행
+        run: npx tsx src/pipeline/course.ts
+
+      - name: 결과 요약
+        if: always()
+        run: |
+          if [ -f out/course-meta.json ]; then
+            echo "## 이 영상으로 올라간 내용" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat out/course-meta.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # 예행 모드에서 제목·설명·챕터를 사람이 읽어보기 위한 산출물.
+      # 영상 파일은 최대 수백 MB 라 아티팩트에 넣지 않는다.
+      - name: 메타데이터 아티팩트
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: course-meta
+          path: |
+            out/course-meta.json
+            out/upload-result.json
+            out/thumbnail.jpg
+          if-no-files-found: ignore
+          retention-days: 14
