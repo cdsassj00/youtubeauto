@@ -92,6 +92,12 @@ jobs:
       - name: 의존성 설치
         run: npm ci
 
+      # ★한글 폰트가 없으면 조용히 두부(□□□)로 나온다★ 썸네일 왼쪽 아래 시리즈 띠는
+      # sharp(librsvg)가 실제 폰트로 조판한다. 러너에는 CJK 폰트가 없어서 설치하지 않으면
+      # 에러 없이 네모 상자만 찍힌 썸네일이 그대로 올라간다.
+      - name: 한글 폰트 설치
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+
       - name: 업로드 실행
         run: npx tsx src/pipeline/course.ts
 
