@@ -165,12 +165,19 @@ export async function ensurePlaylist(params: {
   const auth = createOAuthClient();
   const youtube = google.youtube({ version: 'v3', auth });
 
+  // ★제목을 글자 그대로 비교하지 않는다★ 1편은 "AI 챔피언 강사양성과정", 2편은
+  // "AI챔피언 강사양성과정"(공백 하나 차이)으로 돌아서 같은 시리즈인데 재생목록이 둘로
+  // 갈라졌다. 원인은 유튜브가 아니라 내가 워크플로 기본값을 바꾼 것이었다. 사람이 부르는
+  // 이름은 공백·대소문자가 흔들리므로, 그 흔들림으로 목록이 갈라지지 않게 정규화해서 찾는다.
+  const key = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+  const want = key(title);
+
   let pageToken: string | undefined;
   do {
     const res = await youtube.playlists.list({ part: ['snippet'], mine: true, maxResults: 50, pageToken });
-    const hit = res.data.items?.find((p) => p.snippet?.title === title);
+    const hit = res.data.items?.find((p) => key(p.snippet?.title ?? '') === want);
     if (hit?.id) {
-      console.log(`  · 재생목록 재사용: ${title}`);
+      console.log(`  · 재생목록 재사용: ${hit.snippet?.title}`);
       return hit.id;
     }
     pageToken = res.data.nextPageToken ?? undefined;
@@ -184,6 +191,26 @@ export async function ensurePlaylist(params: {
   if (!id) throw new Error('재생목록 생성에 실패했습니다.');
   console.log(`  · 재생목록 생성: ${title}`);
   return id;
+}
+
+/**
+ * 구글 API 오류에서 사람이 읽을 수 있는 이유를 뽑는다.
+ *
+ * googleapis 오류는 message 가 비어 있는 경우가 있다. 실제로 재생목록 추가가 실패했을 때
+ * 로그에 "재생목록 처리 실패(무시): " 만 남아서 왜 실패했는지 알 길이 없었다.
+ * 실패를 무시하고 넘어가는 자리일수록 이유는 반드시 남겨야 한다.
+ */
+export function apiErrorDetail(e: unknown): string {
+  const err = e as { message?: string; code?: number | string; errors?: Array<{ message?: string; reason?: string }>; response?: { status?: number; data?: { error?: { message?: string; errors?: Array<{ reason?: string }> } } } };
+  const parts = [
+    err?.message,
+    err?.response?.data?.error?.message,
+    err?.errors?.map((x) => `${x.reason ?? ''} ${x.message ?? ''}`.trim()).join('; '),
+    err?.response?.data?.error?.errors?.map((x) => x.reason).filter(Boolean).join('; '),
+    err?.code != null ? `code=${err.code}` : '',
+    err?.response?.status != null ? `http=${err.response.status}` : '',
+  ].filter((s) => s && String(s).trim());
+  return parts.length ? [...new Set(parts)].join(' | ') : `알 수 없는 오류(${Object.prototype.toString.call(e)})`;
 }
 
 /** 영상을 재생목록 맨 뒤에 넣는다. 이미 들어 있으면 중복으로 또 들어가므로 호출부가 관리한다. */
@@ -225,4 +252,43 @@ export async function updateVideoMeta(params: {
     },
   });
   console.log(`  · 제목·설명 교체 완료: ${title}`);
+}
+
+/**
+ * 이 채널에 이미 올라간 시리즈 회차 번호를 모아 온다.
+ *
+ * ★"어디까지 올렸는지"를 저장소 파일이 아니라 유튜브에서 읽는 이유★
+ * 진행 상태를 커밋해 두면 두 곳(유튜브와 파일)이 어긋나기 시작한다. 실행이 중간에 죽거나,
+ * 사람이 유튜브에서 직접 지우거나, 브랜치가 갈리면 파일은 거짓말을 하게 된다. 유튜브가
+ * 사실이므로 매번 유튜브에 묻는다. 그러면 상태를 저장할 곳 자체가 없어진다.
+ *
+ * 제목이 "시리즈명 [N] 내용" 형식이라는 것만 약속으로 삼는다.
+ * 비공개·미등록 영상도 내 업로드 목록에는 들어 있으므로 함께 잡힌다(중복 업로드 방지).
+ */
+export async function listPublishedOrders(seriesTitle: string): Promise<Set<number>> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+
+  const ch = await youtube.channels.list({ part: ['contentDetails'], mine: true });
+  const uploads = ch.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploads) throw new Error('채널의 업로드 재생목록을 찾지 못했습니다.');
+
+  // 공백을 지우고 비교한다 — 재생목록 이름이 공백 하나로 갈라졌던 것과 같은 사고를 막는다.
+  const squash = (s: string) => s.replace(/\s+/g, '');
+  const prefix = squash(seriesTitle);
+  const orders = new Set<number>();
+
+  let pageToken: string | undefined;
+  do {
+    const res = await youtube.playlistItems.list({ part: ['snippet'], playlistId: uploads, maxResults: 50, pageToken });
+    for (const it of res.data.items ?? []) {
+      const t = squash(it.snippet?.title ?? '');
+      if (!t.startsWith(prefix)) continue;
+      const m = /^\[(\d+)\]/.exec(t.slice(prefix.length));
+      if (m) orders.add(Number(m[1]));
+    }
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+
+  return orders;
 }

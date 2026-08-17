@@ -15,20 +15,40 @@ import { downloadDriveFile } from '../lib/drive.js';
 import { generateCourseMeta } from '../lib/courseMeta.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { groupAccent, type StripSpec } from '../lib/seriesStrip.js';
-import { uploadVideo, uploadCaption, ensurePlaylist, addToPlaylist, updateVideoMeta, setThumbnail } from '../lib/youtube.js';
+import { uploadVideo, uploadCaption, ensurePlaylist, addToPlaylist, updateVideoMeta, setThumbnail, listPublishedOrders, apiErrorDetail } from '../lib/youtube.js';
+import { nextCourseModule } from '../lib/courseManifest.js';
 import { printUsage } from '../lib/usage.js';
 
 const env = (k: string, fallback = '') => (process.env[k] ?? '').trim() || fallback;
 
 async function main(): Promise<void> {
-  const videoFileId = env('DRIVE_VIDEO_ID');
-  const srtFileId = env('DRIVE_SRT_ID');
-  const moduleLabel = env('MODULE_LABEL');
-  const topic = env('COURSE_TOPIC');
   const courseName = env('COURSE_NAME', 'AI챔피언 강사양성과정');
   // 제목 앞에 붙는 시리즈명과 회차. 회차는 드라이브 파일명 순번을 그대로 받는다.
   const seriesTitle = env('SERIES_TITLE', courseName);
-  const order = Number(env('COURSE_ORDER', '0')) || 0;
+
+  // ★자동 모드★ 무엇을 올릴지 사람이 정해 주지 않고, 목록에서 아직 안 올라간 것 중
+  // 순번이 가장 빠른 것을 스스로 고른다. 하루 한 편 크론이 이 모드로 돈다.
+  let videoFileId = env('DRIVE_VIDEO_ID');
+  let srtFileId = env('DRIVE_SRT_ID');
+  let moduleLabel = env('MODULE_LABEL');
+  let topic = env('COURSE_TOPIC');
+  let order = Number(env('COURSE_ORDER', '0')) || 0;
+
+  if (env('COURSE_AUTO', 'false').toLowerCase() === 'true') {
+    console.log('▶ [0] 다음 회차 고르기 (자동)');
+    const published = await listPublishedOrders(seriesTitle);
+    console.log(`  · 이미 올라간 회차: ${[...published].sort((a, b) => a - b).join(', ') || '없음'}`);
+    const next = await nextCourseModule(published);
+    if (!next) {
+      // ★올릴 게 없으면 조용히 끝낸다★ 실패로 처리하면 매일 빨간 알림이 온다.
+      // 남은 파일이 없는 것은 고장이 아니라 정상적인 끝이다.
+      console.log('  · 올릴 회차가 없습니다. 드라이브에 파일을 더 넣고 목록을 갱신하세요.');
+      printUsage();
+      return;
+    }
+    ({ driveVideoId: videoFileId, driveSrtId: srtFileId, moduleLabel, topic, order } = next);
+    console.log(`  · 이번 차례: [${order}] ${moduleLabel} — ${topic}`);
+  }
   // ★썸네일 공통 후킹 문구★ 회차마다 바뀌지 않는다 — 37편이 한 시리즈로 보이게 하는 장치이자,
   // "유료 과정을 공짜로 푼다"는 이 시리즈에서 가장 센 사실이다. 코드가 아니라 환경변수로 둔 것은
   // 문구를 바꾸려고 배포를 다시 하지 않아도 되게 하기 위해서다.
@@ -161,7 +181,7 @@ async function main(): Promise<void> {
     try {
       await uploadCaption({ videoId, srtPath });
     } catch (e) {
-      console.warn('  · 자막 트랙 첨부 실패(무시):', (e as Error).message);
+      console.warn('  · 자막 트랙 첨부 실패(무시):', apiErrorDetail(e));
     }
   }
   try {
@@ -172,7 +192,7 @@ async function main(): Promise<void> {
     });
     await addToPlaylist(playlistId, videoId);
   } catch (e) {
-    console.warn('  · 재생목록 처리 실패(무시):', (e as Error).message);
+    console.warn('  · 재생목록 처리 실패(무시):', apiErrorDetail(e));
   }
 
   await fs.writeFile(
