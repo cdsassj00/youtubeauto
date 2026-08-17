@@ -120,6 +120,7 @@ export async function generateCourseMeta(
     '★이 영상은 이미 완성돼 있다★ 너는 대본을 쓰는 것이 아니라, 이미 녹화된 강의의 자막을 읽고 그 내용을 정확히 옮기는 일을 한다.',
     '자막에 없는 내용을 절대 지어내지 마라. 강사가 하지 않은 말, 다루지 않은 도구·개념·수치를 넣으면 안 된다.',
     '★후킹은 하되 거짓말은 하지 마라★ 이 강의는 실제로 유료 강사양성과정이다. 그 사실 자체가 이미 가장 센 후킹이므로 "충격", "99%가 모르는" 같은 없는 말을 지어낼 이유가 없다. 강의에 없는 내용을 있다고 하거나 과장된 효과를 약속하는 것만 금지다 — 세게 말하는 것 자체는 괜찮다.',
+    '★발주 기관 이름을 절대 쓰지 마라★ 자막에 특정 기관·부처·기업 이름이 나오더라도 제목·설명·태그·썸네일 문구에는 옮기지 마라. 필요하면 "공공기관", "기관", "공무원" 처럼 일반적인 말로 바꿔 써라. 이 영상들은 특정 발주처를 드러내지 않고 공개된다.',
     '시청자는 한국어 사용자이고, 이 영상을 찾는 사람은 "이 강의에서 무엇을 배우는지"를 알고 싶어 한다.',
   ].join(' ');
 
@@ -165,11 +166,45 @@ export async function generateCourseMeta(
 
   const block = final.content.find((c) => c.type === 'text');
   if (!block || block.type !== 'text') throw new Error('메타데이터 응답이 비었습니다.');
-  const meta = CourseMetaSchema.parse(JSON.parse(block.text));
+  const raw = CourseMetaSchema.parse(JSON.parse(block.text));
+  const meta = redactClient(raw);
 
   const chapters = normalizeChapters(meta.chapters, parsed.durationSec);
   if (meta.chapters.length && !chapters.length) {
     console.warn(`  · 챕터를 살릴 수 없어 뺐습니다(모델이 준 ${meta.chapters.length}개가 유튜브 규칙에 안 맞음)`);
   }
   return { meta, parsed, chapters, description: buildDescription(meta, chapters) };
+}
+
+/**
+ * 제목·설명·썸네일 문구에서 발주 기관 이름을 지운다.
+ *
+ * ★자막 본문은 건드리지 않는다★ 강의 중에 기관 이름이 나오는 것까지 다 걸러내려면 영상
+ * 자체를 손봐야 하는데 그건 이 파이프라인의 일이 아니다. 다만 그 말이 자막에 있으므로
+ * 모델이 제목이나 설명에 그대로 옮겨 적을 수 있고, 그건 채널 앞면에 박히는 글자다.
+ *
+ * ★프롬프트로만 막지 않는다★ "쓰지 마라"는 지시는 대개 지켜지지만 가끔 새고, 새면
+ * 40편 중 어느 하나에서 조용히 새기 때문에 사람이 눈치채기 어렵다. 지시(위 system)와
+ * 사후 검사를 둘 다 둔다 — 나가는 글자를 실제로 확인하는 쪽이 최후 방어선이다.
+ */
+export function redactClient<T extends CourseMeta>(meta: T): T {
+  const terms = (process.env.COURSE_REDACT ?? '환경부').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!terms.length) return meta;
+  const as = (process.env.COURSE_REDACT_AS ?? '공공기관').trim();
+  const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+
+  let hits = 0;
+  const scrub = (s: string) => s.replace(re, () => { hits += 1; return as; });
+  const out = {
+    ...meta,
+    title: scrub(meta.title),
+    summary: scrub(meta.summary),
+    keyPoints: meta.keyPoints.map(scrub),
+    tags: meta.tags.map(scrub),
+    chapters: meta.chapters.map((c) => ({ ...c, label: scrub(c.label) })),
+    thumbnailHeadline: scrub(meta.thumbnailHeadline),
+    thumbnailBadge: scrub(meta.thumbnailBadge),
+  };
+  if (hits) console.warn(`  · 기관 이름을 제목·설명에서 ${hits}곳 가렸습니다 (${terms.join(', ')} → ${as})`);
+  return out as T;
 }
