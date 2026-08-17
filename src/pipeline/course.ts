@@ -25,6 +25,8 @@ async function main(): Promise<void> {
   const courseName = env('COURSE_NAME', 'AI챔피언 강사양성과정');
   // 제목 앞에 붙는 시리즈명과 회차. 회차는 드라이브 파일명 순번을 그대로 받는다.
   const seriesTitle = env('SERIES_TITLE', courseName);
+  // 어디까지 올렸는지 세기 위한 표식. 시청자에게는 안 보이는 태그로 들어간다.
+  const seriesCode = env('COURSE_CODE', 'cdsa-ac');
 
   // ★자동 모드★ 무엇을 올릴지 사람이 정해 주지 않고, 목록에서 아직 안 올라간 것 중
   // 순번이 가장 빠른 것을 스스로 고른다. 하루 한 편 크론이 이 모드로 돈다.
@@ -36,7 +38,7 @@ async function main(): Promise<void> {
 
   if (env('COURSE_AUTO', 'false').toLowerCase() === 'true') {
     console.log('▶ [0] 다음 회차 고르기 (자동)');
-    const published = await listPublishedOrders(seriesTitle);
+    const published = await listPublishedOrders(seriesTitle, seriesCode);
     console.log(`  · 이미 올라간 회차: ${[...published].sort((a, b) => a - b).join(', ') || '없음'}`);
     const next = await nextCourseModule(published);
     // ★올릴 게 없으면 조용히 끝낸다★ 실패로 처리하면 매일 빨간 알림이 온다.
@@ -70,6 +72,10 @@ async function main(): Promise<void> {
   // 자막을 읽고 모델이 회차마다 새로 뽑는다. 40편이 같은 문구가 되면 안 되므로 이 값은
   // 회차별로 넘기는 일회용이지 시리즈 공통 설정이 아니다(시리즈 공통 문구는 COURSE_HOOK 이다).
   const headlineOverride = env('COURSE_HEADLINE');
+  // ★기본은 낱개 영상이다★ 제목 맨 앞에 "시리즈명 [14]" 가 붙으면 "1편부터 봐야 하는
+  // 강좌"로 보여서, 검색으로 들어온 사람이 그냥 지나친다. 조각조각 나뉜 강의에는 치명적이다.
+  // 회차 번호가 필요한 시리즈면 COURSE_NUMBERED=true 로 되돌린다.
+  const numbered = env('COURSE_NUMBERED', 'false').toLowerCase() === 'true';
 
   if (!srtFileId) throw new Error('DRIVE_SRT_ID 가 필요합니다.');
   if (!dryRun && !videoFileId) throw new Error('DRIVE_VIDEO_ID 가 필요합니다.');
@@ -92,8 +98,8 @@ async function main(): Promise<void> {
     seriesTitle,
     order,
   });
-  // 제목 = 시리즈명 [회차] 내용. 목록에서 순서와 소속이 한눈에 보여야 한다.
-  const prefix = order ? `${seriesTitle} [${order}] ` : `${seriesTitle} `;
+  // 제목은 이 영상 하나로 서야 한다(numbered 를 켜면 옛 방식대로 시리즈명·회차가 앞에 붙는다).
+  const prefix = numbered ? (order ? `${seriesTitle} [${order}] ` : `${seriesTitle} `) : '';
   const fullTitle = `${prefix}${meta.title}`.slice(0, 100);
   // 설명 맨 위에 후킹 한 줄을 얹는다 — 검색 결과와 추천 카드에서 앞부분만 보이기 때문이다.
   const description = `${hook} · ${hookSub}\n\n${body}`;
@@ -109,14 +115,18 @@ async function main(): Promise<void> {
   //  · 큰 글씨 = 이 회차만의 문구. 무엇을 눌러야 할지를 정하는 건 이쪽이다.
   //  · 시리즈 표식 = 왼쪽 아래 고정 띠(회차 번호 + 공통 문구). 자리·모양·색이 매 편
   //    똑같아서 눈이 하나의 표식으로 학습한다. 색은 일차별로 나눠 목록에 구획을 만든다.
-  const strip: StripSpec = { label: hook, order, accent: groupAccent(moduleLabel, order) };
+  // 띠에서도 번호를 뺀다 — 구석의 "14" 도 순서를 강요하는 신호다. 문구만 남기면 시리즈
+  // 표식 구실은 그대로 하면서 "몇 번째부터 봐야 하나" 하는 부담은 사라진다.
+  const strip: StripSpec = { label: hook, order: numbered ? order : 0, accent: groupAccent(moduleLabel, order) };
   const headline = headlineOverride || meta.thumbnailHeadline;
+  // 시청자에게 안 보이는 진행 표식. 이게 없으면 다음 회차를 고를 수 없다.
+  const tags = order ? [...meta.tags, `${seriesCode}-${order}`] : meta.tags;
 
   const metaOut = {
     moduleLabel,
     title: fullTitle,
     description,
-    tags: meta.tags,
+    tags,
     chapters,
     thumbnailHeadline: headline,
     thumbnailHook: hook,
@@ -142,7 +152,7 @@ async function main(): Promise<void> {
 
   if (updateVideoId) {
     console.log(`▶ 기존 영상 고치기 (${updateVideoId}) — 영상은 다시 올리지 않습니다`);
-    await updateVideoMeta({ videoId: updateVideoId, title: fullTitle, description, tags: meta.tags });
+    await updateVideoMeta({ videoId: updateVideoId, title: fullTitle, description, tags });
     const ok = await generateThumbnail({
       title: fullTitle,
       topic: `${courseName} — ${topic}`,
@@ -174,7 +184,7 @@ async function main(): Promise<void> {
   console.log('▶ [5/5] 유튜브 업로드');
   const videoId = await uploadVideo({
     videoPath,
-    script: { title: fullTitle, description, tags: meta.tags },
+    script: { title: fullTitle, description, tags },
     thumbnailPath: madeThumb ? THUMBNAIL_PATH : undefined,
   });
 
