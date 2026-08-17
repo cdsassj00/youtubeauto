@@ -1,0 +1,182 @@
+{
+  "note": "드라이브 폴더에서 뽑은 발행 순서. 러너에는 드라이브 자격증명이 없어 폴더를 직접 못 읽으므로 여기에 적어 둔다. 파일이 늘면 다시 뽑아 갱신해야 한다.",
+  "folderId": "1nPH5MxAvYn0EgUcbOWp3IyH65o0i0X9C",
+  "generatedFrom": "드라이브 파일 51개",
+  "modules": [
+    {
+      "order": 1,
+      "moduleLabel": "2일차 오전 M01",
+      "topic": "AI 서비스 구조와 메타 프롬프트",
+      "driveVideoId": "1bNtemgyFDxo4fdFHp_q8Bh-8zkKfaf4_",
+      "driveSrtId": "1r2wUGxRcnjTq0FFrXSn6wGFIrE7X-_rW"
+    },
+    {
+      "order": 2,
+      "moduleLabel": "2일차 오전 M04",
+      "topic": "스킬과 컨텍스트 엔지니어링",
+      "driveVideoId": "1edzNJiJ4btE6PTNNz8gNr6r4ryxdAVN0",
+      "driveSrtId": "1LQecRBjOl2Hp0m5eL-ebyaaYN4BTl1Ib"
+    },
+    {
+      "order": 3,
+      "moduleLabel": "1일차 M09",
+      "topic": "LLM은 어떻게 답을 만드는가",
+      "driveVideoId": "1AlEJUHyX5NiUnAqZTOYCqUt-142UkISU",
+      "driveSrtId": "1paIBcZZS-rfJtwb-NTeAni2v5XQ293OA"
+    },
+    {
+      "order": 4,
+      "moduleLabel": "1일차 M10",
+      "topic": "웹검색 RAG 임베딩의 연결",
+      "driveVideoId": "1Iun-QeRa6nCUWK0vmk0yJDtmdiee3EUH",
+      "driveSrtId": "1K3aTi_Z5PBaV8wcsVw_tcenZCqxBRKDG"
+    },
+    {
+      "order": 5,
+      "moduleLabel": "1일차 M12",
+      "topic": "LLM 도구 호출과 에이전트 반복 실행",
+      "driveVideoId": "1I8D2LrmKEOgKtmUGY6FJBJqbdNG8e911",
+      "driveSrtId": "1nMrrG03eMCvwZLo8t2rcgVt7xk815Qgt"
+    },
+    {
+      "order": 14,
+      "moduleLabel": "2일차 오전 M09",
+      "topic": "플러그인 하네스 서브에이전트",
+      "driveVideoId": "1W46VbYmuqISgNAoD0zfenErIRbSl1VgU",
+      "driveSrtId": "1SPnqkxChAccCcpzcSoSGd_wxHAhljjHH"
+    },
+    {
+      "order": 15,
+      "moduleLabel": "2일차 오전 M10",
+      "topic": "마켓플레이스와 개발 환경 설치",
+      "driveVideoId": "186ax2_4ak3IHO7UFZldsB5cAUsMtzVOT",
+      "driveSrtId": "1zl88jm7uLafUZ-Y3e1zu6QKsV0Pt-Ntk"
+    },
+    {
+      "order": 16,
+      "moduleLabel": "2일차 오전 M03",
+      "topic": "ChatGPT Work와 에이전트 활용",
+      "driveVideoId": "1hZItKRR1QO3rgoMc-BDaTMsilyLBfdY7",
+      "driveSrtId": "1broamjzR5WNglowJuEkv7a2GFdVV-6Gi"
+    },
+    {
+      "order": 17,
+      "moduleLabel": "2일차 오전 M02",
+      "topic": "이미지 프롬프트와 생성형 AI 실습",
+      "driveVideoId": "1i4SROn4szaYlOfJdIw4GP_XXKnzDNspe",
+      "driveSrtId": "1rlkTLPl3gtg-P8RgOYjYfWk5_Tsqyasp"
+    },
+    {
+      "order": 24,
+      "moduleLabel": "1일차 M08",
+      "topic": "AI 리터러시와 모델의 기본 구조",
+      "driveVideoId": "1Y5Q1cuyy4q-ZdqeswY2MswXEmUVk1LhZ",
+      "driveSrtId": "1S-aEQRjMBThoHdegQmcrtuKvDud5V8xN"
+    },
+    {
+      "order": 25,
+      "moduleLabel": "1일차 M11",
+      "topic": "파인튜닝과 컨텍스트 처리 방식",
+      "driveVideoId": "1qfTltLXEarwcu8U4sj1ukLkc_jOV94mF",
+      "driveSrtId": "1Aw426_36vd423pDmlqqGPK3krNdIztYW"
+    },
+    {
+      "order": 26,
+      "moduleLabel": "1일차 M13",
+      "topic": "로컬 컴퓨터에서 에이전트 실행하기",
+      "driveVideoId": "1zwUJNGYjQZs_m4v4eeX48LC2U_m0LRzZ",
+      "driveSrtId": "19CyKEPyCczl8rU1wVSZ6nyTHq3H9xzx1"
+    },
+    {
+      "order": 27,
+      "moduleLabel": "1일차 M04",
+      "topic": "긴 글 처리와 컨텍스트 프롬프트의 변화",
+      "driveVideoId": "1s1Wsr5wbJQ5cxDuyIO3bRkqAdNcX1OFd",
+      "driveSrtId": "1WOTPkZDPvr3RZxKyk2CgwHyOr7uOrH6Z"
+    },
+    {
+      "order": 29,
+      "moduleLabel": "1일차 M07",
+      "topic": "AI 챔피언 트랙과 교육 모듈 구성",
+      "driveVideoId": "11WB13WOOZwO1NwvUWB-Pa99-3wyYIZwB",
+      "driveSrtId": "17y_98dPw3yugpKQAUEBjmn-2ZEzB0ti2"
+    },
+    {
+      "order": 30,
+      "moduleLabel": "1일차 M05",
+      "topic": "교육 철학에서 실습 모듈 설계까지",
+      "driveVideoId": "1aaLg7FNlKe0_8C_TNwjZqdmxo2g2-HPI",
+      "driveSrtId": "1deAroU8dAhbUbDaxMBPYnVQTwG1_8Y30"
+    },
+    {
+      "order": 31,
+      "moduleLabel": "1일차 M06",
+      "topic": "현장 문제를 AI 과제로 바꾸는 방법",
+      "driveVideoId": "1ZjuHfPUW3W7xG6CPXlMigNb4QCIKB_jk",
+      "driveSrtId": "16k5iycShgWVCoA_2RgI7P37VIdxB_2UR"
+    },
+    {
+      "order": 32,
+      "moduleLabel": "1일차 M03",
+      "topic": "AI로 개인 브랜딩과 웹 콘텐츠 만들기",
+      "driveVideoId": "1sei5u8VT-7B2ypAj41ujVW4szRpkbjjx",
+      "driveSrtId": "1_WQh8AUDcrcicuxum8pENl_xq6bMVHuz"
+    },
+    {
+      "order": 33,
+      "moduleLabel": "1일차 M02",
+      "topic": "AI 학습의 자신감 곡선과 실습 중심 성장",
+      "driveVideoId": "1jBQxv6VW_dS_NFE_nFgvX6HrRNRqJjKH",
+      "driveSrtId": "1ZLLxFFByGBEcfBIv5eQUha8i0LyeVR1n"
+    },
+    {
+      "order": 34,
+      "moduleLabel": "1일차 M01",
+      "topic": "AI 강사의 역할과 퍼실리테이터 마인드",
+      "driveVideoId": "104BEhrPCI0VjPp8dx9GP-Ro5FziHYjDx",
+      "driveSrtId": "1Q1pafzwPJFhDCYmegzESdjBZaAOvPK4X"
+    },
+    {
+      "order": 35,
+      "moduleLabel": "1일차 M14",
+      "topic": "LLM 활용 카테고리와 강의 마무리",
+      "driveVideoId": "1wKrmqbjSIDFtPyOSXP43aX9_A79nGz1A",
+      "driveSrtId": "1h8gTazrVz-PkGRMad7uN1NB83iYLqATn"
+    },
+    {
+      "order": 36,
+      "moduleLabel": "2일차 오전 M05",
+      "topic": "SKILL md와 문서 자동화 구조",
+      "driveVideoId": "1YUknRG_sT7CD04LDS4d6ko5pyUDpLJ86",
+      "driveSrtId": "1LruiTLsy50HAua0ilf8J4YoWyMKrPtwG"
+    },
+    {
+      "order": 37,
+      "moduleLabel": "2일차 오전 M06",
+      "topic": "데스크톱 앱과 로컬 스킬 이해",
+      "driveVideoId": "1jFOVG0XzIm-ihaaoxUetW9bu8h9rfgHg",
+      "driveSrtId": "14BbEAuUgrvEACxbAw3-VexTePFH3WYxH"
+    },
+    {
+      "order": 38,
+      "moduleLabel": "2일차 오전 M07",
+      "topic": "파일 폴더 작업을 수행하는 스킬",
+      "driveVideoId": "1ewVt1s6qkPclrLR230Bf3Yg9xhHwOGqf",
+      "driveSrtId": "1Eg2_XKQjEOAjYtJ1luuRCuCtdvQSsIP_"
+    },
+    {
+      "order": 39,
+      "moduleLabel": "2일차 오후 M01",
+      "topic": "PowerShell로 Python 실행 환경 준비",
+      "driveVideoId": "1QT7o_J__RmT3EnsZetTbyHWDNtYF0RjG",
+      "driveSrtId": "1jhMcilXIFz6aVs2IPeUqC2ZPMsGXC-eh"
+    },
+    {
+      "order": 40,
+      "moduleLabel": "2일차 오후 M02",
+      "topic": "Python 설치 경로 라이브러리 이해",
+      "driveVideoId": "1MW-72MaFnZ8lE_2Yr8GRjI3upvXLwQ2W",
+      "driveSrtId": "1rUlkCdKtvGhrZr4U1p-_3x8lCVsJqEcD"
+    }
+  ]
+}
