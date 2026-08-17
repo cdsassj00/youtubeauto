@@ -255,17 +255,23 @@ export async function updateVideoMeta(params: {
 }
 
 /**
- * 이 채널에 이미 올라간 시리즈 회차 번호를 모아 온다.
+ * 이 채널에 이미 올라간 회차 번호를 모아 온다.
  *
  * ★"어디까지 올렸는지"를 저장소 파일이 아니라 유튜브에서 읽는 이유★
  * 진행 상태를 커밋해 두면 두 곳(유튜브와 파일)이 어긋나기 시작한다. 실행이 중간에 죽거나,
  * 사람이 유튜브에서 직접 지우거나, 브랜치가 갈리면 파일은 거짓말을 하게 된다. 유튜브가
  * 사실이므로 매번 유튜브에 묻는다. 그러면 상태를 저장할 곳 자체가 없어진다.
  *
- * 제목이 "시리즈명 [N] 내용" 형식이라는 것만 약속으로 삼는다.
- * 비공개·미등록 영상도 내 업로드 목록에는 들어 있으므로 함께 잡힌다(중복 업로드 방지).
+ * ★표식을 제목에서 태그로 옮겼다★ 예전에는 제목의 "시리즈명 [N]" 을 읽었다. 그런데 그
+ * 번호가 제목 맨 앞에 있으면 "1편부터 봐야 하는 강좌"로 보여서, 낱개로 검색해 들어온
+ * 사람이 23편을 그냥 지나친다. 조각조각 나뉜 강의에는 치명적이다. 그래서 제목에서 번호를
+ * 빼고, 대신 사람에게 안 보이는 태그(예: cdsa-ac-14)에 적는다. 태그는 시청자 화면에
+ * 나오지 않으므로 낱개 영상처럼 보이면서도 기계는 정확히 셀 수 있다.
+ *
+ * ★옛 제목 형식도 함께 읽는다★ 이미 "시리즈명 [1]" 형태로 올라간 영상이 있다. 태그만
+ * 보면 그 영상들이 "안 올라간 것"으로 잡혀 같은 영상을 또 올린다. 둘 다 읽는다.
  */
-export async function listPublishedOrders(seriesTitle: string): Promise<Set<number>> {
+export async function listPublishedOrders(seriesTitle: string, seriesCode = ''): Promise<Set<number>> {
   const auth = createOAuthClient();
   const youtube = google.youtube({ version: 'v3', auth });
 
@@ -273,22 +279,39 @@ export async function listPublishedOrders(seriesTitle: string): Promise<Set<numb
   const uploads = ch.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
   if (!uploads) throw new Error('채널의 업로드 재생목록을 찾지 못했습니다.');
 
-  // 공백을 지우고 비교한다 — 재생목록 이름이 공백 하나로 갈라졌던 것과 같은 사고를 막는다.
-  const squash = (s: string) => s.replace(/\s+/g, '');
-  const prefix = squash(seriesTitle);
-  const orders = new Set<number>();
-
+  // 1) 내 업로드의 videoId 를 모두 모은다.
+  const ids: string[] = [];
   let pageToken: string | undefined;
   do {
-    const res = await youtube.playlistItems.list({ part: ['snippet'], playlistId: uploads, maxResults: 50, pageToken });
+    const res = await youtube.playlistItems.list({ part: ['contentDetails'], playlistId: uploads, maxResults: 50, pageToken });
     for (const it of res.data.items ?? []) {
-      const t = squash(it.snippet?.title ?? '');
-      if (!t.startsWith(prefix)) continue;
-      const m = /^\[(\d+)\]/.exec(t.slice(prefix.length));
-      if (m) orders.add(Number(m[1]));
+      const id = it.contentDetails?.videoId;
+      if (id) ids.push(id);
     }
     pageToken = res.data.nextPageToken ?? undefined;
   } while (pageToken);
 
+  // 2) 50개씩 묶어 제목·태그를 읽는다. playlistItems 로는 태그를 못 받아서 videos.list 가 필요하다.
+  const orders = new Set<number>();
+  const squash = (s: string) => s.replace(/\s+/g, '');
+  const titlePrefix = squash(seriesTitle);
+  const tagRe = seriesCode ? new RegExp(`^${seriesCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(\\d+)$`, 'i') : null;
+
+  for (let i = 0; i < ids.length; i += 50) {
+    const res = await youtube.videos.list({ part: ['snippet'], id: ids.slice(i, i + 50) });
+    for (const v of res.data.items ?? []) {
+      // 태그 표식(현재 방식)
+      for (const tag of v.snippet?.tags ?? []) {
+        const m = tagRe?.exec(tag.trim());
+        if (m) orders.add(Number(m[1]));
+      }
+      // 옛 제목 형식 "시리즈명 [N] …"
+      const t = squash(v.snippet?.title ?? '');
+      if (titlePrefix && t.startsWith(titlePrefix)) {
+        const m = /^\[(\d+)\]/.exec(t.slice(titlePrefix.length));
+        if (m) orders.add(Number(m[1]));
+      }
+    }
+  }
   return orders;
 }
