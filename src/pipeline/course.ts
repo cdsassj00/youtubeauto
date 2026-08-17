@@ -39,14 +39,19 @@ async function main(): Promise<void> {
     const published = await listPublishedOrders(seriesTitle);
     console.log(`  · 이미 올라간 회차: ${[...published].sort((a, b) => a - b).join(', ') || '없음'}`);
     const next = await nextCourseModule(published);
-    if (!next) {
-      // ★올릴 게 없으면 조용히 끝낸다★ 실패로 처리하면 매일 빨간 알림이 온다.
-      // 남은 파일이 없는 것은 고장이 아니라 정상적인 끝이다.
-      console.log('  · 올릴 회차가 없습니다. 드라이브에 파일을 더 넣고 목록을 갱신하세요.');
+    // ★올릴 게 없으면 조용히 끝낸다★ 실패로 처리하면 매일 빨간 알림이 온다.
+    // 순서를 기다리는 것도, 다 끝난 것도 고장이 아니다.
+    if (next.kind === 'waiting') {
+      console.log(`  · [${next.order}]번 차례인데 아직 드라이브에 없습니다. 순서를 지키려고 오늘은 건너뜁니다.`);
       printUsage();
       return;
     }
-    ({ driveVideoId: videoFileId, driveSrtId: srtFileId, moduleLabel, topic, order } = next);
+    if (next.kind === 'done') {
+      console.log('  · 올릴 회차가 없습니다 — 시리즈를 다 발행했습니다.');
+      printUsage();
+      return;
+    }
+    ({ driveVideoId: videoFileId, driveSrtId: srtFileId, moduleLabel, topic, order } = next.module);
     console.log(`  · 이번 차례: [${order}] ${moduleLabel} — ${topic}`);
   }
   // ★썸네일 공통 후킹 문구★ 회차마다 바뀌지 않는다 — 37편이 한 시리즈로 보이게 하는 장치이자,
