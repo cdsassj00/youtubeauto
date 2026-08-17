@@ -1,9 +1,9 @@
 {
   "note": "드라이브 폴더에서 뽑은 발행 순서. 러너에는 드라이브 자격증명이 없어 폴더를 직접 못 읽으므로 여기에 적어 둔다. 파일이 늘면 다시 뽑아 갱신해야 한다.",
   "folderId": "1nPH5MxAvYn0EgUcbOWp3IyH65o0i0X9C",
-  "expectedTotal": 40,
+  "expectedTotal": 44,
   "skipOrders": [],
-  "generatedFrom": "드라이브 파일 51개",
+  "generatedFrom": "드라이브 파일 87개",
   "modules": [
     {
       "order": 1,
@@ -41,6 +41,62 @@
       "driveSrtId": "1nMrrG03eMCvwZLo8t2rcgVt7xk815Qgt"
     },
     {
+      "order": 6,
+      "moduleLabel": "3일차 오후 M04",
+      "topic": "LLM API 연결과 비용 구조",
+      "driveVideoId": "1hjA3BZWMOJSlMvs2X0GGpopXru6h3Ybf",
+      "driveSrtId": "1JWzmQBuins2LgYq_w20etZSRO-DU6brh"
+    },
+    {
+      "order": 7,
+      "moduleLabel": "3일차 오후 M03",
+      "topic": "Supabase 데이터베이스와 백엔드",
+      "driveVideoId": "1_SObYnmBWXwfppyT2m9GZJCLobUET60w",
+      "driveSrtId": "12cGxhD3_MVL9r9n0Y_QQ7JGycA4rlrKl"
+    },
+    {
+      "order": 8,
+      "moduleLabel": "3일차 오후 M02",
+      "topic": "GitHub와 Vercel 배포 자동화",
+      "driveVideoId": "1gnLmhXW_bxXjXD7KoxFuE37nNz0ASJw1",
+      "driveSrtId": "1FZwG9HWwgRmlPCmFQNTvWPKzuNhrFURQ"
+    },
+    {
+      "order": 9,
+      "moduleLabel": "3일차 오후 M05",
+      "topic": "API 조합으로 AI 서비스 설계하기",
+      "driveVideoId": "12CnyS64piwCcJ3zZof8Ja8n9TR3ic_iQ",
+      "driveSrtId": "10kqqlit-bcm_pvec62ufnoqIrRPIrlgX"
+    },
+    {
+      "order": 10,
+      "moduleLabel": "2일차 오후 M04",
+      "topic": "Excel VBA와 AI 바이브 코딩",
+      "driveVideoId": "1TBwGU82NS4vY3Hqd6I_0YrY1jONDFXp3",
+      "driveSrtId": "1k3HIjguDGy-DEfHHTe3ReuDo_gi5CWOz"
+    },
+    {
+      "order": 11,
+      "moduleLabel": "3일차 오전 M06",
+      "topic": "분석 결과를 HTML PDF 콘텐츠로 만들기",
+      "driveVideoId": "1zF8uWdYF5sWj3busCBwzJaAjicE4W5--",
+      "driveSrtId": "18z2KK0ka7oF3vqmnUnON-GE2qfy7ls2y"
+    },
+    {
+      "order": 12,
+      "moduleLabel": "3일차 오전 M05",
+      "topic": "데이터 분석 머신러닝 실습 설계",
+      "driveVideoId": "1eCKGyUifYeWXj5ZhyX497r-irX368D6f",
+      "driveSrtId": "1IXUvhujcUutXQrBZ88Ac0Lr4hal1C5Wi"
+    },
+    {
+      "order": 13,
+      "moduleLabel": "2일차 오전 M08",
+      "topic": "스킬 만들기 설치 공유",
+      "driveVideoId": "1Ut385xPMGmuNAvw6ztziDcpReBiPIuNh",
+      "driveSrtId": "1LcIwF46r9LYcYSYRxS94ZW4v73veF1hg"
+    },
+    {
       "order": 14,
       "moduleLabel": "2일차 오전 M09",
       "topic": "플러그인 하네스 서브에이전트",
@@ -67,6 +123,48 @@
       "topic": "이미지 프롬프트와 생성형 AI 실습",
       "driveVideoId": "1i4SROn4szaYlOfJdIw4GP_XXKnzDNspe",
       "driveSrtId": "1rlkTLPl3gtg-P8RgOYjYfWk5_Tsqyasp"
+    },
+    {
+      "order": 18,
+      "moduleLabel": "3일차 오전 M02",
+      "topic": "AI 특화 서비스와 코딩 에이전트",
+      "driveVideoId": "1ZpsSjG3RYHE7LvDUIdPvKZgQvlZE4ejL",
+      "driveSrtId": "1sf8o79XckO4930ikhtJPAhgvE0Uhg0ir"
+    },
+    {
+      "order": 19,
+      "moduleLabel": "3일차 오전 M09",
+      "topic": "AI 코딩 IDE 설치와 API 키 보안",
+      "driveVideoId": "1uVFUSYGQhtsVUsCnQlKUwQs4DQo6DemF",
+      "driveSrtId": "1Locysh5IUUwglTt7PT7NHFPeobVZc-3Z"
+    },
+    {
+      "order": 20,
+      "moduleLabel": "3일차 오전 M10",
+      "topic": "배포 호스팅과 서비스 공유",
+      "driveVideoId": "1fctp0X7XucOiajsqZnt9ZPTCtB0TdbMh",
+      "driveSrtId": "1CXDVLa1tDlsQ9w5ur4pcCC1psLtqrTAA"
+    },
+    {
+      "order": 21,
+      "moduleLabel": "3일차 오전 M04",
+      "topic": "Jupyter Notebook 코드 실행",
+      "driveVideoId": "1QlNKF0_q3oNEZiITf58bkpIefLgfMJd7",
+      "driveSrtId": "1TnIocQb3VxUujMfeEKuTE93wQAlOXxan"
+    },
+    {
+      "order": 22,
+      "moduleLabel": "2일차 오후 M03",
+      "topic": "CSV와 Excel 데이터 자동 분석",
+      "driveVideoId": "14S-R4lIYJaiCcBwhjbp7EhQ-pvnY4b5-",
+      "driveSrtId": "17psdAk_7uYIoLG-RfPsLkps5qnGEFYeQ"
+    },
+    {
+      "order": 23,
+      "moduleLabel": "2일차 오후 M05",
+      "topic": "ShareX 캡처와 VBA 문서 자동화",
+      "driveVideoId": "1fPxwxVtSorJbTOnb-Lp-S4yFI3Pv2Ty0",
+      "driveSrtId": "1cKTCozxIbmZIC9XTwTGLAcQeLoGkZlGV"
     },
     {
       "order": 24,
@@ -179,6 +277,34 @@
       "topic": "Python 설치 경로 라이브러리 이해",
       "driveVideoId": "1MW-72MaFnZ8lE_2Yr8GRjI3upvXLwQ2W",
       "driveSrtId": "1rUlkCdKtvGhrZr4U1p-_3x8lCVsJqEcD"
+    },
+    {
+      "order": 41,
+      "moduleLabel": "3일차 오전 M03",
+      "topic": "Python 실행 방식과 Jupyter 환경",
+      "driveVideoId": "1w1DFjbldd3vIPewOgVFrdaYCLMkdZSLQ",
+      "driveSrtId": "1mYxxY-E5EFgJkCMXxTMc0U1Z-nDjk21I"
+    },
+    {
+      "order": 42,
+      "moduleLabel": "3일차 오전 M07",
+      "topic": "외부 데이터 API RSS 연결",
+      "driveVideoId": "1vNdgQxPFz3CI2hIV5YkulJlTJS6cdi66",
+      "driveSrtId": "1160jW7_BFSGDEql0aeaY13F_tQADl2g8"
+    },
+    {
+      "order": 43,
+      "moduleLabel": "3일차 오전 M08",
+      "topic": "API 데이터와 브라우저 파일 구조",
+      "driveVideoId": "1nwXyP9tmYY8ddggG6jd3qSfNRyAIKimz",
+      "driveSrtId": "1FTkMpIpy9wE1IXiPu67s0RjMxzVy8tMF"
+    },
+    {
+      "order": 44,
+      "moduleLabel": "3일차 오후 M01",
+      "topic": "VS Code Codex Claude Code 환경 설정",
+      "driveVideoId": "1BbIPSLvPZhYh6EueEgvcGkxRw0j2WCUd",
+      "driveSrtId": "1GclrT6_SXN6hK078mC03bclwK1hh0gSO"
     }
   ]
 }
