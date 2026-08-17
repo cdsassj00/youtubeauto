@@ -53,7 +53,7 @@ export async function generateThumbnail(params: {
 
   const client = new OpenAI({ apiKey });
   // 매 생성마다 포즈·복장을 다르게 (얼굴/안경/헤어 정체성은 유지, 옷과 자세만 변주).
-  const variation = pickVariation();
+  const variation = pickVariation(Boolean(seriesStrip));
   // 스타일 프리셋(배경·글씨체·액센트 한 벌). 'auto' 면 회차마다 날짜 기준으로 회전한다.
   const thumbStyle = resolveThumbStyle(config.thumbnailStyle);
   console.log(`  · 썸네일 스타일: ${thumbStyle.label} / 인물 ${variation.mirror ? '좌' : '우'}측 배치`);
@@ -201,10 +201,16 @@ function mirrorText(t: string): string {
     .replace(/\u0000/g, 'RIGHT');
 }
 
-function pickVariation(): Variation {
+function pickVariation(avoidBottomTitle = false): Variation {
   const outfit = OUTFITS[Math.floor(Math.random() * OUTFITS.length)];
   const pose = POSES[Math.floor(Math.random() * POSES.length)];
-  const base = LAYOUTS[Math.floor(Math.random() * LAYOUTS.length)];
+  // ★시리즈 띠를 쓰는 회차는 제목을 아래로 내리는 배치를 뺀다★
+  // "아래 왼쪽을 비워라"라고 아무리 강하게 적어도, 같은 프롬프트 안에 배치 지시로
+  // "제목을 왼쪽 아래 모서리까지 이어서 써라"가 들어 있으면 두 지시가 서로 싸운다.
+  // 실제로 1편에서 제목 아랫줄이 띠 자리까지 내려와 획 위에 띠가 얹혔다. 금지 문구를
+  // 더 세게 쓰는 대신, 애초에 모순되는 배치를 후보에서 뺀다.
+  const pool = avoidBottomTitle ? LAYOUTS.filter((l) => !/BOTTOM-LEFT corner/.test(l.title)) : LAYOUTS;
+  const base = pool[Math.floor(Math.random() * pool.length)];
   const mirror = Math.random() < 0.5;
   const flipped = mirror
     ? {
@@ -300,7 +306,9 @@ function buildPrompt(
     // 띠는 폭 37%·높이 하단 15% 안에 들어가지만, 그림 모델은 경계를 정확히 못 지키므로
     // 넉넉히 45%/22% 로 잡는다.
     reserveStripZone
-      ? 'RESERVED ZONE — LEAVE IT EMPTY: the BOTTOM-LEFT area (the leftmost 45% of the width within the bottom 22% of the height) must contain NOTHING — no text, no symbol, no part of the person, no icon. Keep it as plain, uncluttered background only (a series label is composited there afterwards). Shift the title upward and re-break its lines if needed so that no letter enters this zone.'
+      ? 'RESERVED STRIP AREA: a series label bar is composited afterwards along the BOTTOM-LEFT. ' +
+        'Therefore NOTHING may sit below 78% of the frame height in the LEFT HALF of the image — no letter, no stroke, no descender, no symbol, no icon, no part of the person. ' +
+        'Treat 78% height as a hard floor for the title on the left side: if the title does not fit above it, use fewer lines or a smaller size rather than letting the last line drop toward the bottom edge. That strip of background must stay plain and empty.'
       : '',
     // 문구를 8~14자로 짧게 쓰게 하는 대신, "무엇에 대한 영상인지"는 이 작은 배지가 책임진다.
     badge && !productIcons
