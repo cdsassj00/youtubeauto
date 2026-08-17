@@ -1,6 +1,8 @@
 {
   "note": "드라이브 폴더에서 뽑은 발행 순서. 러너에는 드라이브 자격증명이 없어 폴더를 직접 못 읽으므로 여기에 적어 둔다. 파일이 늘면 다시 뽑아 갱신해야 한다.",
   "folderId": "1nPH5MxAvYn0EgUcbOWp3IyH65o0i0X9C",
+  "expectedTotal": 40,
+  "skipOrders": [],
   "generatedFrom": "드라이브 파일 51개",
   "modules": [
     {

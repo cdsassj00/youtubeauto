@@ -42,13 +42,37 @@ export async function loadCourseManifest(): Promise<CourseModule[]> {
   return modules.sort((a, b) => a.order - b.order);
 }
 
+export type NextPick =
+  /** 이 회차를 올리면 된다. */
+  | { kind: 'go'; module: CourseModule }
+  /** 다음 차례인 순번의 파일이 아직 드라이브에 없다. 오늘은 아무것도 안 올린다. */
+  | { kind: 'waiting'; order: number }
+  /** 더 올릴 것이 없다. */
+  | { kind: 'done' };
+
 /**
- * 아직 안 올라간 것 중 순번이 가장 빠른 회차를 고른다. 없으면 null.
+ * 다음에 올릴 회차를 고른다.
  *
- * 빠진 순번(예: 6~13번이 아직 드라이브에 없음)은 건너뛰고 다음 것을 집는다 — 없는 번호를
- * 기다리며 멈춰 있으면 그 뒤가 통째로 막힌다.
+ * ★빠진 순번을 건너뛰지 않고 기다린다★ 처음에는 없는 번호를 건너뛰고 다음 것을 집게
+ * 만들었다. 그러면 6~13번이 아직 없을 때 5편 다음 날 14편이 올라가고, 나중에 6번을 넣으면
+ * 6번이 17번 뒤에 발행된다. 순위대로 올리는 것이 이 시리즈의 약속인데 그게 깨지고,
+ * 재생목록도 올린 순서대로 쌓이므로 목록 자체가 뒤죽박죽이 된다. 순서를 지키는 편이
+ * 하루 쉬는 것보다 낫다 — 어차피 파일이 들어오면 저절로 풀린다.
+ *
+ * ★영영 안 올 번호는 skipOrders 로 비워 준다★ 기다리기만 하면 한 번호 때문에 시리즈가
+ * 영원히 멈출 수 있다. 발행하지 않기로 한 순번은 목록에 적어 두면 건너뛴다.
  */
-export async function nextCourseModule(publishedOrders: Set<number>): Promise<CourseModule | null> {
+export async function nextCourseModule(publishedOrders: Set<number>): Promise<NextPick> {
+  const raw = JSON.parse(await fs.readFile(MANIFEST_PATH, 'utf8')) as { expectedTotal?: number; skipOrders?: number[] };
   const modules = await loadCourseManifest();
-  return modules.find((m) => !publishedOrders.has(m.order)) ?? null;
+  const skip = new Set(raw.skipOrders ?? []);
+  const total = Number.isInteger(raw.expectedTotal) ? (raw.expectedTotal as number) : Math.max(...modules.map((m) => m.order));
+
+  for (let n = 1; n <= total; n++) {
+    if (publishedOrders.has(n) || skip.has(n)) continue;
+    const hit = modules.find((m) => m.order === n);
+    if (!hit) return { kind: 'waiting', order: n };
+    return { kind: 'go', module: hit };
+  }
+  return { kind: 'done' };
 }
