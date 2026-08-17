@@ -7,6 +7,7 @@ import { buildToneGuide, resolveTone } from './tone.js';
 import { resolveArtStyle } from './artStyle.js';
 import { levelGuide } from './level.js';
 import { VOX_SYSTEM_LINES, voxRequirements } from './voxScript.js';
+import { INTRO_RULE } from './scriptRules.js';
 
 /** 출력 길이 초과로 JSON 이 도중에 잘렸을 때의 표식 — 이 메시지로 재시도 여부를 판단한다. */
 const TRUNCATED_MSG = '대본 JSON 이 출력 도중 잘렸습니다(출력 길이 초과).';
@@ -18,11 +19,6 @@ const TRUNCATED_MSG = '대본 JSON 이 출력 도중 잘렸습니다(출력 길�
  * 계속됐다. 프롬프트가 첫 씬을 "후킹 도입"이라고만 하고 서론에 몇 씬을 쓸지는 아무 말도
  * 하지 않아서, 모델이 배경 설명을 앞에 잔뜩 몰아두는 쪽으로 흘렀다.
  */
-const INTRO_RULE =
-  '- ★서론은 최대 2씬★ 세 번째 씬부터는 이미 본론이어야 한다. 첫 씬 첫 문장에서 이 영상이 뒤집을 통념이나 답할 질문을 곧바로 꺼내라. ' +
-  '"오늘은 ~에 대해 알아보겠습니다", "~라는 말 들어보셨나요", "먼저 배경부터 살펴보면" 같은 예열 문장은 쓰지 마라 — 시청자는 그 구간에서 나간다. ' +
-  '배경 설명과 용어 정의를 앞에 몰아두지 말고 필요해지는 순간에 한 문장씩 풀어라. 결론이나 반전을 아껴 두지 말고, 무엇을 말할 영상인지 초반에 분명히 밝힌 뒤 그것을 풀어 나가라.';
-
 /**
  * Claude(Opus 4.8) 로 이번 회차 영상 대본을 생성한다.
  * 구조화 출력(Structured Outputs)으로 ScriptSchema 형태의 JSON 을 강제하고,

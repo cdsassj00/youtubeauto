@@ -1,3 +1,5 @@
+import { INTRO_RULE } from './scriptRules.js';
+
 /**
  * VOX(스크랩북) 엔진 전용 대본 지침.
  *
@@ -55,6 +57,7 @@ export function voxRequirements(opts: { targetChars: number; isBrief: boolean })
     // ── 화면 종류 ───────────────────────────────────────────────────
     '- 이 엔진에서 쓸 수 있는 visual 은 title / image / quote / outro 네 가지뿐이다. diagram·comparison·code·bullets 는 이 영상에서 아예 렌더링되지 않으니 쓰지 마라(쓰면 그냥 빈 화면이 된다).',
     '- 첫 씬은 visual="title", 마지막 씬은 visual="outro". 각각 영상 전체에서 딱 한 번만 쓴다.',
+    INTRO_RULE,
     '- 중간 씬은 image 와 quote 두 가지로만 구성한다. image 는 그림이 붙는 화면, quote 는 글자만 남는 화면이다.',
     '- ★image 는 전체 씬의 40~55% 로 유지해라★ 매 씬 그림이 붙으면 눈이 쉴 곳이 없고, 그림이 너무 적으면 글자만 나오는 영상이 된다. 그림 씬과 글자 씬을 번갈아 배치해 호흡을 만든다.',
     '- visual="quote" 인 씬은 heading 하나만으로 화면이 완성되는 자리다. 전환점·반전·단언처럼 "한 방"이 필요한 순간에 써라.',
