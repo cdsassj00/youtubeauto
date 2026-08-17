@@ -5,7 +5,7 @@ on:
   # (매일 07:00 KST 로 돌면서 비공개 영상이 계속 쌓이고 비용이 나갔다.)
   # 다시 켜려면 아래 두 줄의 주석을 풀면 된다:
   #   schedule:
-  #     - cron: '0 22 * * *'   # 22:00 UTC = 다음날 07:00 KST
+  #     - cron: '0 21 * * *'   # 21:00 UTC = 다음날 06:00 KST (출근길)
   workflow_dispatch:
     inputs:
       topic:
