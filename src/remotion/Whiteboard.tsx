@@ -114,9 +114,30 @@ const Board: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
         />
       </div>
 
-      {/* 그림판 — 자막 자리를 비워 두고 가운데에 크게. */}
-      <div style={{ position: 'absolute', left: 180, right: 180, top: 220, bottom: 250 }}>
-        <InkReveal src={scene.imagePath} progress={p} />
+      {/* 그림판 — 자막 자리를 비워 두고 가운데에 크게.
+          ★상자를 그림 비율에 맞춘다★ 예전엔 이 상자가 1560x610(2.56:1)인데 그림은 16:9 라,
+          objectFit:contain 이 좌우에 각각 238px 씩 빈 여백을 남겼다. 그런데 띠 마스크와 손
+          위치는 그림이 아니라 이 상자 기준으로 계산되므로, 손이 매 줄 좌우 끝에서 아무것도
+          없는 종이를 쓸고 다녔다 — 가로 30.5%가 헛돌았다(재서 확인).
+          그림 비율로 상자를 좁히면 그릴 것과 훑는 범위가 정확히 겹친다. 그림을 잘라
+          채우는 방법(cover)도 있지만 AI 그림은 화면 전체를 하나로 구성해 나오므로
+          위아래 30%를 잘라내면 주제가 잘려 나간다.
+          16:9 는 illustrate.ts 가 1920x1080 으로 리사이즈하기 때문에 성립한다. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 180,
+          right: 180,
+          top: 220,
+          bottom: 250,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div style={{ position: 'relative', height: '100%', aspectRatio: '16 / 9', maxWidth: '100%' }}>
+          <InkReveal src={scene.imagePath} progress={p} />
+        </div>
       </div>
     </AbsoluteFill>
   );
