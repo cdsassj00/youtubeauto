@@ -18,9 +18,15 @@ export interface CourseFile {
 }
 
 /**
- * 지원하는 두 가지 표기.
- *   [유튜브추천_1순위]_2일차오전_M01_AI_서비스_구조와_메타_프롬프트
- *   01_2일차오전_M01_AI_서비스_구조와_메타_프롬프트
+ * 지원하는 표기.
+ *   [유튜브추천_1순위]_2일차오전_M01_AI_서비스_구조와_메타_프롬프트   (숫자가 "순위" 앞)
+ *   [추천순위02]_2일차오전_M04_스킬과_컨텍스트_엔지니어링              (숫자가 "순위" 뒤)
+ *   01_2일차오전_M01_AI_서비스_구조와_메타_프롬프트                    (대괄호 없음)
+ *
+ * ★대괄호 안의 첫 숫자를 순번으로 본다★ 처음에는 "(\d+)\s*순위" 로 숫자가 '순위' 앞에
+ * 오는 것만 받았다. 그런데 실제 폴더의 파일이 [추천순위02] 로 바뀌자 40개 중 39개가
+ * 통째로 안 읽혔다. 순번이 없으면 건너뛰는 규칙이라 조용히 전부 제외됐을 것이다.
+ * 라벨 문구는 사람이 언제든 바꾸므로, 문구가 아니라 "대괄호 안 첫 숫자"에 기댄다.
  *
  * ★순번이 없으면 건너뛴다★ 폴더에 실수로 넣은 파일이나 안내문(.txt)이 발행되면
  * 되돌리기가 번거롭다. 순번은 "이건 올려도 된다"는 표시 구실을 겸한다.
@@ -30,10 +36,12 @@ export function parseCourseFileName(fileName: string): CourseFile | null {
 
   let order = NaN;
   let rest = '';
-  const bracket = /^\[[^\]]*?(\d+)\s*순위\][_\s-]*(.+)$/.exec(stem);
+  const bracket = /^\[([^\]]*)\][_\s-]*(.+)$/.exec(stem);
   const numeric = /^(\d{1,3})[_\s-]+(.+)$/.exec(stem);
   if (bracket) {
-    order = Number(bracket[1]);
+    const n = /(\d+)/.exec(bracket[1]);
+    if (!n) return null;
+    order = Number(n[1]);
     rest = bracket[2];
   } else if (numeric) {
     order = Number(numeric[1]);
