@@ -17,6 +17,7 @@ import { generateThumbnail } from '../lib/thumbnail.js';
 import { groupAccent, type StripSpec } from '../lib/seriesStrip.js';
 import { uploadVideo, uploadCaption, ensurePlaylist, addToPlaylist, updateVideoMeta, setThumbnail, listPublishedOrders, apiErrorDetail } from '../lib/youtube.js';
 import { nextCourseModule } from '../lib/courseManifest.js';
+import { nextKstTimeUtc } from '../lib/publishTime.js';
 import { printUsage } from '../lib/usage.js';
 
 const env = (k: string, fallback = '') => (process.env[k] ?? '').trim() || fallback;
@@ -27,6 +28,8 @@ async function main(): Promise<void> {
   const seriesTitle = env('SERIES_TITLE', courseName);
   // 어디까지 올렸는지 세기 위한 표식. 시청자에게는 안 보이는 태그로 들어간다.
   const seriesCode = env('COURSE_CODE', 'cdsa-ac');
+  // ★올리는 시각과 공개되는 시각을 떼어 놓는다★ 비우면 예전처럼 올리자마자 공개된다.
+  const publishAtKst = env('COURSE_PUBLISH_AT');
 
   // ★자동 모드★ 무엇을 올릴지 사람이 정해 주지 않고, 목록에서 아직 안 올라간 것 중
   // 순번이 가장 빠른 것을 스스로 고른다. 하루 한 편 크론이 이 모드로 돈다.
@@ -182,10 +185,15 @@ async function main(): Promise<void> {
   console.log(madeThumb ? '  · 완료' : '  · 건너뜀(OPENAI_API_KEY 없음)');
 
   console.log('▶ [5/5] 유튜브 업로드');
+  // 공개 예정인 영상만 예약한다 — 미등록·비공개로 올리는 것은 예약할 이유가 없다.
+  const publishAt = publishAtKst && config.youtubePrivacyStatus === 'public'
+    ? nextKstTimeUtc(publishAtKst)
+    : undefined;
   const videoId = await uploadVideo({
     videoPath,
     script: { title: fullTitle, description, tags },
     thumbnailPath: madeThumb ? THUMBNAIL_PATH : undefined,
+    publishAt,
   });
 
   // ★자막 트랙은 기본으로 붙이지 않는다★
