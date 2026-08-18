@@ -17,6 +17,16 @@ import { createOAuthClient, apiErrorDetail } from '../lib/youtube.js';
 const pad = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s.padEnd(n));
 const num = (v: unknown) => Number(v ?? 0).toLocaleString();
 
+interface Row {
+  id: string;
+  title: string;
+  at: string;
+  days: number;
+  views: number;
+  likes: number;
+  comments: number;
+}
+
 async function main(): Promise<void> {
   const auth = createOAuthClient();
   const youtube = google.youtube({ version: 'v3', auth });
@@ -36,7 +46,7 @@ async function main(): Promise<void> {
     pageToken = r.data.nextPageToken ?? undefined;
   } while (pageToken);
 
-  const rows: Array<{ id: string; title: string; at: string; days: number; views: number; likes: number; comments: number }> = [];
+  const rows: Row[] = [];
   for (let i = 0; i < ids.length; i += 50) {
     const r = await youtube.videos.list({ part: ['snippet', 'statistics'], id: ids.slice(i, i + 50) });
     for (const v of r.data.items ?? []) {
@@ -58,42 +68,74 @@ async function main(): Promise<void> {
     console.log(`  ${pad(r.at, 11)}${pad(r.title, 42)}${String(r.views).padStart(7)}${(r.views / r.days).toFixed(1).padStart(9)}${String(r.likes).padStart(7)}${String(r.comments).padStart(6)}`);
   }
 
-  // ── 노출수·클릭률 ────────────────────────────────────────────────
-  console.log('\n■ 노출수 · 클릭률 (진단에 꼭 필요한 숫자)');
-  try {
-    const ya = google.youtubeAnalytics({ version: 'v2', auth });
-    const end = new Date().toISOString().slice(0, 10);
-    const start = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-    const res = await ya.reports.query({
-      ids: 'channel==MINE',
-      startDate: start,
-      endDate: end,
-      metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage',
-      dimensions: 'video',
-      sort: '-views',
-      maxResults: 25,
-    });
-    const head = (res.data.columnHeaders ?? []).map((h) => h.name);
-    console.log(`  ${head.join(' · ')}`);
-    for (const row of res.data.rows ?? []) console.log(`  ${row.join('  ')}`);
-    console.log('\n  ※ 노출수(impressions)와 클릭률은 Analytics 의 별도 지표군이라 위 조회로는 안 나온다.');
-    console.log('     스튜디오 화면에는 있지만 API 로는 콘텐츠 소유자 권한이 필요하다.');
-  } catch (e) {
-    // ★막히는 지점이 두 군데인데 처방이 다르다★ 처음에는 무조건 "권한이 없다"고 찍었는데,
-    // 실제로 돌려 보니 첫 번째 벽은 권한이 아니라 클라우드 프로젝트에서 Analytics API 자체가
-    // 꺼져 있는 것이었다(accessNotConfigured). 그건 재인증이 아니라 콘솔에서 켜면 끝난다.
-    // 엉뚱한 처방을 내밀면 사람이 헛수고를 하므로 응답이 말하는 대로 갈라서 알린다.
-    const detail = apiErrorDetail(e);
-    console.log(`  ✗ 읽지 못했습니다: ${detail}`);
-    if (detail.includes('accessNotConfigured')) {
-      console.log('  → 구글 클라우드 프로젝트에서 YouTube Analytics API 가 꺼져 있습니다. 콘솔에서 켜면 됩니다(재인증 아님).');
-      console.log('     켠 뒤에도 막히면 그때가 yt-analytics.readonly 재인증 차례입니다.');
-    } else if (detail.includes('insufficient') || detail.includes('forbidden') || detail.includes('Scope')) {
-      console.log('  → 지금 토큰에는 yt-analytics.readonly 권한이 없습니다. 재인증하면 열립니다.');
-    } else {
-      console.log('  → 위 응답 메시지가 원인입니다. 프로젝트 설정과 토큰 권한을 차례로 확인하세요.');
+  await analytics(auth, rows);
+}
+
+/**
+ * 시청 지표를 읽는다.
+ *
+ * ★조회수만으로는 무엇을 고칠지 못 정한다★ 조회수가 낮은 이유는 둘인데 처방이 정반대다.
+ *   유튜브가 안 뿌린다        → 주제·채널 문제 (썸네일을 아무리 고쳐도 안 바뀐다)
+ *   뿌리는데 안 눌린다/안 본다 → 썸네일·제목·도입부 문제
+ * 노출수와 클릭률 자체는 API 에 없다(스튜디오 전용 지표다). 대신 유입 경로 분포와
+ * 평균 시청 지속률로 같은 갈림길을 판별할 수 있다. 탐색/추천 유입이 거의 없으면 첫 번째,
+ * 유입은 있는데 지속률이 낮으면 두 번째다.
+ */
+async function analytics(auth: ReturnType<typeof createOAuthClient>, rows: Row[]): Promise<void> {
+  const ya = google.youtubeAnalytics({ version: 'v2', auth });
+  const end = new Date().toISOString().slice(0, 10);
+  const start = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const titleOf = new Map(rows.map((r) => [r.id, r.title]));
+
+  // ★한 조회가 막혀도 나머지는 보여 준다★ 예전에 Analytics 가 통째로 try 하나에 묶여 있어서
+  // 뒤쪽 조회 하나가 실패하면 앞의 성공한 숫자까지 같이 사라졌다. 구간마다 따로 감싼다.
+  const section = async (title: string, opts: Record<string, unknown>, label?: (k: string) => string) => {
+    console.log(`\n■ ${title}`);
+    try {
+      const res = await ya.reports.query({ ids: 'channel==MINE', startDate: start, endDate: end, ...opts } as never);
+      console.log(`  ${(res.data.columnHeaders ?? []).map((h) => h.name).join(' · ')}`);
+      for (const row of res.data.rows ?? []) {
+        const cells = [...row];
+        if (label) cells[0] = `${cells[0]}  ${pad(label(String(cells[0])), 38)}`;
+        console.log(`  ${cells.join('  ')}`);
+      }
+      if (!res.data.rows?.length) console.log('  (데이터 없음)');
+    } catch (e) {
+      const detail = apiErrorDetail(e);
+      console.log(`  ✗ 읽지 못했습니다: ${detail}`);
+      if (detail.includes('accessNotConfigured')) {
+        console.log('  → 구글 클라우드 프로젝트에서 YouTube Analytics API 가 꺼져 있습니다. 콘솔에서 켜면 됩니다(재인증 아님).');
+      } else if (/insufficient|Scope|forbidden/i.test(detail)) {
+        console.log('  → 지금 토큰에 yt-analytics.readonly 가 없습니다. 재인증하면 열립니다.');
+      }
     }
+  };
+
+  const perf = 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage';
+
+  await section('90일 상위 영상 (조회수순)', { metrics: perf, dimensions: 'video', sort: '-views', maxResults: 25 }, (k) => titleOf.get(k) ?? '');
+
+  // 최근 올린 것들만 따로 본다. 상위 25위 안에 못 들어서 위 표에는 안 나오는데, 정작
+  // 지금 판단해야 하는 건 이것들이다.
+  const recent = rows.slice(0, 20).map((r) => r.id).filter(Boolean);
+  if (recent.length) {
+    await section(
+      `최근 업로드 ${recent.length}개 (90일 기준)`,
+      { metrics: perf, dimensions: 'video', filters: `video==${recent.join(',')}`, sort: '-views', maxResults: 50 },
+      (k) => titleOf.get(k) ?? '',
+    );
+    await section('최근 업로드의 유입 경로', {
+      metrics: 'views',
+      dimensions: 'insightTrafficSourceType',
+      filters: `video==${recent.join(',')}`,
+      sort: '-views',
+    });
   }
+
+  await section('채널 전체 유입 경로 (90일)', { metrics: 'views', dimensions: 'insightTrafficSourceType', sort: '-views' });
+
+  console.log('\n  ※ 노출수(impressions)·클릭률은 Analytics API 에 아예 없는 지표다 — 스튜디오 화면에서만 본다.');
+  console.log('     대신 위의 유입 경로(BROWSE_FEATURES=홈, SUGGESTED=추천, YT_SEARCH=검색)와 지속률로 갈음한다.');
 }
 
 main().catch((e) => {
