@@ -27,8 +27,13 @@ export async function uploadVideo(params: {
   // (deck 기반 엔진은 Script 스키마를 쓰지 않는다).
   script: { title: string; description: string; tags: string[] };
   thumbnailPath?: string;
+  /**
+   * 예약 발행 시각(UTC ISO). 주면 비공개로 올려 두고 이 시각에 유튜브가 스스로 공개한다.
+   * 트랜스코딩이 끝난 뒤 공개되므로 첫 시청자가 저화질을 보지 않는다.
+   */
+  publishAt?: string;
 }): Promise<string> {
-  const { videoPath, script, thumbnailPath } = params;
+  const { videoPath, script, thumbnailPath, publishAt } = params;
 
   const auth = createOAuthClient();
   const youtube = google.youtube({ version: 'v3', auth });
@@ -44,6 +49,14 @@ export async function uploadVideo(params: {
     selfDeclaredMadeForKids: false,
     containsSyntheticMedia: config.containsSyntheticMedia,
   };
+  // ★예약 발행은 반드시 private 으로 올려야 한다★ 유튜브는 publishAt 을 private 인
+  // 영상에서만 받는다. public 으로 보내면 publishAt 을 조용히 무시하고 즉시 공개해 버린다.
+  if (publishAt) {
+    status.privacyStatus = 'private';
+    status.publishAt = publishAt;
+    const kst = new Date(new Date(publishAt).getTime() + 9 * 3600e3).toISOString().replace('T', ' ').slice(0, 16);
+    console.log(`  · 예약 발행: ${kst} (KST) — 그때까지 비공개로 두고 처리를 끝낸다`);
+  }
 
   const insertRes = await youtube.videos.insert({
     part: ['snippet', 'status'],
