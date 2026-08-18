@@ -79,8 +79,20 @@ async function main(): Promise<void> {
     console.log('\n  ※ 노출수(impressions)와 클릭률은 Analytics 의 별도 지표군이라 위 조회로는 안 나온다.');
     console.log('     스튜디오 화면에는 있지만 API 로는 콘텐츠 소유자 권한이 필요하다.');
   } catch (e) {
-    console.log(`  ✗ 읽지 못했습니다: ${apiErrorDetail(e)}`);
-    console.log('  → 지금 토큰에는 yt-analytics.readonly 권한이 없습니다. 재인증하면 열립니다.');
+    // ★막히는 지점이 두 군데인데 처방이 다르다★ 처음에는 무조건 "권한이 없다"고 찍었는데,
+    // 실제로 돌려 보니 첫 번째 벽은 권한이 아니라 클라우드 프로젝트에서 Analytics API 자체가
+    // 꺼져 있는 것이었다(accessNotConfigured). 그건 재인증이 아니라 콘솔에서 켜면 끝난다.
+    // 엉뚱한 처방을 내밀면 사람이 헛수고를 하므로 응답이 말하는 대로 갈라서 알린다.
+    const detail = apiErrorDetail(e);
+    console.log(`  ✗ 읽지 못했습니다: ${detail}`);
+    if (detail.includes('accessNotConfigured')) {
+      console.log('  → 구글 클라우드 프로젝트에서 YouTube Analytics API 가 꺼져 있습니다. 콘솔에서 켜면 됩니다(재인증 아님).');
+      console.log('     켠 뒤에도 막히면 그때가 yt-analytics.readonly 재인증 차례입니다.');
+    } else if (detail.includes('insufficient') || detail.includes('forbidden') || detail.includes('Scope')) {
+      console.log('  → 지금 토큰에는 yt-analytics.readonly 권한이 없습니다. 재인증하면 열립니다.');
+    } else {
+      console.log('  → 위 응답 메시지가 원인입니다. 프로젝트 설정과 토큰 권한을 차례로 확인하세요.');
+    }
   }
 }
 
