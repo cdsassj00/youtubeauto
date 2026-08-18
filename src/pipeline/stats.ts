@@ -89,13 +89,15 @@ async function analytics(auth: ReturnType<typeof createOAuthClient>, rows: Row[]
 
   // ★한 조회가 막혀도 나머지는 보여 준다★ 예전에 Analytics 가 통째로 try 하나에 묶여 있어서
   // 뒤쪽 조회 하나가 실패하면 앞의 성공한 숫자까지 같이 사라졌다. 구간마다 따로 감싼다.
-  const section = async (title: string, opts: Record<string, unknown>, label?: (k: string) => string) => {
+  const section = async (title: string, opts: Record<string, unknown>, label?: (k: string) => string): Promise<string[]> => {
     console.log(`\n■ ${title}`);
+    const keys: string[] = [];
     try {
       const res = await ya.reports.query({ ids: 'channel==MINE', startDate: start, endDate: end, ...opts } as never);
       console.log(`  ${(res.data.columnHeaders ?? []).map((h) => h.name).join(' · ')}`);
       for (const row of res.data.rows ?? []) {
         const cells = [...row];
+        keys.push(String(cells[0]));
         if (label) cells[0] = `${cells[0]}  ${pad(label(String(cells[0])), 38)}`;
         console.log(`  ${cells.join('  ')}`);
       }
@@ -109,6 +111,7 @@ async function analytics(auth: ReturnType<typeof createOAuthClient>, rows: Row[]
         console.log('  → 지금 토큰에 yt-analytics.readonly 가 없습니다. 재인증하면 열립니다.');
       }
     }
+    return keys;
   };
 
   const perf = 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage';
@@ -119,11 +122,18 @@ async function analytics(auth: ReturnType<typeof createOAuthClient>, rows: Row[]
   // 지금 판단해야 하는 건 이것들이다.
   const recent = rows.slice(0, 20).map((r) => r.id).filter(Boolean);
   if (recent.length) {
-    await section(
+    const got = await section(
       `최근 업로드 ${recent.length}개 (90일 기준)`,
       { metrics: perf, dimensions: 'video', filters: `video==${recent.join(',')}`, sort: '-views', maxResults: 50 },
       (k) => titleOf.get(k) ?? '',
     );
+    // ★없는 줄을 조용히 넘기면 "0회"로 오해한다★ Analytics 는 며칠 늦게 집계돼서 갓 올린
+    // 영상은 아직 행이 없다. 조회수는 이미 찍히고 있으므로, 빠졌다는 사실을 적어 둔다.
+    const missing = recent.filter((id) => !got.includes(id));
+    if (missing.length) {
+      console.log(`\n  ※ 아래 ${missing.length}개는 아직 Analytics 집계 전입니다(보통 2~3일 걸림). 조회수 자체는 위 표에 이미 있습니다.`);
+      for (const id of missing) console.log(`     ${id}  ${titleOf.get(id) ?? ''}`);
+    }
     await section('최근 업로드의 유입 경로', {
       metrics: 'views',
       dimensions: 'insightTrafficSourceType',
@@ -134,8 +144,12 @@ async function analytics(auth: ReturnType<typeof createOAuthClient>, rows: Row[]
 
   await section('채널 전체 유입 경로 (90일)', { metrics: 'views', dimensions: 'insightTrafficSourceType', sort: '-views' });
 
+  // ★범례를 직접 확인하고 고쳤다★ 처음에 BROWSE_FEATURES·SUGGESTED 라고 적었는데 그런
+  // 값은 이 API 에 없다. 스튜디오의 "탐색 기능"은 SUBSCRIBER 로, "추천 동영상"은
+  // RELATED_VIDEO 로 나온다. 범례가 틀리면 숫자를 정반대로 읽게 된다.
   console.log('\n  ※ 노출수(impressions)·클릭률은 Analytics API 에 아예 없는 지표다 — 스튜디오 화면에서만 본다.');
-  console.log('     대신 위의 유입 경로(BROWSE_FEATURES=홈, SUGGESTED=추천, YT_SEARCH=검색)와 지속률로 갈음한다.');
+  console.log('     유입 경로 범례: SUBSCRIBER=홈·구독 피드(스튜디오의 "탐색 기능") · RELATED_VIDEO=추천 동영상');
+  console.log('                     YT_SEARCH=유튜브 검색 · YT_CHANNEL=채널 페이지 · EXT_URL=외부 사이트 · NO_LINK_OTHER=직접 유입');
 }
 
 main().catch((e) => {
