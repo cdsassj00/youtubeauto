@@ -17,6 +17,9 @@ const EVENTS = {
   // ElevenLabs 목소리 목록 — 합성하지 않으므로 문자 사용량 0.
   voices: () => ({}),
 
+  // 채널 숫자(조회수·좋아요·댓글 등) 읽기 — 읽기만 하므로 무료.
+  stats: (b) => ({ channel: pickChannel(b.channel) || 'default' }),
+
   // 업로드 대상 채널 확인 — channels.list 한 번(할당량 1).
   'channel-check': (b) => ({ channel: pickChannel(b.channel) || 'ch2' }),
 

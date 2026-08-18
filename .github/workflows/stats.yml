@@ -1,0 +1,33 @@
+name: 채널 숫자 뽑기
+
+# 조회수·좋아요·댓글과 (권한이 있으면) 시청 지표를 읽어 온다.
+# ★무료다★ 읽기만 하고 아무것도 만들지 않는다 — Claude·이미지 API 를 안 쓴다.
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [stats]
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'default' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 숫자 뽑기
+        run: npx tsx src/pipeline/stats.ts | tee out-stats.txt
+      - name: 요약에 붙이기
+        if: always()
+        run: |
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat out-stats.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo '(출력 없음)' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

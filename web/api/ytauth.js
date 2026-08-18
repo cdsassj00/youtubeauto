@@ -21,6 +21,9 @@
 const SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube', // 썸네일 설정 등
+  // 시청 지표(조회수 추이·평균 시청 지속 등). 읽기 전용이라 위험이 없고,
+  // 이게 없으면 "조회수가 낮은 이유"를 숫자로 가를 수가 없다.
+  'https://www.googleapis.com/auth/yt-analytics.readonly',
 ].join(' ');
 
 const esc = (s) =>
