@@ -115,6 +115,17 @@ export const SceneSchema = z.object({
   // 맞는 아이콘을 고른다(예: 보안 얘기면 lock, 데이터 얘기면 database).
   icon: IconKind.optional(),
   visual: VisualKind,
+  /**
+   * 이 씬을 어떤 화풍으로 그릴지. Mixed 컴포지션에서만 쓰인다.
+   *
+   * ★왜 씬 단위인가★ 지금까지는 컴포지션 하나가 영상 전체의 화풍을 정했다(Whiteboard 로
+   * 렌더하면 12분 내내 화이트보드). 미드폼은 한 화풍으로 8분을 버티지 못한다 — 같은 그림이
+   * 계속 나오면 중간에 나간다. 씬마다 다른 엔진으로 그리려면 화풍이 씬에 붙어야 한다.
+   * 비워 두면 standard 로 그려지므로 기존 대본은 그대로 동작한다.
+   */
+  engine: z
+    .enum(['standard', 'illustrated', 'scrapbook', 'whiteboard', 'listing', 'footage'])
+    .optional(),
   diagram: DiagramSchema.optional(),
   comparison: z
     .object({
