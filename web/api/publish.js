@@ -12,6 +12,9 @@ const THUMB_STYLES = ['auto', 'chalk', 'paper', 'impact', 'neon', 'magazine', 's
 // 서버리스 함수는 그 모듈을 import 할 수 없어 값을 복제해 둔다. 어긋나면
 // "화면에서는 고를 수 있는데 실제로는 안 먹는" 옵션이 다시 생긴다.
 const ENGINES = {
+  // 주식 데일리 — 사이트 API 로 재료를 받아 씬마다 화풍을 바꿔 그린다. 화풍/B롤/난이도/말투는
+  // 이 엔진에서 아무 효과가 없다(대본을 Claude 가 쓰지 않고 화면은 사이트가 그려 준다).
+  stock: { artStyle: false, broll: false, level: false, tone: false },
   illustrated: { artStyle: true, broll: true },
   scrapbook: { artStyle: false, broll: false },
   footage: { artStyle: false, broll: false },
@@ -70,8 +73,9 @@ export default async function handler(req, res) {
     opts: {
       // 공개 상태. 리뷰 흐름은 'unlisted'(미등록)로 올려 확인 후 발행. 빈 값이면 워크플로 기본값.
       privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : '',
+      market: ['KR', 'US'].includes(String(body.market || '').toUpperCase()) ? String(body.market).toUpperCase() : '',
       // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
-      style: ['illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d', 'hyper', 'handdrawn', 'listing', 'whiteboard'].includes(body.style)
+      style: ['stock', 'illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d', 'hyper', 'handdrawn', 'listing', 'whiteboard'].includes(body.style)
         ? body.style
         : '',
       // 나레이션 배속(0.8~1.4). 비우면 워크플로 기본값.
@@ -92,7 +96,7 @@ export default async function handler(req, res) {
   // 알 수 없는 키가 섞여 오면 조용히 버리지 말고 응답에 알려준다(오타로 인한 설정 유실 방지).
   const KNOWN = new Set([
     'topic', 'mode', 'content_mode', 'level', 'content_level', 'upload', 'do_upload',
-    'minutes', 'target_minutes', 'channel', 'privacy', 'style', 'speed', 'narration_speed', 'password',
+    'minutes', 'target_minutes', 'channel', 'privacy', 'style', 'market', 'speed', 'narration_speed', 'password',
     'art', 'art_style', 'tone', 'narration_tone', 'thumb', 'thumb_style', 'bgm', 'bgm_style',
     'listing', 'listing_set',
   ]);
