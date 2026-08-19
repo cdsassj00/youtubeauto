@@ -12,6 +12,8 @@ export const OUT_DIR = path.join(ROOT, 'out');
 export const PUBLIC_DIR = path.join(ROOT, 'public');
 export const AUDIO_DIR = path.join(PUBLIC_DIR, 'audio');
 export const SCRIPT_PATH = path.join(OUT_DIR, 'script.json');
+/** 주식 데일리 전용 — 씬마다 어떤 사이트 화면을 깔지 적어 두는 파일(대본 단계 → 렌더 단계). */
+export const STOCK_VIEWS_PATH = path.join(OUT_DIR, 'stock-views.json');
 export const MANIFEST_PATH = path.join(OUT_DIR, 'manifest.json');
 export const VIDEO_PATH = path.join(OUT_DIR, 'video.mp4');
 // ★JPEG 다★ 예전엔 PNG 였는데, 유튜브 썸네일은 2MB 가 상한이고 종이 질감처럼
