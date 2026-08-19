@@ -197,3 +197,56 @@ export function planSummary(scenes: PlannedScene[]): string {
     lines.join('\n')
   );
 }
+
+/**
+ * 씬 배열을 유튜브 업로드까지 갈 수 있는 Script 로 감싼다.
+ *
+ * ★제목에 날짜를 앞세우지 않는다★ 본 채널 실측에서 자체 용어·날짜가 앞에 온 제목은
+ * 조회 50~100회, 고유명사가 앞에 온 제목은 2,900~7,100회였다. 그래서 업종명과 종목명을
+ * 앞에 두고 날짜는 괄호로 뒤에 붙인다.
+ */
+export function buildStockScript(b: Brief, date: string, disclaimer: string) {
+  const planned = buildStockScenes(b);
+  const md = `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+  const top = b.sectors.recommend[0]?.sector ?? b.regime.label;
+  const names = b.picks.map((p) => p.name);
+  const prev = b.previous;
+  const hit = prev ? Math.round(prev.hitRate * prev.picks.length) : 0;
+
+  const head = prev && prev.picks.length ? `어제 ${hit}/${prev.picks.length} 적중 · ` : '';
+  const title = `${head}${top} 순풍 — ${names.slice(0, 3).join('·')} (${md} ${b.marketKo})`.slice(0, 100);
+
+  const lines: string[] = [];
+  if (prev && prev.picks.length) {
+    lines.push(`어제 추천한 ${prev.picks.length}종목 중 ${hit}개가 올랐습니다. 평균 ${pct(prev.avgChangePct)}.`);
+  }
+  lines.push(`오늘은 ${top}에 순풍이 붙었습니다.`, '', `계산 결과 전체 ▸ https://stockontology.cc`, '');
+  if (prev && prev.picks.length) {
+    lines.push(`■ 어제 추천, 오늘 결과 (적중 ${hit}/${prev.picks.length} · 평균 ${pct(prev.avgChangePct)})`);
+    for (const p of prev.picks) lines.push(`${p.name}  ${p.recPrice.toLocaleString()} → ${p.nowPrice.toLocaleString()}  ${pct(p.changePct)}`);
+    lines.push(`※ ${prev.basisNote}`, '');
+  }
+  lines.push('■ 오늘의 추천');
+  b.picks.forEach((p, i) => lines.push(`${i + 1}. ${p.name} (${p.sector ?? '미분류'}) ${p.score.toFixed(2)} — ${(p.reasons ?? [])[0] ?? p.reason}`));
+  if (b.dropped?.length) lines.push('', '■ 오늘 빠진 종목', b.dropped.map((d) => `${d.name} — ${d.reason}`).join('\n'));
+  lines.push('', '■ 오늘 작동한 인과', ...b.causal.slice(0, 4).map((c) => `· ${c}`));
+  if (b.league?.strategies?.length) {
+    lines.push('', '■ 네 엔진의 성적', ...b.league.strategies.map((s) => `${s.nameKo}(${s.tagKo}) ${pct(s.pnlPct)}`));
+  }
+  lines.push('', '■ 기준', `${b.basisNote ?? b.basis} · 데이터 시각 ${new Date(b.dataAsOf).toISOString()}`, '', '─'.repeat(20), disclaimer);
+
+  const tags = ['주식온톨로지', '종목추천', '매크로', 'AI투자', b.marketKo === '한국' ? '코스피' : '나스닥', top, ...names].slice(0, 15);
+
+  return {
+    script: {
+      title,
+      description: lines.join('\n').slice(0, 4900),
+      tags,
+      topic: `${date} ${b.marketKo} 온톨로지 브리프`,
+      thumbnailHeadline: prev && prev.picks.length ? `어제 ${hit}/${prev.picks.length} 적중` : `${top} 순풍`,
+      thumbnailBadge: b.marketKo,
+      scenes: planned.map((p) => p.scene),
+    },
+    views: Object.fromEntries(planned.filter((p) => p.sceneView).map((p) => [p.scene.id, p.sceneView!])) as Record<string, string>,
+  };
+}

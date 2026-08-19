@@ -9,6 +9,7 @@ import {
   PUBLIC_DIR,
   AUDIO_DIR,
   SCRIPT_PATH,
+  STOCK_VIEWS_PATH,
   MANIFEST_PATH,
   VIDEO_PATH,
   THUMBNAIL_PATH,
@@ -42,6 +43,9 @@ import { generateThumbnail } from '../lib/thumbnail.js';
 import { printUsage } from '../lib/usage.js';
 import { uploadVideo, setThumbnail, setPrivacy } from '../lib/youtube.js';
 import { pickVisualThemeMode } from '../lib/visualTheme.js';
+import { fetchBrief, fetchSceneImage } from '../lib/stockBrief.js';
+import { buildStockScript } from '../lib/stockScript.js';
+import { drawStockThumbnail } from '../lib/stockThumbnail.js';
 
 type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail' | 'rethumb' | 'setprivacy' | 'remixbgm';
 
@@ -76,6 +80,24 @@ async function writeJson(p: string, data: unknown): Promise<void> {
 
 /** 1) 대본 생성 */
 async function stepScript(): Promise<Script> {
+  // ★주식 데일리는 Claude 를 부르지 않는다★ stockontology.cc 응답이 이미 문장(speech)과
+  // 근거(reasons)를 준다. 거기에 LLM 을 한 번 더 통과시키면 매일 돈이 들고, 무엇보다 없는
+  // 숫자를 지어낼 여지가 생긴다. 숫자가 곧 신뢰인 채널이라 조립만 한다.
+  if (config.videoEngine === 'stock') {
+    const market = (process.env.STOCK_MARKET ?? 'KR').toUpperCase() as 'KR' | 'US';
+    console.log(`▶ [1/4] 주식 브리프 조립 (${market})`);
+    const { date, brief, disclaimer } = await fetchBrief(market);
+    const { script, views } = buildStockScript(brief, date, disclaimer);
+    await writeJson(SCRIPT_PATH, script);
+    await writeJson(STOCK_VIEWS_PATH, views);
+    console.log(`  · ${date} ${brief.marketKo} · ${brief.regime.label}`);
+    console.log(`  · 씬 ${script.scenes.length}개 · 사이트 화면 ${Object.keys(views).length}장`);
+    console.log(`  · 제목: ${script.title}`);
+    const blank = [...brief.picks, ...brief.avoid].filter((p) => !p.sector);
+    if (blank.length) console.warn(`  ⚠ 섹터가 비어 있는 종목: ${blank.map((p) => p.name).join(', ')}`);
+    return script as Script;
+  }
+
   const mode = resolveTopicMode();
   const dateLabel = new Date().toLocaleDateString('ko-KR', {
     year: 'numeric',
@@ -370,6 +392,28 @@ async function stepRender(): Promise<void> {
     // 화이트보드는 같은 그림을 쓰되 화면에서 '그려지는' 연출만 다르다.
     // 그림 생성 단계를 공유하므로 비용은 illustrated 와 같다.
     await renderVideo(manifest, config.videoEngine === 'whiteboard' ? 'Whiteboard' : 'AiIllustrated');
+  } else if (config.videoEngine === 'stock') {
+    // 사이트가 서버에서 그려 준 1920x1080 완성 화면을 씬 배경으로 깐다. 브라우저도 AI 그림도
+    // 필요 없다 — illustrated 엔진이 imagePath 를 전체화면으로 깔아 주므로 그 자리에 넣는다.
+    const views = await readJson<Record<string, string>>(STOCK_VIEWS_PATH);
+    const market = (process.env.STOCK_MARKET ?? 'KR').toUpperCase() as 'KR' | 'US';
+    await fs.mkdir(path.join('public', 'img'), { recursive: true });
+    let got = 0;
+    for (const [sceneId, view] of Object.entries(views)) {
+      const rel = `img/${sceneId}.png`;
+      try {
+        await fetchSceneImage(market, view, path.join('public', rel));
+        got++;
+      } catch (e) {
+        // ★한 장 실패로 그날 영상을 버리지 않는다★ 그 씬은 엔진이 자체 화면으로 그린다.
+        console.warn(`  · 화면 실패(무시): ${view} — ${(e as Error).message}`);
+        continue;
+      }
+      manifest.scenes = manifest.scenes.map((s) => (s.id === sceneId ? { ...s, imagePath: rel } : s));
+    }
+    await writeJson(MANIFEST_PATH, manifest);
+    console.log(`  · 사이트 화면 ${got}/${Object.keys(views).length}장 배치 → Mixed 합성`);
+    await renderVideo(manifest, 'Mixed');
   } else if (config.videoEngine === 'signal') {
     // SIGNAL — 화면은 덱 렌더러가 그리지만 대본·나레이션은 표준 경로 것을 그대로 쓴다.
     // manifest 를 슬라이드로 옮기고, 2단계가 만들어 둔 mp3 목록을 함께 넘긴다.
@@ -412,6 +456,22 @@ async function stepRender(): Promise<void> {
 /** AI 썸네일 생성 — 실패/키없음 시 기존 썸네일을 그대로 둔다. (엔진 무관 공통) */
 async function makeThumbnail(): Promise<void> {
   const meta = await loadMeta();
+  // 주식 데일리는 그림이 아니라 숫자를 보여주는 썸네일이라 코드로 그린다 — 매일 같은
+  // 자리에 같은 크기로 찍혀야 시리즈로 묶이고, 장당 비용도 0 이다.
+  if (config.videoEngine === 'stock') {
+    const script = ScriptSchema.parse(await readJson(SCRIPT_PATH));
+    const names = script.scenes.filter((s) => s.id.startsWith('pick')).map((s) => s.heading.replace(/^\d+\.\s*/, '').replace(/\s+[-\d.]+$/, ''));
+    const now = new Date();
+    await drawStockThumbnail({
+      headline: meta.thumbnailHeadline,
+      badge: meta.thumbnailBadge || '한국',
+      names,
+      dateLabel: `${now.getMonth() + 1}/${now.getDate()}`,
+      outPath: THUMBNAIL_PATH,
+    });
+    console.log('  · 썸네일(코드 렌더):', THUMBNAIL_PATH);
+    return;
+  }
   try {
     const ok = await generateThumbnail({
       title: meta.title,

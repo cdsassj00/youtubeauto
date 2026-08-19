@@ -14,7 +14,7 @@
  *  무시되는 옵션이 다시 생긴다.)
  */
 
-export type EngineId = 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper' | 'handdrawn' | 'listing' | 'whiteboard';
+export type EngineId = 'stock' | 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper' | 'handdrawn' | 'listing' | 'whiteboard';
 
 /** 엔진과 무관하게 항상 적용되는 옵션은 여기 적지 않는다(주제·길이·모드·채널·배속). */
 export interface EngineCaps {
@@ -33,6 +33,18 @@ export interface EngineCaps {
 }
 
 export const ENGINES: EngineCaps[] = [
+  {
+    id: 'stock',
+    label: '주식 데일리 (stockontology.cc)',
+    blurb:
+      '사이트 공개 API 로 오늘의 국면·인과·추천 종목을 받아 씬마다 화풍을 바꿔 그린다. ' +
+      '대본을 Claude 가 쓰지 않고 응답의 문장을 그대로 조립하므로 숫자가 지어내지지 않는다.',
+    // 화면은 사이트가 서버에서 그려 준 완성본을 쓴다 — AI 그림도 스톡도 부르지 않는다.
+    artStyle: false,
+    broll: false,
+    level: false,
+    tone: false,
+  },
   {
     id: 'illustrated',
     label: '2D 일러스트 + 영상컷',
