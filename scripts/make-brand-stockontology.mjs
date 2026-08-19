@@ -42,7 +42,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
 <rect width="${W}" height="${H}" fill="url(#glow)"/>
 ${lines}${deco}
 <text x="${cx}" y="${SY+92}" font-family="${F}" font-size="34" letter-spacing="15" fill="${GOLD}" text-anchor="middle">S T O C K O N T O L O G Y</text>
-<text x="${cx}" y="${SY+196}" font-family="${F}" font-size="104" font-weight="bold" fill="${WHITE}" text-anchor="middle">스톡온톨로지</text>
+<text x="${cx}" y="${SY+196}" font-family="${F}" font-size="104" font-weight="bold" fill="${WHITE}" text-anchor="middle">주식온톨로지</text>
 <text x="${cx}" y="${SY+262}" font-family="${F}" font-size="38" fill="${DIM}" text-anchor="middle">거시가 움직이면 어느 종목이 며칠 뒤에 움직이는가</text>
 ${chain}
 <text x="${cx}" y="${SY+402}" font-family="${F}" font-size="30" fill="${DIM}" text-anchor="middle">매일 아침 계산해서 공개합니다 · 무료·비수익 · stockontology.cc</text>
@@ -60,17 +60,38 @@ const wm = `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150">
 await sharp(Buffer.from(wm),{density:72}).png().toFile('public/brand/stockontology/watermark.png');
 
 // 프로필 800x800 (API 미지원 — 스튜디오에서 수동 업로드)
+//
+// ★48px 에서 읽히는 것만 넣는다★ 유튜브는 아바타를 대부분 48px 로 보여준다. 800px 에서
+// 72pt 로 넣은 "주식온톨로지"는 48px 로 줄면 4px 높이가 되어 글자가 아니라 얼룩이 된다.
+// 실제로 축소해 눈으로 확인했다. 그래서 글자를 넣은 판과 마크만 있는 판을 둘 다 만든다.
+const mark = (scale, cx, cy) => {
+  const r = 34*scale, w = 14*scale;
+  const P=[[-150,-114],[0,0],[150,114]].map(([dx,dy])=>[cx+dx*scale, cy+dy*scale]);
+  return `<circle cx="${P[0][0]}" cy="${P[0][1]}" r="${r}" fill="${CORAL}"/>
+<circle cx="${P[1][0]}" cy="${P[1][1]}" r="${r}" fill="${GOLD}"/>
+<circle cx="${P[2][0]}" cy="${P[2][1]}" r="${r}" fill="${WHITE}"/>
+<line x1="${P[0][0]+r*0.8}" y1="${P[0][1]+r*0.62}" x2="${P[1][0]-r*0.8}" y2="${P[1][1]-r*0.62}" stroke="${CORAL}" stroke-width="${w}"/>
+<line x1="${P[1][0]+r*0.8}" y1="${P[1][1]+r*0.62}" x2="${P[2][0]-r*0.8}" y2="${P[2][1]-r*0.62}" stroke="${GOLD}" stroke-width="${w}"/>`;
+};
+
+// (A) 요청안 — 이름 글자를 넣은 판
 const pf = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800">
 <rect width="800" height="800" fill="${BG}"/>
 <circle cx="400" cy="400" r="392" fill="none" stroke="#16305e" stroke-width="4"/>
-<circle cx="250" cy="286" r="34" fill="${CORAL}"/><circle cx="400" cy="400" r="34" fill="${GOLD}"/><circle cx="550" cy="514" r="34" fill="${WHITE}"/>
-<line x1="278" y1="307" x2="368" y2="376" stroke="${CORAL}" stroke-width="14"/>
-<line x1="432" y1="424" x2="522" y2="493" stroke="${GOLD}" stroke-width="14"/>
-<text x="400" y="672" font-family="${F}" font-size="86" font-weight="bold" fill="${WHITE}" text-anchor="middle">온톨로지</text>
+${mark(1, 400, 356)}
+<text x="400" y="672" font-family="${F}" font-size="96" font-weight="bold" fill="${WHITE}" text-anchor="middle">주식온톨로지</text>
 </svg>`;
 await sharp(Buffer.from(pf),{density:72}).png().toFile('public/brand/stockontology/profile.png');
 
-for (const f of ['banner','watermark','profile']) {
+// (B) 대안 — 마크만. 48px 에서도 형태가 그대로 남는다.
+const pfm = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800">
+<rect width="800" height="800" fill="${BG}"/>
+<circle cx="400" cy="400" r="392" fill="none" stroke="#16305e" stroke-width="4"/>
+${mark(1.55, 400, 400)}
+</svg>`;
+await sharp(Buffer.from(pfm),{density:72}).png().toFile('public/brand/stockontology/profile-mark.png');
+
+for (const f of ['banner','watermark','profile','profile-mark']) {
   const m = await sharp(`public/brand/stockontology/${f}.png`).metadata();
   console.log(f, m.width+'x'+m.height, (m.size/1024|0)+'KB');
 }
