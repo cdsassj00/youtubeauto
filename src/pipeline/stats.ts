@@ -13,6 +13,7 @@
  */
 import { google } from 'googleapis';
 import { createOAuthClient, apiErrorDetail } from '../lib/youtube.js';
+import { config } from '../config.js';
 
 const pad = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s.padEnd(n));
 const num = (v: unknown) => Number(v ?? 0).toLocaleString();
@@ -35,7 +36,9 @@ async function main(): Promise<void> {
   const me = ch.data.items?.[0];
   const uploads = me?.contentDetails?.relatedPlaylists?.uploads;
   if (!uploads) throw new Error('업로드 재생목록을 찾지 못했습니다.');
-  console.log(`■ 채널: ${me?.snippet?.title}`);
+  // ★어느 채널을 읽었는지 먼저 찍는다★ 요청한 채널과 실제로 읽힌 채널이 다를 수 있는데
+  // (자격증명이 기본값으로 폴백되면 그렇게 된다) 제목만 봐서는 알아채기 어렵다. 나란히 둔다.
+  console.log(`■ 채널: ${me?.snippet?.title}  (요청: ${config.targetChannel})`);
   console.log(`  구독자 ${num(me?.statistics?.subscriberCount)} · 총 조회수 ${num(me?.statistics?.viewCount)} · 영상 ${num(me?.statistics?.videoCount)}개\n`);
 
   const ids: string[] = [];
