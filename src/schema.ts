@@ -124,7 +124,25 @@ export const SceneSchema = z.object({
    * 비워 두면 standard 로 그려지므로 기존 대본은 그대로 동작한다.
    */
   engine: z
-    .enum(['standard', 'illustrated', 'scrapbook', 'whiteboard', 'listing', 'footage'])
+    .enum(['standard', 'illustrated', 'scrapbook', 'whiteboard', 'listing', 'footage', 'stock'])
+    .optional(),
+  /**
+   * 주식 데일리 전용 화면 데이터.
+   *
+   * ★불릿으로는 표를 못 그린다★ 처음엔 종목 목록을 bullets 로 넘겼는데, 그 엔진들은
+   * 사진을 깔도록 만들어진 것이라 제목만 띄우고 내용을 자막에 떠넘겼다. 화면에 표와
+   * 막대를 그리려면 값이 구조로 와야 한다.
+   */
+  stock: z
+    .object({
+      kind: z.enum(['prevTable', 'rotation', 'scoreBars', 'flow']),
+      rows: z
+        .array(z.object({ name: z.string(), from: z.string().default(''), to: z.string().default(''), pct: z.number().default(0), note: z.string().default('') }))
+        .default([]),
+      groups: z.array(z.object({ label: z.string(), items: z.array(z.string()), tone: z.enum(['keep', 'in', 'out']) })).default([]),
+      big: z.string().default(''),
+      caption: z.string().default(''),
+    })
     .optional(),
   diagram: DiagramSchema.optional(),
   comparison: z
