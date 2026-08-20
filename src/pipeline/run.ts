@@ -89,7 +89,7 @@ async function stepScript(): Promise<Script> {
     const { date, brief, disclaimer } = await fetchBrief(market);
     // 0 이면 전부(약 9분 30초). 미리보기·짧은 회차는 STOCK_MAX_MIN 으로 줄인다.
     const maxMin = Number(process.env.STOCK_MAX_MIN ?? '0') || 0;
-    const { script, views } = buildStockScript(brief, date, disclaimer, maxMin);
+    const { script, views } = await buildStockScript(brief, date, disclaimer, maxMin);
     await writeJson(SCRIPT_PATH, script);
     await writeJson(STOCK_VIEWS_PATH, views);
     console.log(`  · ${date} ${brief.marketKo} · ${brief.regime.label}`);
