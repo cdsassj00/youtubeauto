@@ -36,6 +36,10 @@ on:
         description: '주식 데일리 시장 (KR | US) — style=stock 일 때만 쓰임'
         required: false
         default: 'KR'
+      max_min:
+        description: '주식 데일리 목표 길이(분). 비우거나 0 이면 전체(약 9분 30초)'
+        required: false
+        default: '0'
       style:
         description: '영상 스타일 (stock=주식 데일리 | (illustrated=2D 벡터 | scrapbook=빈티지 판화 스크랩북 | footage=실사 스톡 | deck3d=3D 기하학 | signal=데이터 중심 | signal3d=시그널+3D | hyper=모션 타이포 | handdrawn=손그림 | listing=목록형 사진카드 | whiteboard=화이트보드)'
         required: false
@@ -110,6 +114,8 @@ jobs:
       # 영상 엔진: illustrated(AI 흑백 일러스트) | web3d(3D 웹녹화) | remotion(손그림). 기본 illustrated.
       # style=stock 일 때 어느 시장 브리프를 쓸지. 다른 엔진에서는 무시된다.
       STOCK_MARKET: ${{ github.event.inputs.market || github.event.client_payload.opts.market || github.event.client_payload.market || 'KR' }}
+      # style=stock 일 때 목표 길이(분). 0 이면 전부 쓴다.
+      STOCK_MAX_MIN: ${{ github.event.inputs.max_min || github.event.client_payload.opts.max_min || '0' }}
       VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.opts.style || github.event.client_payload.style || vars.VIDEO_ENGINE || 'illustrated' }}
       # 목록형 엔진이 쓸 자료 폴더(assets/listing/<이름>/items.json).
       LISTING_SET: ${{ github.event.client_payload.opts.listing_set || '' }}

@@ -99,6 +99,7 @@ export default async function handler(req, res) {
       // 공개 상태. 리뷰 흐름은 'unlisted'(미등록)로 올려 확인 후 발행. 빈 값이면 워크플로 기본값.
       privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : '',
       market: ['KR', 'US'].includes(String(body.market || '').toUpperCase()) ? String(body.market).toUpperCase() : '',
+      max_min: /^\d{1,2}$/.test(String(body.max_min ?? '')) ? String(body.max_min) : '',
       // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
       style: ['stock', 'illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d', 'hyper', 'handdrawn', 'listing', 'whiteboard'].includes(body.style)
         ? body.style
@@ -121,7 +122,7 @@ export default async function handler(req, res) {
   // 알 수 없는 키가 섞여 오면 조용히 버리지 말고 응답에 알려준다(오타로 인한 설정 유실 방지).
   const KNOWN = new Set([
     'topic', 'mode', 'content_mode', 'level', 'content_level', 'upload', 'do_upload',
-    'minutes', 'target_minutes', 'channel', 'privacy', 'style', 'market', 'speed', 'narration_speed', 'password',
+    'minutes', 'target_minutes', 'channel', 'privacy', 'style', 'market', 'max_min', 'speed', 'narration_speed', 'password',
     'art', 'art_style', 'tone', 'narration_tone', 'thumb', 'thumb_style', 'bgm', 'bgm_style',
     'listing', 'listing_set',
   ]);
