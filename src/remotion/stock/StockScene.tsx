@@ -252,6 +252,37 @@ const Flow: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
             })}
           </div>
         ))}
+
+        {/* ★수급·차트 층★ 온톨로지는 "왜 오를 이유가 있나"만 본다. 실제로 돈이 들어오고
+            있는지는 다른 엔진(quant/ta)이 보는데, 그 값을 통째로 버리고 있었다.
+            같은 종목을 다른 방식이 어떻게 보는지 아래 띠로 깐다. */}
+        {(scene.stock?.rows ?? []).length ? (
+          <div style={{ position: 'absolute', left: 96, right: 96, bottom: 84, display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {(scene.stock?.rows ?? []).map((r, i) => {
+              const at = Math.round(fps * (2.6 + i * 0.35));
+              const in_ = spring({ frame: frame - at, fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.45) });
+              return (
+                <div
+                  key={r.name + i}
+                  style={{
+                    padding: '16px 26px',
+                    borderRadius: 14,
+                    border: `2px solid ${r.pct >= 0 ? UP : DOWN}`,
+                    background: 'rgba(12,23,48,0.9)',
+                    opacity: in_,
+                    transform: `translateY(${interpolate(in_, [0, 1], [18, 0])}px)`,
+                  }}
+                >
+                  <div style={{ color: DIM, fontSize: 22, letterSpacing: 2 }}>{r.name}</div>
+                  <div style={{ color: WHITE, fontSize: 30, fontWeight: 700, marginTop: 6 }}>
+                    {r.to}
+                    {r.from ? <span style={{ color: r.pct >= 0 ? UP : DOWN, marginLeft: 12 }}>{r.from}</span> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </AbsoluteFill>
     </Shell>
   );
@@ -306,7 +337,9 @@ const Cards: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   const w = Math.floor((1920 - 192 - (cards.length - 1) * 28) / Math.max(1, cards.length));
   return (
     <Shell heading={scene.heading}>
-      <div style={{ position: 'absolute', top: 300, left: 96, right: 96, display: 'flex', gap: 28 }}>
+      {/* ★세로 가운데로 맞춘다★ top 고정이면 카드가 짧은 회차(항목 3~4개)에서 위로 붙고
+          아래 400px 이 통째로 빈다. 카드 높이가 내용에 따라 달라지므로 가운데 정렬이 맞다. */}
+      <div style={{ position: 'absolute', top: 260, bottom: 110, left: 96, right: 96, display: 'flex', gap: 28, alignItems: 'center' }}>
         {cards.map((c, i) => {
           const at = Math.round(fps * (0.4 + i * 0.5));
           const in_ = spring({ frame: frame - at, fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.5) });

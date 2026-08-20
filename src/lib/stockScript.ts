@@ -46,8 +46,8 @@ export interface PlannedScene {
  * 단골에게는 값이 있으므로 긴 회차에서는 살린다.
  */
 const KEEP_ORDER = [
-  'pick1', 'causal1', 'pick2', 'causal2', 'principle', 'pick3', 'causal3',
-  'open', 'prev', 'regime', 'pick4', 'causal4', 'sector', 'engines', 'narrative', 'league', 'delta', 'pick5',
+  'pick1', 'causal1', 'pick2', 'agree', 'causal2', 'engines', 'principle', 'pick3', 'causal3',
+  'open', 'prev', 'league', 'regime', 'pick4', 'causal4', 'sector', 'narrative', 'delta', 'pick5',
 ];
 
 /**
@@ -485,9 +485,26 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
     });
   }
 
+  /**
+   * 같은 종목을 다른 엔진들은 어떻게 봤나.
+   *
+   * ★네 엔진 중 하나만 쓰고 있었다★ 응답에 온톨로지 말고도 수급·차트(quant), 차트 거장(ta),
+   * 융합(fusion)이 각자의 점수와 근거를 담아 온다. 온톨로지는 "오를 이유가 있나"만 보고
+   * 실제로 돈이 들어오고 있는지는 안 본다 — 그걸 보는 값이 이미 와 있는데 버리고 있었다.
+   */
+  const otherViews = (name: string) =>
+    (b.engines ?? [])
+      .filter((e) => e.id !== 'onto')
+      .map((e) => {
+        const hit = (e.picks ?? []).find((x) => x.name === name);
+        return hit ? { engine: e, pick: hit } : null;
+      })
+      .filter(Boolean) as { engine: NonNullable<Brief['engines']>[number]; pick: Brief['picks'][number] }[];
+
   // ── 5. 오늘의 종목 — 사이트의 점수 분해 화면을 종목마다 ──────────────────
   b.picks.forEach((p, i) => {
     const days = p.daysInList && p.daysInList > 1 ? ` 이 종목은 ${p.daysInList}일째 목록에 남아 있습니다.` : p.isNew ? ' 오늘 새로 들어온 종목입니다.' : '';
+    const others = otherViews(p.name);
     add(
       {
         id: `pick${i + 1}`,
@@ -504,8 +521,15 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
           kind: 'flow',
           cards: [],
           big: p.score.toFixed(2),
-          caption: `${p.name} · 종합 점수`,
-          rows: [],
+          caption: `${p.name} · 온톨로지 점수`,
+          // 아래 띠 — 같은 종목을 수급·차트가 몇 점으로 봤는가.
+          rows: others.map((o) => ({
+            name: o.engine.nameKo,
+            from: o.pick.score.toFixed(2),
+            to: o.engine.tagKo ?? '',
+            pct: o.pick.score,
+            note: '',
+          })),
           groups: [
             { label: '움직인 거시', items: (p.reasons ?? []).map(splitReason).filter(Boolean).map((x) => x!.from).slice(0, 3), tone: 'keep' },
             {
@@ -536,6 +560,17 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
         '화면 도식(왼쪽 → 오른쪽 세 열, 왼쪽이 움직인 거시, 가운데가 업종에 준 힘, 오른쪽이 이 종목):',
         ...(p.reasons ?? []).map((r) => `  ${r}`),
         '',
+        '',
+        ...(others.length
+          ? [
+              '같은 종목을 다른 방식들은 이렇게 봤다(화면 아래 띠에 뜬다):',
+              ...others.map((o) => `  ${o.engine.nameKo}(${o.engine.tagKo ?? ''}) ${o.pick.score.toFixed(2)} — ${(o.pick.reasons ?? []).join(' / ')}`),
+              '',
+              '★온톨로지와 수급이 갈리면 그게 이야깃거리다★ 온톨로지는 "오를 이유가 있나"를 보고,',
+              '수급·차트는 "실제로 돈이 들어오고 있나"를 본다. 둘이 같은 방향이면 왜 겹쳤는지,',
+              '엇갈리면 무엇이 어긋난 것인지 한 문장으로 짚어라. 값을 나열하지는 마라.',
+            ]
+          : []),
         '★값을 읽지 말고 경로를 설명해라★ 왼쪽 거시가 왜 이 업종을 밀어 올리는지(또는 끌어내리는지),',
         `그 업종 안에서 ${p.name}이 왜 그 힘을 받는지를 사람 말로 풀어라. 민감도 숫자는 그 설명의 근거로만 쓴다.`,
         '민감도가 음수인 항목이 섞여 있으면 그것도 짚어라 — 다 좋다고만 하면 안 된다.',
@@ -550,6 +585,66 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
 
   // 종목보다 인과가 많이 남았으면 뒤에 붙인다(종목이 3개뿐인 날 등).
   for (let i = b.picks.length; i < Math.min(4, b.causal.length); i++) addCausal(i);
+
+  // ── 5-0. 네 방식이 다 같은 것을 가리킨 종목 ─────────────────────────────
+  //
+  // ★이게 이 사이트에서 제일 센 이야기다★ 거시 인과, 수급·차트, 차트 거장 13종 합의,
+  // 융합 — 서로 보는 것이 완전히 다른 네 방식이 같은 종목을 집었다면 그건 우연이 아니다.
+  // 값은 이미 응답에 다 있는데 쓰지 않고 있었다.
+  const engines = b.engines ?? [];
+  if (engines.length >= 3) {
+    const tally = new Map<string, { name: string; hits: { nameKo: string; tagKo?: string; score: number }[] }>();
+    for (const e of engines) {
+      for (const p of (e.picks ?? []).slice(0, 5)) {
+        const cur = tally.get(p.name) ?? { name: p.name, hits: [] };
+        cur.hits.push({ nameKo: e.nameKo, tagKo: e.tagKo, score: p.score });
+        tally.set(p.name, cur);
+      }
+    }
+    const agreed = [...tally.values()].filter((t) => t.hits.length >= 3).sort((a, b) => b.hits.length - a.hits.length).slice(0, 3);
+    if (agreed.length) {
+      add(
+        {
+          id: 'agree',
+          heading: `${engines.length}가지 방식이 겹쳐 고른 종목`,
+          narration:
+            `보는 방식이 완전히 다른 ${engines.length}가지가 같은 종목을 집었습니다. ` +
+            agreed.map((t) => `${attach(t.name, '은', '는')} ${t.hits.length}가지에서 나왔습니다.`).join(' '),
+          bullets: agreed.map((t) => `${t.name} — ${t.hits.length}/${engines.length}`),
+          visual: 'bullets',
+          engine: 'stock',
+          stock: {
+            kind: 'cards',
+            big: '',
+            caption: '',
+            rows: [],
+            groups: [],
+            cards: agreed.map((t) => ({
+              title: t.name,
+              sub: `${t.hits.length}/${engines.length} 방식에서 선정`,
+              value: '',
+              items: t.hits.map((h) => `${h.nameKo} ${h.score.toFixed(2)}`),
+              highlight: t.hits.length === engines.length,
+            })),
+          },
+        },
+        undefined,
+        [
+          `엔진 수: ${engines.length}`,
+          ...engines.map((e) => `${e.nameKo}(${e.tagKo ?? ''}) — ${e.descKo ?? ''} · 리그 수익률 ${pct(e.leaguePnlPct ?? 0)}`),
+          '',
+          '겹쳐 나온 종목:',
+          ...agreed.map((t) => `  ${t.name}: ${t.hits.map((h) => `${h.nameKo} ${h.score.toFixed(2)}`).join(', ')}`),
+          '',
+          '★왜 이게 의미가 있는지를 설명해라★ 네 방식은 보는 것이 서로 완전히 다르다.',
+          '거시 인과는 이유를 보고, 수급·차트는 돈의 흐름만 보고, 차트 거장은 가격 패턴만 본다.',
+          '근거가 겹치지 않는 방식들이 같은 답을 낸 것이 무슨 뜻인지 한두 문장으로 풀어라.',
+          '다만 단정하지 마라 — 겹쳤다고 오른다는 보장은 없다.',
+        ].join('\n'),
+        30,
+      );
+    }
+  }
 
   // ── 5-1. 어제 뽑은 것을 채점한다 ────────────────────────────────────────
   // 오늘의 종목을 다 보여준 다음에 온다. 순서가 뒤바뀌면 "어제 5종목 중 3개"가
