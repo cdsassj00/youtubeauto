@@ -297,10 +297,54 @@ const ScoreBars: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   );
 };
 
+
+/** 엔진 비교 — 네(또는 세) 장의 카드가 순서대로 선다. */
+const Cards: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const cards = scene.stock?.cards ?? [];
+  const w = Math.floor((1920 - 192 - (cards.length - 1) * 28) / Math.max(1, cards.length));
+  return (
+    <Shell heading={scene.heading}>
+      <div style={{ position: 'absolute', top: 300, left: 96, right: 96, display: 'flex', gap: 28 }}>
+        {cards.map((c, i) => {
+          const at = Math.round(fps * (0.4 + i * 0.5));
+          const in_ = spring({ frame: frame - at, fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.5) });
+          const neg = c.value.trim().startsWith('-');
+          return (
+            <div
+              key={c.title}
+              style={{
+                width: w,
+                padding: '34px 30px',
+                borderRadius: 20,
+                border: `2px solid ${c.highlight ? GOLD : 'rgba(143,160,192,0.28)'}`,
+                background: 'rgba(12,23,48,0.7)',
+                opacity: in_,
+                transform: `translateY(${interpolate(in_, [0, 1], [26, 0])}px)`,
+              }}
+            >
+              <div style={{ color: WHITE, fontSize: 40, fontWeight: 800 }}>{c.title}</div>
+              <div style={{ color: DIM, fontSize: 24, marginTop: 10, minHeight: 66, lineHeight: 1.35 }}>{c.sub}</div>
+              {c.value ? <div style={{ color: neg ? DOWN : UP, fontSize: 60, fontWeight: 800, margin: '18px 0 8px' }}>{c.value}</div> : null}
+              {c.items.map((it) => (
+                <div key={it} style={{ color: WHITE, fontSize: 28, marginTop: 12, opacity: 0.92 }}>
+                  · {it}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </Shell>
+  );
+};
+
 export const StockScene: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   const kind = scene.stock?.kind;
   if (kind === 'rotation') return <Rotation scene={scene} />;
   if (kind === 'flow') return <Flow scene={scene} />;
   if (kind === 'scoreBars') return <ScoreBars scene={scene} />;
+  if (kind === 'cards') return <Cards scene={scene} />;
   return <PrevTable scene={scene} />;
 };

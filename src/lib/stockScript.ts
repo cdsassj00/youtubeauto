@@ -185,6 +185,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         kind: 'prevTable',
         big: `${hit}/${prev.picks.length}`,
         caption: `어제 추천 적중 · 평균 ${pct(prev.avgChangePct)}`,
+        cards: [],
         rows: prev.picks.slice(0, 6).map((p) => ({
           name: p.name,
           from: `${p.recPrice.toLocaleString()}원`,
@@ -218,6 +219,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       engine: 'stock',
       stock: {
         kind: 'rotation',
+        cards: [],
         big: changed ? '전환' : `${nar.regime?.streakDays ?? 1}일째`,
         caption: changed ? '국면이 바뀐 날' : '같은 국면 연속',
         rows: [],
@@ -240,6 +242,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       engine: 'stock',
       stock: {
         kind: 'flow',
+        cards: [],
         big: '',
         caption: '',
         rows: [],
@@ -332,6 +335,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         engine: 'stock',
         stock: {
           kind: 'flow',
+          cards: [],
           big: p.score.toFixed(2),
           caption: `${p.name} · 종합 점수`,
           rows: [],
@@ -413,7 +417,21 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         ' 같은 날 같은 시장을 보고도 고르는 종목이 갈립니다.',
       bullets: others.map((e) => `${e.nameKo} · ${e.picks[0].name}`).slice(0, 5),
       visual: 'bullets',
-      engine: 'listing',
+      engine: 'stock',
+      stock: {
+        kind: 'cards',
+        big: '',
+        caption: '',
+        rows: [],
+        groups: [],
+        cards: (b.engines ?? []).map((e) => ({
+          title: e.nameKo,
+          sub: e.descKo ?? e.tagKo ?? '',
+          value: e.leaguePnlPct == null ? '' : pct(e.leaguePnlPct),
+          items: (e.picks ?? []).slice(0, 3).map((p) => `${p.name} ${p.score.toFixed(2)}`),
+          highlight: Boolean(e.live),
+        })),
+      },
     });
   }
 
@@ -430,9 +448,16 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
           ` 네 방식 모두 같은 원금에 같은 매매 규칙으로 돌고, 다른 것은 무엇을 살까 하나뿐입니다. ` +
           `그래서 이 비교는 공정합니다. 지는 방식도 그대로 공개합니다.`,
         visual: 'image',
-        engine: 'illustrated',
+        engine: 'stock',
+        stock: {
+          kind: 'cards',
+          big: '',
+          caption: '',
+          rows: [],
+          groups: [],
+          cards: s.map((x) => ({ title: x.nameKo, sub: x.tagKo, value: pct(x.pnlPct), items: x.live ? ['실계좌 운용 중'] : [], highlight: x.live })),
+        },
       },
-      'league',
     );
   }
 
