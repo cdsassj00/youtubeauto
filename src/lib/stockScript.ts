@@ -397,18 +397,21 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       '예측이 아니라, 이미 일어난 거시의 움직임이 종목까지 도달하는 데 걸리는 시차를 노리는 방식입니다.',
     bullets: ['거시 인과 ×0.35', '가격 흐름 ×0.45', '뉴스 감성 ×0.2'],
     visual: 'diagram',
-    diagram: {
-      nodes: [
-        { id: 'macro', label: '거시 신호' },
-        { id: 'sens', label: '업종 민감도' },
-        { id: 'score', label: '종목 점수' },
-      ],
-      edges: [
-        { from: 'macro', to: 'sens' },
-        { from: 'sens', to: 'score' },
+    // ★여기도 손그림이 상자 하나만 그리고 있었다★ 나레이션은 세 축의 비중을 말하는데
+    // 화면에는 그 숫자가 없었다. 비중을 막대로 보여주면 말과 화면이 같은 것을 가리킨다.
+    engine: 'stock',
+    stock: {
+      kind: 'scoreBars',
+      cards: [],
+      big: '1.00',
+      caption: '세 축을 합치면',
+      groups: [],
+      rows: [
+        { name: '거시 인과', from: '온톨로지 점수 × 0.35', to: '', pct: 0.35, note: '' },
+        { name: '가격 흐름', from: '최근 추세 × 0.45', to: '', pct: 0.45, note: '' },
+        { name: '뉴스 감성', from: '뉴스 점수 × 0.20', to: '', pct: 0.2, note: '' },
       ],
     },
-    engine: 'whiteboard',
   });
 
   // ── 5-3. 다른 방식들은 뭐라고 하나 — 수급·차트·융합 ──────────────────────
