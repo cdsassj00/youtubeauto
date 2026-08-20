@@ -377,6 +377,7 @@ const Headline: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   const { fps } = useVideoConfig();
   const in_ = spring({ frame, fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.6) });
   const lines = scene.stock?.rows ?? [];
+  const chips = scene.stock?.groups?.[0]?.items ?? [];
   return (
     <AbsoluteFill
       style={{
@@ -394,12 +395,53 @@ const Headline: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
       ) : null}
       <div style={{ color: WHITE, fontSize: 68, fontWeight: 800, marginTop: 22, opacity: in_, textAlign: 'center' }}>{scene.heading}</div>
       {scene.stock?.caption ? <div style={{ color: DIM, fontSize: 34, marginTop: 18, opacity: in_ }}>{scene.stock.caption}</div> : null}
-      <div style={{ marginTop: 54 }}>
+
+      {/* ★후크의 알맹이는 종목 이름이다★ 처음엔 이것도 34px 로 세로로 쌓았더니 화면에서
+          가장 작은 글자가 정작 이 영상의 상품이 되어 버렸다. 가로로 크게 세우고 하나씩 띄운다. */}
+      {chips.length ? (
+        <div style={{ display: 'flex', gap: 30, marginTop: 46, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1600 }}>
+          {chips.map((name, i) => {
+            const a = spring({ frame: frame - Math.round(fps * (0.5 + i * 0.28)), fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.4) });
+            return (
+              <div
+                key={name}
+                style={{
+                  color: WHITE,
+                  fontSize: 68,
+                  fontWeight: 800,
+                  padding: '14px 34px',
+                  border: `3px solid ${GOLD}`,
+                  borderRadius: 18,
+                  background: 'rgba(217,164,65,0.10)',
+                  opacity: a,
+                  transform: `translateY(${(1 - a) * 22}px)`,
+                }}
+              >
+                {name}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: chips.length ? 46 : 54 }}>
         {lines.map((r, i) => {
-          const at = Math.round(fps * (0.7 + i * 0.4));
+          const at = Math.round(fps * (0.7 + (chips.length + i) * 0.32));
           const a = spring({ frame: frame - at, fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.4) });
+          const link = r.note === 'link';
           return (
-            <div key={r.name} style={{ color: r.note === 'dim' ? DIM : WHITE, fontSize: r.note === 'dim' ? 26 : 34, marginTop: 14, opacity: a, textAlign: 'center' }}>
+            <div
+              key={r.name}
+              style={{
+                color: link ? GOLD : r.note === 'dim' ? DIM : WHITE,
+                fontSize: link ? 40 : r.note === 'dim' ? 26 : 34,
+                fontWeight: link ? 700 : 400,
+                letterSpacing: link ? 1.5 : 0,
+                marginTop: 14,
+                opacity: a,
+                textAlign: 'center',
+              }}
+            >
               {r.name}
             </div>
           );
