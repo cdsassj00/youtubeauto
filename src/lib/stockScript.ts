@@ -130,6 +130,19 @@ export function fixParticles(text: string): string {
   });
 }
 
+
+/**
+ * "코스피 +4.53% → 유통소비 민감도 +0.35" 를 화면용 두 조각으로 가른다.
+ *
+ * ★근거 문자열이 이미 인과 구조다★ 왼쪽이 움직인 거시, 오른쪽이 그것이 섹터에 준 힘이다.
+ * 따로 필드를 달라고 하지 않아도 이 문자열만으로 전파 도식을 그릴 수 있다.
+ */
+function splitReason(r: string): { from: string; to: string } | null {
+  const i = r.indexOf('→');
+  if (i === -1) return null;
+  return { from: r.slice(0, i).trim(), to: r.slice(i + 1).trim() };
+}
+
 export function buildStockScenes(b: Brief): PlannedScene[] {
   const out: PlannedScene[] = [];
   // ★나레이션은 반드시 여기를 지난다★ 씬마다 따로 처리하면 언젠가 한 곳을 빠뜨리고,
@@ -167,7 +180,20 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         ` 기준은 추천한 시점의 시세와 오늘 계산 시점의 시세입니다.`,
       bullets: prev.picks.slice(0, 5).map((p) => `${p.name} ${pct(p.changePct)}`),
       visual: 'bullets',
-      engine: 'listing',
+      engine: 'stock',
+      stock: {
+        kind: 'prevTable',
+        big: `${hit}/${prev.picks.length}`,
+        caption: `어제 추천 적중 · 평균 ${pct(prev.avgChangePct)}`,
+        rows: prev.picks.slice(0, 6).map((p) => ({
+          name: p.name,
+          from: `${p.recPrice.toLocaleString()}원`,
+          to: `${p.nowPrice.toLocaleString()}원`,
+          pct: p.changePct,
+          note: '',
+        })),
+        groups: [],
+      },
     });
   }
 
@@ -189,7 +215,18 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         ...(nar.pickTurnover ? [`종목 교체 ${nar.pickTurnover.changed}/${nar.pickTurnover.total}`] : []),
       ].slice(0, 5),
       visual: 'bullets',
-      engine: 'scrapbook',
+      engine: 'stock',
+      stock: {
+        kind: 'rotation',
+        big: changed ? '전환' : `${nar.regime?.streakDays ?? 1}일째`,
+        caption: changed ? '국면이 바뀐 날' : '같은 국면 연속',
+        rows: [],
+        groups: [
+          ...(nar.sectors?.kept?.length ? [{ label: '유지된 섹터', items: nar.sectors.kept, tone: 'keep' as const }] : []),
+          ...(nar.sectors?.entered?.length ? [{ label: '새로 들어온 섹터', items: nar.sectors.entered, tone: 'in' as const }] : []),
+          ...(nar.sectors?.left?.length ? [{ label: '빠진 섹터', items: nar.sectors.left, tone: 'out' as const }] : []),
+        ],
+      },
     });
   }
 
@@ -200,9 +237,24 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       heading: b.regime.label,
       narration: `오늘 ${mk} 시장은 ${b.regime.label}입니다. ` + b.regime.lines.slice(0, 3).join(' ') + ' 이 판단은 사람이 고른 것이 아니라 거시 지표에서 계산된 값입니다.',
       visual: 'image',
-      engine: 'illustrated',
+      engine: 'stock',
+      stock: {
+        kind: 'flow',
+        big: '',
+        caption: '',
+        rows: [],
+        groups: [
+          {
+            label: '거시요인',
+            // 오늘 실제로 움직인 것만 — 인과 문장의 왼쪽에서 뽑는다.
+            items: [...new Set(b.causal.map((c) => splitReason(c)?.from).filter(Boolean) as string[])].slice(0, 3),
+            tone: 'keep',
+          },
+          { label: '섹터', items: b.sectors.recommend.slice(0, 3).map((x) => `${x.sector} ${pct(x.score * 100).replace('%', '')}`), tone: 'in' },
+          { label: '종목', items: b.picks.slice(0, 3).map((p) => `${p.name} ${p.score.toFixed(2)}`), tone: 'in' },
+        ],
+      },
     },
-    'overview',
   );
 
   // ── 2. 왜 그렇게 됐나 — 손그림으로 인과를 그린다 ────────────────────────
@@ -277,9 +329,29 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
           (p.reasons ?? []).map(speakable).join('. ') + '.' +
           `${days} 종합 점수는 ${p.score.toFixed(2)}입니다.`,
         visual: 'image',
-        engine: 'illustrated',
+        engine: 'stock',
+        stock: {
+          kind: 'flow',
+          big: p.score.toFixed(2),
+          caption: `${p.name} · 종합 점수`,
+          rows: [],
+          groups: [
+            { label: '움직인 거시', items: (p.reasons ?? []).map(splitReason).filter(Boolean).map((x) => x!.from).slice(0, 3), tone: 'keep' },
+            {
+              // ★섹터 이름을 열 제목으로 올린다★ 상자마다 "정유화학 민감도"를 반복하면
+              // 세 줄이 똑같아 보여서 정작 다른 값(+0.35 / +0.65 / -0.2)이 안 읽힌다.
+              label: `${p.sector ?? '업종'}에 준 힘`,
+              items: (p.reasons ?? [])
+                .map(splitReason)
+                .filter(Boolean)
+                .map((x) => x!.to.replace(`${p.sector ?? ''} `, ''))
+                .slice(0, 3),
+              tone: 'in',
+            },
+            { label: '종목', items: [`${p.name} ${pct(p.changePct)}`], tone: 'in' },
+          ],
+        },
       },
-      `stock:${p.code}`,
     );
   });
 
