@@ -370,6 +370,45 @@ const Chains: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   );
 };
 
+
+/** 표지·클로징 — 큰 한 덩어리와 아래 안내. */
+const Headline: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const in_ = spring({ frame, fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.6) });
+  const lines = scene.stock?.rows ?? [];
+  return (
+    <AbsoluteFill
+      style={{
+        background: `linear-gradient(180deg, ${BG} 0%, ${BG2} 55%, ${BG} 100%)`,
+        fontFamily: FONT,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div style={{ color: GOLD, fontSize: 30, letterSpacing: 10, marginBottom: 26, opacity: in_ }}>STOCKONTOLOGY</div>
+      {scene.stock?.big ? (
+        <div style={{ color: UP, fontSize: 200, fontWeight: 800, lineHeight: 1, opacity: in_, transform: `scale(${interpolate(in_, [0, 1], [0.9, 1])})` }}>
+          {scene.stock.big}
+        </div>
+      ) : null}
+      <div style={{ color: WHITE, fontSize: 68, fontWeight: 800, marginTop: 22, opacity: in_, textAlign: 'center' }}>{scene.heading}</div>
+      {scene.stock?.caption ? <div style={{ color: DIM, fontSize: 34, marginTop: 18, opacity: in_ }}>{scene.stock.caption}</div> : null}
+      <div style={{ marginTop: 54 }}>
+        {lines.map((r, i) => {
+          const at = Math.round(fps * (0.7 + i * 0.4));
+          const a = spring({ frame: frame - at, fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.4) });
+          return (
+            <div key={r.name} style={{ color: r.note === 'dim' ? DIM : WHITE, fontSize: r.note === 'dim' ? 26 : 34, marginTop: 14, opacity: a, textAlign: 'center' }}>
+              {r.name}
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 export const StockScene: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   const kind = scene.stock?.kind;
   if (kind === 'rotation') return <Rotation scene={scene} />;
@@ -377,5 +416,6 @@ export const StockScene: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   if (kind === 'scoreBars') return <ScoreBars scene={scene} />;
   if (kind === 'cards') return <Cards scene={scene} />;
   if (kind === 'chains') return <Chains scene={scene} />;
+  if (kind === 'headline') return <Headline scene={scene} />;
   return <PrevTable scene={scene} />;
 };

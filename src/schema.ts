@@ -135,7 +135,7 @@ export const SceneSchema = z.object({
    */
   stock: z
     .object({
-      kind: z.enum(['prevTable', 'rotation', 'scoreBars', 'flow', 'cards', 'chains']),
+      kind: z.enum(['prevTable', 'rotation', 'scoreBars', 'flow', 'cards', 'chains', 'headline']),
       rows: z
         .array(z.object({ name: z.string(), from: z.string().default(''), to: z.string().default(''), pct: z.number().default(0), note: z.string().default('') }))
         .default([]),
