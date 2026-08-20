@@ -52,6 +52,31 @@ export default async function handler(req, res) {
   // 'false'(문자열)도 거짓으로 취급 — JSON 으로 오가며 문자열이 되는 경우가 많다.
   const truthy = (v) => v === true || v === 'true' || v === 1 || v === '1';
 
+  // ★재업로드는 다른 이벤트로 나간다★ 이미 렌더된 mp4 를 다른 채널로 다시 올리는 것뿐이라
+  // 대본·나레이션·렌더 옵션이 하나도 필요 없다. 같은 페이로드에 얹으면 검증이 뒤엉키고,
+  // 무엇보다 "돈이 드는 발행"과 "무료 재업로드"가 로그에서 구분되지 않는다.
+  if (String(body.mode || '') === 'reupload') {
+    const runId = String(body.source_run_id || '').trim();
+    if (!/^\d+$/.test(runId)) return res.status(400).json({ error: 'source_run_id (워크플로 run 번호) 가 필요합니다' });
+    const payload = {
+      source_run_id: runId,
+      channel: ['default', 'ch2'].includes(body.channel) ? body.channel : 'default',
+      privacy: ['public', 'unlisted', 'private'].includes(body.privacy) ? body.privacy : 'unlisted',
+      title: String(body.title || '').slice(0, 100),
+    };
+    const r2 = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ event_type: 'reupload', client_payload: payload }),
+    });
+    if (!r2.ok) return res.status(502).json({ error: 'GitHub dispatch 실패', detail: await r2.text() });
+    return res.status(200).json({ ok: true, mode: 'reupload', applied: payload });
+  }
+
   const client_payload = {
     // 뉴스 스크립트급 긴 브리핑(타임코드별 섹션 + 참고자료 링크 포함)도 안 잘리게 넉넉히 허용
     // (200자 제한이 "충실 반영" 기능을 무력화시켰던 전례가 있음). GitHub repository_dispatch
