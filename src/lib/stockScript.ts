@@ -222,7 +222,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         heading: `${i + 1}. ${p.name} ${p.score.toFixed(2)}`,
         narration:
           `${i + 1}번째는 ${p.name}입니다. ${p.sector ?? '미분류'} 업종이고 현재 ${p.priceLabel}, ${pct(p.changePct)}입니다. ` +
-          (p.reasons ?? []).map(speakable).join('. ') + '. ' +
+          (p.reasons ?? []).map(speakable).join('. ') + '.' +
           `${days} 종합 점수는 ${p.score.toFixed(2)}점입니다.`,
         visual: 'image',
         engine: 'illustrated',
