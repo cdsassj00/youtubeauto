@@ -346,22 +346,35 @@ const Chains: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const rows = scene.stock?.rows ?? [];
+  // ★사슬 하나짜리 씬을 위해 크기를 바꾼다★ 인과를 회차 중간중간 한 개씩 끼워 넣게 되면서
+  // 넷을 쌓던 배치 그대로는 상단에 작은 줄 하나만 뜨고 아래 700px 이 빈다.
+  const many = rows.length > 2;
+  const boxSize = many ? 38 : 60;
+  const noteSize = many ? 27 : 34;
   return (
     <Shell heading={scene.heading}>
-      <div style={{ position: 'absolute', top: 280, left: 96, right: 96 }}>
+      <div
+        style={
+          many
+            ? { position: 'absolute', top: 280, left: 96, right: 96 }
+            : { position: 'absolute', top: 260, bottom: 120, left: 96, right: 96, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }
+        }
+      >
         {rows.map((r, i) => {
           const at = Math.round(fps * (0.4 + i * 0.9));
           const in_ = spring({ frame: frame - at, fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.5) });
           const arrow = interpolate(frame - at - fps * 0.25, [0, fps * 0.5], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           return (
-            <div key={r.name + i} style={{ marginBottom: 44, opacity: in_, transform: `translateY(${interpolate(in_, [0, 1], [20, 0])}px)` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-                <div style={{ padding: '14px 28px', borderRadius: 12, border: `2px solid ${GOLD}`, color: WHITE, fontSize: 38, fontWeight: 700 }}>{r.name}</div>
+            <div key={r.name + i} style={{ marginBottom: many ? 44 : 0, opacity: in_, transform: `translateY(${interpolate(in_, [0, 1], [20, 0])}px)` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: many ? 'flex-start' : 'center', gap: 24, flexWrap: 'wrap' }}>
+                <div style={{ padding: '14px 28px', borderRadius: 12, border: `2px solid ${GOLD}`, color: WHITE, fontSize: boxSize, fontWeight: 700 }}>{r.name}</div>
                 {/* 화살표가 자라면서 오른쪽 상자를 밀어낸다 — 인과의 방향이 눈에 보인다 */}
-                <div style={{ width: 120 * arrow, height: 4, background: UP, borderRadius: 2 }} />
-                <div style={{ padding: '14px 28px', borderRadius: 12, border: `2px solid ${UP}`, color: WHITE, fontSize: 38, fontWeight: 700, opacity: arrow }}>{r.to}</div>
+                <div style={{ width: (many ? 120 : 180) * arrow, height: many ? 4 : 6, background: UP, borderRadius: 3 }} />
+                <div style={{ padding: '14px 28px', borderRadius: 12, border: `2px solid ${UP}`, color: WHITE, fontSize: boxSize, fontWeight: 700, opacity: arrow }}>{r.to}</div>
               </div>
-              {r.note ? <div style={{ color: DIM, fontSize: 27, marginTop: 12, marginLeft: 6 }}>{r.note}</div> : null}
+              {r.note ? (
+                <div style={{ color: DIM, fontSize: noteSize, marginTop: many ? 12 : 34, marginLeft: 6, lineHeight: 1.5, maxWidth: 1500 }}>{r.note}</div>
+              ) : null}
             </div>
           );
         })}
