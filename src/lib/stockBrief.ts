@@ -48,7 +48,15 @@ export interface Brief {
     hitRate: number;
     avgChangePct: number;
   } | null;
-  speech?: { opening: string; causal: string[]; picks: string[]; closing: string };
+  speech?: { opening: string; causal: string[]; picks: string[]; closing: string; narrative?: string };
+  /** 국면이 며칠째인가 · 무엇이 바뀌었나 — "매일 비슷하다"에 답하는 블록. */
+  narrative?: {
+    regime?: { tone: string; label: string; streakDays: number; changed: boolean; prevLabel?: string };
+    sectors?: { kept: string[]; entered: string[]; left: string[] };
+    pickTurnover?: { changed: number; total: number };
+    summaryKo: string;
+    meaningKo: string;
+  };
   engines?: Array<{ id: string; nameKo: string; tagKo?: string; live?: boolean; leaguePnlPct?: number; picks: Pick[] }>;
   league?: { currency: string; strategies: Array<{ nameKo: string; tagKo: string; live: boolean; pnlPct: number; equity: number }> };
   dataAsOf: number;
