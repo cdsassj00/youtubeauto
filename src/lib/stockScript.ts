@@ -191,15 +191,28 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   // 조사·기호·숫자를 처리했는데, 그러면 설명 나레이션(Claude)이 나중에 갈아 끼워질 때
   // 그 문장만 변환을 안 거치고 나가게 된다. 길이 추정만 변환본으로 하고, 실제 변환은
   // finalizeSpeech 가 전부 한 곳에서 한다.
+  /**
+   * facts 가 붙은 씬은 조립본 길이로 예산을 잡으면 안 된다.
+   *
+   * ★설명은 값 읽기보다 훨씬 길다★ 실측해 보니 종목 씬은 1.5배, 인과 씬은 2배로 늘었고,
+   * 3분으로 자른 회차가 4분 49초로 나왔다. 조립본 길이로 자르고 나서 설명을 붙이면
+   * 목표 길이가 무의미해진다. 설명이 붙을 씬은 붙은 뒤의 길이로 미리 잡고, 같은 값을
+   * 모델에게 목표 길이로도 준다.
+   */
   const add = (
     scene: Omit<Scene, 'bullets' | 'illustration' | 'sourceNote'> & Partial<Scene>,
     sceneView?: string,
     facts?: string,
+    targetSec?: number,
   ) => {
     const full: Scene = { bullets: [], illustration: '', sourceNote: '', ...scene } as Scene;
     const spoken = toSpeech(full.narration);
-    out.push({ scene: full, sceneView, estSec: spoken.length / CHARS_PER_SEC, facts });
+    out.push({ scene: full, sceneView, estSec: facts && targetSec ? targetSec : spoken.length / CHARS_PER_SEC, facts });
   };
+
+  /** 설명이 붙는 씬의 목표 길이(초). 이 값으로 자르고, 이 값을 모델에게도 준다. */
+  const PICK_SEC = 42;
+  const CAUSAL_SEC = 24;
 
   const mk = b.marketKo;
 
@@ -416,6 +429,7 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
       ]
         .filter(Boolean)
         .join('\n'),
+      CAUSAL_SEC,
     );
   };
 
@@ -528,6 +542,7 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
       ]
         .filter(Boolean)
         .join('\n'),
+      PICK_SEC,
     );
     // 종목 하나 뒤에 인과 하나. 이름 부르기와 논리가 번갈아 나온다.
     addCausal(i);

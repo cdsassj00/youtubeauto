@@ -32,8 +32,16 @@ test('facts 에 있는 숫자만 통과한다', () => {
 
   // ★반올림은 막는다★ 2.50 을 "약 3%" 로 뭉개면 화면과 소리가 어긋난다.
   assert.deepEqual(unknownNumbers('약 3% 올랐습니다.', facts), ['3']);
-  // ★부호를 뒤집으면 잡힌다★
+  // ★양수를 음수로 뒤집으면 잡힌다★ 오른 종목을 내렸다고 하는 쪽이 위험하다.
   assert.deepEqual(unknownNumbers('-2.50% 입니다.', facts), ['-2.5']);
+
+  // ★음수는 부호를 뗀 형태를 허용한다★ "-1.57%" 를 한국어로 말하면 "1.57% 내렸습니다" 다.
+  // 이걸 막으면 멀쩡한 문장이 전부 버려지고 값을 읽는 문장만 살아남는다.
+  const neg = '원/달러: -1.57%';
+  assert.deepEqual(unknownNumbers('원/달러가 1.57% 내렸습니다.', neg), []);
+  assert.deepEqual(unknownNumbers('원/달러 -1.57% 입니다.', neg), []);
+  // 없는 값은 여전히 잡힌다
+  assert.deepEqual(unknownNumbers('원/달러가 2.57% 내렸습니다.', neg), ['2.57']);
   // ★없는 값을 계산해 넣으면 잡힌다★
   assert.deepEqual(unknownNumbers('세 종목 합쳐 1.71%입니다.', facts), ['1.71']);
   // ★없는 사실(연도·순위 등)도 예외 없이 잡는다★ 예외를 두면 그 틈으로 들어온다.
