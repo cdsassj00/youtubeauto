@@ -24,6 +24,29 @@ export interface PlannedScene {
 
 const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
 
+/**
+ * "정유화학이(가)" 같은 미해결 조사를 앞 글자 받침에 맞춰 하나로 고른다.
+ *
+ * ★TTS 가 괄호를 읽는다★ 사이트가 보내는 완성 문장에 이(가)·은(는)·을(를) 형태가 남아 있는데,
+ * 음성으로는 "정유화학이 괄호 가"로 나간다. 화면 자막에도 그대로 박힌다. 받침 유무만 보면
+ * 되는 규칙이라 여기서 고친다(원문을 고쳐 달라고 하는 것보다 우리 쪽이 즉시 안전하다).
+ */
+export function fixParticles(text: string): string {
+  const hasFinal = (ch: string) => {
+    const code = ch.charCodeAt(0);
+    if (code < 0xac00 || code > 0xd7a3) return false; // 한글 음절이 아니면 판단하지 않는다
+    return (code - 0xac00) % 28 !== 0;
+  };
+  return text.replace(/(.)(이\(가\)|가\(이\)|은\(는\)|는\(은\)|을\(를\)|를\(을\)|와\(과\)|과\(와\))/g, (_m, prev: string, pair: string) => {
+    // 쌍은 "이(가)" 또는 뒤집힌 "가(이)" 두 형태로 온다. 받침 있을 때 쓰는 글자는
+    // 앞이면 0번, 뒤집혔으면 괄호 안(2번)이다. 예전에 3번(닫는 괄호)을 짚어서
+    // "금리를(을)" 이 "금리와" 로 바뀌었다 — 자체 테스트에서 잡혔다.
+    const withFinal = ' 이은을과 '.includes(pair[0]) ? pair[0] : pair[2];
+    const without = withFinal === '이' ? '가' : withFinal === '은' ? '는' : withFinal === '을' ? '를' : '와';
+    return prev + (hasFinal(prev) ? withFinal : without);
+  });
+}
+
 export function buildStockScenes(b: Brief): PlannedScene[] {
   const out: PlannedScene[] = [];
   const add = (scene: Omit<Scene, 'bullets' | 'illustration' | 'sourceNote'> & Partial<Scene>, sceneView?: string) => {
@@ -58,6 +81,28 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       bullets: prev.picks.slice(0, 5).map((p) => `${p.name} ${pct(p.changePct)}`),
       visual: 'bullets',
       engine: 'listing',
+    });
+  }
+
+  // ── 0-2. 국면이 며칠째인가 — "매일 비슷하다"에 먼저 답한다 ──────────────
+  // ★이 채널의 가장 흔한 이탈 사유를 선제적으로 막는다★ 온톨로지는 국면 추종이라 국면이
+  // 유지되는 동안 같은 섹터가 반복된다. 설명 없이 보면 "어제랑 똑같네" 로 읽혀 이틀이면
+  // 떠난다. 며칠째인지, 무엇이 바뀌었는지, 왜 그게 정상인지를 숫자로 먼저 말한다.
+  const nar = b.narrative;
+  if (nar) {
+    const changed = nar.regime?.changed;
+    add({
+      id: 'narrative',
+      heading: changed ? '국면이 바뀌었습니다' : `같은 국면 ${nar.regime?.streakDays ?? 1}일째`,
+      narration: fixParticles(`${b.speech?.narrative ?? nar.summaryKo} ${nar.meaningKo}`),
+      bullets: [
+        ...(nar.sectors?.kept?.length ? [`유지 · ${nar.sectors.kept.join('·')}`] : []),
+        ...(nar.sectors?.entered?.length ? [`진입 · ${nar.sectors.entered.join('·')}`] : []),
+        ...(nar.sectors?.left?.length ? [`이탈 · ${nar.sectors.left.join('·')}`] : []),
+        ...(nar.pickTurnover ? [`종목 교체 ${nar.pickTurnover.changed}/${nar.pickTurnover.total}`] : []),
+      ].slice(0, 5),
+      visual: 'bullets',
+      engine: 'scrapbook',
     });
   }
 
@@ -129,7 +174,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         rightTitle: '새로 들어온 종목',
         rightItems: fresh.map((f) => f.name).slice(0, 4),
       },
-      engine: 'scrapbook',
+      engine: 'standard',
     });
   }
 
@@ -213,7 +258,10 @@ export function buildStockScript(b: Brief, date: string, disclaimer: string) {
   const prev = b.previous;
   const hit = prev ? Math.round(prev.hitRate * prev.picks.length) : 0;
 
-  const head = prev && prev.picks.length ? `어제 ${hit}/${prev.picks.length} 적중 · ` : '';
+  // ★국면이 꺾인 날이 시리즈의 하이라이트다★ 그날은 적중률보다 전환을 앞세운다 —
+  // 온톨로지가 갈아타는 장면이 이 전략의 존재 이유이기 때문이다.
+  const turned = b.narrative?.regime?.changed;
+  const head = turned ? '국면 전환 · ' : prev && prev.picks.length ? `어제 ${hit}/${prev.picks.length} 적중 · ` : '';
   const title = `${head}${top} 순풍 — ${names.slice(0, 3).join('·')} (${md} ${b.marketKo})`.slice(0, 100);
 
   const lines: string[] = [];
