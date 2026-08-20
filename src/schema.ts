@@ -135,11 +135,15 @@ export const SceneSchema = z.object({
    */
   stock: z
     .object({
-      kind: z.enum(['prevTable', 'rotation', 'scoreBars', 'flow']),
+      kind: z.enum(['prevTable', 'rotation', 'scoreBars', 'flow', 'cards']),
       rows: z
         .array(z.object({ name: z.string(), from: z.string().default(''), to: z.string().default(''), pct: z.number().default(0), note: z.string().default('') }))
         .default([]),
       groups: z.array(z.object({ label: z.string(), items: z.array(z.string()), tone: z.enum(['keep', 'in', 'out']) })).default([]),
+      /** 카드형 화면(엔진 비교) — 제목·설명·값·목록을 한 장씩. */
+      cards: z
+        .array(z.object({ title: z.string(), sub: z.string().default(''), value: z.string().default(''), items: z.array(z.string()).default([]), highlight: z.boolean().default(false) }))
+        .default([]),
       big: z.string().default(''),
       caption: z.string().default(''),
     })
