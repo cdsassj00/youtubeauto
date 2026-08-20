@@ -12,10 +12,9 @@ on:
   # vars 에 VIDEO_ENGINE=stock, STOCK_MARKET=KR, TARGET_CHANNEL·PRIVACY 를 맞춰 두지 않으면
   # 엉뚱한 엔진으로 기본 채널에 올라간다(실제로 그 사고가 한 번 났다).
   #
-  #   schedule:
-  #     - cron: '30 8 * * 1-5'   # 08:30 UTC = 17:30 KST, 평일
-  #
   # 브리프가 낡은 날에는 대본 스텝이 skip=true 를 내고 뒤 단계가 전부 건너뛴다.
+  schedule:
+    - cron: '30 8 * * 1-5'   # 08:30 UTC = 17:30 KST, 평일
   workflow_dispatch:
     inputs:
       topic:
@@ -130,7 +129,9 @@ jobs:
       # style=stock 일 때 어느 시장 브리프를 쓸지. 다른 엔진에서는 무시된다.
       STOCK_MARKET: ${{ github.event.inputs.market || github.event.client_payload.opts.market || github.event.client_payload.market || 'KR' }}
       # style=stock 일 때 목표 길이(분). 0 이면 전부 쓴다.
-      STOCK_MAX_MIN: ${{ github.event.inputs.max_min || github.event.client_payload.opts.max_min || '0' }}
+      # ★스케줄은 8분으로 자른다★ 0(전부)이면 설명 나레이션이 붙어 12분을 넘는다.
+      # 매일 나가는 데이터 영상으로는 너무 길다. 늘리려면 이 숫자만 바꾸면 된다.
+      STOCK_MAX_MIN: ${{ github.event.inputs.max_min || github.event.client_payload.opts.max_min || (github.event_name == 'schedule' && '8') || '0' }}
       VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.opts.style || github.event.client_payload.style || (github.event_name == 'schedule' && 'stock') || vars.VIDEO_ENGINE || 'illustrated' }}
       # 목록형 엔진이 쓸 자료 폴더(assets/listing/<이름>/items.json).
       LISTING_SET: ${{ github.event.client_payload.opts.listing_set || '' }}
