@@ -5,8 +5,8 @@
 // 길이로 씬 시간을 추정하고 그만큼의 무음 트랙을 깔면 화면은 실제와 같이 움직인다.
 // (오디오만 없다. 길이는 실제 TTS 와 몇 초 차이가 날 수 있다.)
 //
-//   npx tsx src/pipeline/run.ts --only=script   # 먼저 대본을 뽑고
-//   node scripts/preview-silent.mjs             # 매니페스트 + 무음 트랙
+//   VIDEO_ENGINE=stock STOCK_MAX_MIN=3 npx tsx src/pipeline/run.ts --only=script
+//   npx tsx scripts/preview-silent.mjs          # 매니페스트 + 무음 트랙 + 사이트 화면
 //   REMOTION_SKIP_FONT_LOAD=1 npx remotion render src/remotion/index.ts Mixed \
 //     out/preview.mp4 --props=out/manifest-preview.json --scale=0.5
 import fs from 'node:fs/promises';
@@ -41,15 +41,34 @@ function silentWav(seconds) {
 const script = JSON.parse(await fs.readFile('out/script.json', 'utf8'));
 await fs.mkdir('public/audio', { recursive: true });
 
+// ★사이트 화면도 실제로 받아 온다★ 이걸 빼면 그 씬이 제목만 뜨는 빈 화면으로 렌더돼서,
+// 프리뷰가 "괜찮다"고 말해도 실제 영상은 다른 것이 된다. 프리뷰의 존재 이유가 사라진다.
+const views = await fs.readFile('out/stock-views.json', 'utf8').then(JSON.parse).catch(() => ({}));
+const images = new Map();
+if (Object.keys(views).length) {
+  const { fetchSceneImage } = await import('../src/lib/stockBrief.js');
+  const market = (process.env.STOCK_MARKET ?? 'KR').toUpperCase();
+  await fs.mkdir('public/img', { recursive: true });
+  for (const [sceneId, view] of Object.entries(views)) {
+    try {
+      await fetchSceneImage(market, view, path.join('public/img', `${sceneId}.png`));
+      images.set(sceneId, `img/${sceneId}.png`);
+    } catch (e) {
+      console.warn(`  · 화면 실패(무시): ${view} — ${e.message}`);
+    }
+  }
+}
+
 let startFrame = 0;
 const scenes = [];
 for (const scene of script.scenes) {
   const durationSec = Math.max(2, scene.narration.length / CHARS_PER_SEC);
   const durationInFrames = Math.ceil(durationSec * FPS) + TAIL_PAD_FRAMES;
   await fs.writeFile(path.join('public/audio', `${scene.id}.wav`), silentWav(durationSec));
-  scenes.push({ ...scene, audioPath: `audio/${scene.id}.wav`, durationSec, startFrame, durationInFrames });
+  const imagePath = images.get(scene.id);
+  scenes.push({ ...scene, ...(imagePath ? { imagePath } : {}), audioPath: `audio/${scene.id}.wav`, durationSec, startFrame, durationInFrames });
   startFrame += durationInFrames;
-  console.log(`  · ${scene.id} — ${durationSec.toFixed(1)}s (${scene.engine ?? 'illustrated'}${scene.stock ? `/${scene.stock.kind}` : ''})`);
+  console.log(`  · ${scene.id} — ${durationSec.toFixed(1)}s (${scene.engine ?? 'illustrated'}${scene.stock ? `/${scene.stock.kind}` : imagePath ? `/${imagePath}` : ''})`);
 }
 
 const manifest = {

@@ -27,13 +27,26 @@ export interface PlannedScene {
  * 짧게 만들 때 남길 순서.
  *
  * ★무엇을 버릴지는 미리 정해 둔다★ 길이를 줄일 때 뒤에서부터 자르면 클로징과 면책이
- * 먼저 날아간다. 이 채널의 정체성은 "어제 한 말을 오늘 채점한다" 이므로 채점(open·prev)과
- * 국면 설명(narrative)이 종목 소개보다 먼저다. 면책은 어떤 길이에서도 빠지지 않는다.
+ * 먼저 날아간다. 오늘 무엇을 뽑았는가(pick)가 이 영상의 상품이므로 채점(open·prev)보다
+ * 앞선다 — 채점은 신뢰의 근거지 인사말이 아니라서, 오늘 것을 본 다음에야 뜻이 생긴다.
  */
-const KEEP_ORDER = ['open', 'prev', 'narrative', 'pick1', 'regime', 'principle', 'pick2', 'causal', 'engines', 'sector', 'pick3', 'league', 'delta', 'pick4', 'pick5'];
+const KEEP_ORDER = ['pick1', 'narrative', 'pick2', 'open', 'prev', 'pick3', 'regime', 'principle', 'causal', 'engines', 'sector', 'pick4', 'league', 'delta', 'pick5'];
 
-/** 어떤 길이에서도 반드시 남는 씬 — 면책이 여기 들어 있다. */
-const MANDATORY = ['outro'];
+/**
+ * 어떤 길이에서도 반드시 남는 씬.
+ *
+ * ★후크와 사이트 소개는 길이와 무관하게 넣는다★ 3분 컷이라고 이 둘을 빼면 시청자는
+ * 이게 누가 뽑은 종목인지, 어디서 온 숫자인지 모른 채로 이름만 듣게 된다. 면책도 여기 있다.
+ */
+const MANDATORY = ['hook', 'site', 'outro'];
+
+/**
+ * 짝이 맞아야 뜻이 통하는 씬. 왼쪽이 남았는데 오른쪽이 잘리면 왼쪽도 버린다.
+ *
+ * ★실제로 이 사고가 났다★ 3분 예산에서 "어제 5종목 중 3개"(open)는 들어가고 그 근거인
+ * 표(prev)는 몇 초 차이로 밀려났다. 숫자만 던지고 내역을 안 보여주는 꼴이 된다.
+ */
+const NEEDS: Record<string, string> = { open: 'prev' };
 
 /**
  * 목표 길이(분) 안에 들어오도록 씬을 고른다. 0 이면 전부 쓴다.
@@ -59,6 +72,9 @@ export function trimScenes(planned: PlannedScene[], maxMinutes: number): Planned
     if (used + p.estSec > budget) continue;
     keep.add(p.scene.id);
     used += p.estSec;
+  }
+  for (const [id, needs] of Object.entries(NEEDS)) {
+    if (keep.has(id) && !keep.has(needs)) keep.delete(id);
   }
   return planned.filter((p) => keep.has(p.scene.id));
 }
@@ -143,7 +159,7 @@ function splitReason(r: string): { from: string; to: string } | null {
   return { from: r.slice(0, i).trim(), to: r.slice(i + 1).trim() };
 }
 
-export function buildStockScenes(b: Brief): PlannedScene[] {
+export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   const out: PlannedScene[] = [];
   // ★나레이션은 반드시 여기를 지난다★ 씬마다 따로 처리하면 언젠가 한 곳을 빠뜨리고,
   // 그 씬만 "102,000원"을 날것으로 읽는다. 실제로 첫 영상이 그래서 못 쓰게 됐다.
@@ -156,16 +172,66 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
 
   const mk = b.marketKo;
 
-  // ── 0. 오프닝 — 어제 성적을 첫 문장에 둔다 ──────────────────────────────
-  // ★자랑이 아니라 채점이 먼저다★ "오늘 이걸 사세요"로 시작하는 채널은 널렸다. 이 채널이
-  // 다른 점은 어제 한 말을 오늘 채점한다는 것뿐이라, 그걸 맨 앞에 두지 않으면 차별점이 없다.
+  // ── 0. 후크 — 무엇을, 누가, 언제 뽑았는지를 첫 10초에 다 말한다 ──────────
+  // ★어제 성적으로 열면 안 된다★ 처음 보는 사람에게 "어제 5종목 중 3개"는 아무 뜻이 없다.
+  // 어제 뭘 골랐는지도, 이 채널이 뭔지도 모르는 상태이기 때문이다. 채점은 신뢰의 근거지
+  // 인사말이 아니라서, 오늘 뭘 뽑았는지를 본 다음에야 의미가 생긴다. 뒤로 옮겼다.
+  const md = date ? `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일` : '오늘';
+  const topNames = b.picks.slice(0, 3).map((p) => p.name);
+  add({
+    id: 'hook',
+    heading: `AI 온톨로지가 뽑은 ${mk} 주식 · ${md}`,
+    // ★후크는 짧아야 후크다★ 처음엔 24초짜리를 썼는데, 그건 후크가 아니라 서론이다.
+    // 무엇을·누가·언제까지만 말하고 곧장 넘긴다. 주소는 화면에 박혀 있다.
+    narration: `AI 온톨로지가 뽑은 ${md} ${mk} 주식입니다. ${topNames.join(', ')}. 왜 이 ${topNames.length === 3 ? '셋' : '종목들'}인지, 3분 안에 보여드리겠습니다.`,
+    visual: 'metric',
+    engine: 'stock',
+    stock: {
+      kind: 'headline',
+      cards: [],
+      big: '',
+      caption: b.regime.label,
+      // 종목 이름은 칩으로 크게, 주소는 그 아래 금색 한 줄.
+      groups: [{ label: '', items: topNames, tone: 'in' }],
+      rows: [{ name: 'stockontology.cc', from: '', to: '', pct: 0, note: 'link' }],
+    },
+  });
+
+  // ── 0-1. 사이트가 이렇게 생겼다 — 말이 아니라 화면으로 보여준다 ──────────
+  // ★overview 화면이 이 채널의 설명 전부다★ 거시 다섯 → 섹터 넷 → 종목 여섯이 선으로
+  // 이어져 있고 주소까지 박혀 있다. 이걸 앞에 깔지 않으면 뒤에 나오는 점수와 도식이
+  // 어디서 온 숫자인지 알 수 없다.
+  add(
+    {
+      id: 'site',
+      heading: '온톨로지 주식 사이트는 이렇게 생겼습니다',
+      narration:
+        `주식온톨로지 사이트는 이렇게 생겼습니다. 왼쪽이 오늘 움직인 거시 지표, 가운데가 그 힘을 받은 업종, ` +
+        `오른쪽이 뽑힌 종목입니다. 선의 굵기가 영향의 크기입니다. ` +
+        `이 화면이 스톡온톨로지 닷 씨씨에 매일 그대로 올라갑니다.`,
+      visual: 'image',
+      engine: 'illustrated',
+    },
+    'overview',
+  );
+
   const prev = b.previous;
-  if (prev && prev.picks.length) {
-    const hit = Math.round(prev.hitRate * prev.picks.length);
+  const hitCount = prev ? Math.round(prev.hitRate * prev.picks.length) : 0;
+
+  /**
+   * 어제 뽑은 것을 오늘 채점한다. 오늘의 종목을 보여준 뒤에 부른다.
+   *
+   * ★"이 채널이 고른"이라고 쓰면 안 된다★ previous 는 사이트 알고리즘이 어제 계산한
+   * 결과지 채널이 시청자에게 한 약속이 아니다. 첫 회차이거나 하루라도 건너뛴 날에는
+   * 하지도 않은 말을 했다고 하는 셈이 된다. 주체를 사이트로 정확히 적는다.
+   */
+  const addPrevBlock = () => {
+    if (!prev || !prev.picks.length) return;
+    const hit = hitCount;
     add({
       id: 'open',
       heading: `어제 ${prev.picks.length}종목 중 ${hit}개`,
-      narration: `어제 이 채널이 고른 ${mk} ${prev.picks.length}종목 가운데 ${hit}개가 올랐습니다. 평균 ${pct(prev.avgChangePct)}입니다. 맞은 것도 틀린 것도 그대로 보여드리고 시작하겠습니다.`,
+      narration: `그러면 어제는 어땠는지 보겠습니다. 주식온톨로지가 어제 뽑은 ${mk} ${prev.picks.length}종목 가운데 ${hit}개가 올랐습니다. 평균 ${pct(prev.avgChangePct)}입니다. 맞은 것도 틀린 것도 그대로 보여드립니다.`,
       visual: 'metric',
       metric: { value: `${hit}/${prev.picks.length}`, label: '어제 추천 적중', note: `평균 ${pct(prev.avgChangePct)}` },
       engine: 'stock',
@@ -204,7 +270,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         groups: [],
       },
     });
-  }
+  };
 
   // ── 0-2. 국면이 며칠째인가 — "매일 비슷하다"에 먼저 답한다 ──────────────
   // ★이 채널의 가장 흔한 이탈 사유를 선제적으로 막는다★ 온톨로지는 국면 추종이라 국면이
@@ -390,6 +456,11 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
     );
   });
 
+  // ── 5-1. 어제 뽑은 것을 채점한다 ────────────────────────────────────────
+  // 오늘의 종목을 다 보여준 다음에 온다. 순서가 뒤바뀌면 "어제 5종목 중 3개"가
+  // 무슨 말인지 알 수 없는 채로 첫 1분이 지나간다.
+  addPrevBlock();
+
   // ── 5-2. 이 점수가 어떻게 나오는가 — 원리를 매 회차 짧게 되짚는다 ────────
   // ★매일 넣는다★ 대표 영상에서 길게 설명하더라도, 데일리를 처음 보는 사람은 대표 영상을
   // 안 봤다. 그렇다고 매일 3분씩 원리를 반복하면 단골이 떠난다. 그래서 20초짜리 한 씬으로
@@ -514,7 +585,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       caption: '오늘 고른 종목은 내일 이 자리에서 채점합니다',
       groups: [],
       rows: [
-        { name: 'stockontology.cc', from: '', to: '', pct: 0, note: '' },
+        { name: 'stockontology.cc', from: '', to: '', pct: 0, note: 'link' },
         { name: '광고 수익을 받지 않는 무료 채널입니다', from: '', to: '', pct: 0, note: 'dim' },
         { name: '투자 자문·권유가 아니며 판단과 책임은 이용자 본인에게 있습니다', from: '', to: '', pct: 0, note: 'dim' },
       ],
@@ -545,7 +616,7 @@ export function planSummary(scenes: PlannedScene[]): string {
  * 앞에 두고 날짜는 괄호로 뒤에 붙인다.
  */
 export function buildStockScript(b: Brief, date: string, disclaimer: string, maxMinutes = 0) {
-  const planned = trimScenes(buildStockScenes(b), maxMinutes);
+  const planned = trimScenes(buildStockScenes(b, date), maxMinutes);
   const md = `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   const top = b.sectors.recommend[0]?.sector ?? b.regime.label;
   const names = b.picks.map((p) => p.name);
@@ -555,14 +626,21 @@ export function buildStockScript(b: Brief, date: string, disclaimer: string, max
   // ★국면이 꺾인 날이 시리즈의 하이라이트다★ 그날은 적중률보다 전환을 앞세운다 —
   // 온톨로지가 갈아타는 장면이 이 전략의 존재 이유이기 때문이다.
   const turned = b.narrative?.regime?.changed;
-  const head = turned ? '국면 전환 · ' : prev && prev.picks.length ? `어제 ${hit}/${prev.picks.length} 적중 · ` : '';
-  const title = `${head}${top} 순풍 — ${names.slice(0, 3).join('·')} (${md} ${b.marketKo})`.slice(0, 100);
+  // ★제목이 곧 후크다★ 예전에는 "어제 3/5 적중"으로 시작했는데, 목록에서 이 영상을 처음
+  // 보는 사람에게 어제 성적은 아무 뜻이 없다. 누가 · 언제 · 무엇을 뽑았는지를 앞에 둔다.
+  const head = turned ? '국면 전환 · ' : '';
+  const title = `${head}AI 온톨로지가 뽑은 ${md} ${b.marketKo} 주식 — ${names.slice(0, 3).join('·')} · ${top} 순풍`.slice(0, 100);
 
   const lines: string[] = [];
+  lines.push(
+    `AI 온톨로지가 매일 아침 뽑는 ${b.marketKo} 종목입니다. ${md} 오늘은 ${top}에 순풍이 붙었습니다.`,
+    '',
+    `▸ 계산 결과 전체·근거·전 종목 점수 : https://stockontology.cc`,
+    '',
+  );
   if (prev && prev.picks.length) {
-    lines.push(`어제 추천한 ${prev.picks.length}종목 중 ${hit}개가 올랐습니다. 평균 ${pct(prev.avgChangePct)}.`);
+    lines.push(`어제 뽑은 ${prev.picks.length}종목 중 ${hit}개가 올랐습니다. 평균 ${pct(prev.avgChangePct)}.`, '');
   }
-  lines.push(`오늘은 ${top}에 순풍이 붙었습니다.`, '', `계산 결과 전체 ▸ https://stockontology.cc`, '');
   if (prev && prev.picks.length) {
     lines.push(`■ 어제 추천, 오늘 결과 (적중 ${hit}/${prev.picks.length} · 평균 ${pct(prev.avgChangePct)})`);
     for (const p of prev.picks) lines.push(`${p.name}  ${p.recPrice.toLocaleString()} → ${p.nowPrice.toLocaleString()}  ${pct(p.changePct)}`);
