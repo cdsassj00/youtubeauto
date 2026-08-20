@@ -20,7 +20,8 @@ import { Scrapbook } from './Scrapbook.js';
 import { Whiteboard } from './Whiteboard.js';
 import { Listing } from './Listing.js';
 import { Footage } from './Footage.js';
-import type { RenderManifest } from '../schema.js';
+import { StockScene } from './stock/StockScene.js';
+import type { RenderManifest, SceneWithAudio } from '../schema.js';
 
 const ENGINES = {
   standard: AiVideo,
@@ -36,6 +37,16 @@ export type EngineName = keyof typeof ENGINES;
 export const Mixed: React.FC<RenderManifest> = (manifest) => (
   <AbsoluteFill style={{ backgroundColor: '#000' }}>
     {manifest.scenes.map((scene) => {
+      // ★주식 전용 화면은 매니페스트를 통째로 넘기지 않는다★ 값 하나를 그리는 컴포넌트라
+      // 씬만 있으면 되고, 자막·오디오는 여기서 얹는다.
+      if (scene.engine === 'stock') {
+        return (
+          <Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.durationInFrames} name={`stock · ${scene.heading}`}>
+            <StockScene scene={scene as SceneWithAudio} />
+            {scene.audioPath && <Audio src={staticFile(scene.audioPath)} />}
+          </Sequence>
+        );
+      }
       const name = (scene.engine ?? 'standard') as EngineName;
       const Engine = ENGINES[name] ?? AiVideo;
       const one: RenderManifest = {
