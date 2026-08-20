@@ -267,18 +267,28 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
     narration: (b.speech?.causal?.length ? b.speech.causal : b.causal).slice(0, 4).join(' '),
     bullets: b.causal.slice(0, 4).map((c) => c.split('—')[0].trim()),
     visual: 'diagram',
-    diagram: {
-      nodes: [
-        { id: 'macro', label: '거시요인' },
-        { id: 'sector', label: '섹터' },
-        { id: 'stock', label: '종목' },
-      ],
-      edges: [
-        { from: 'macro', to: 'sector' },
-        { from: 'sector', to: 'stock' },
-      ],
+    // ★손그림이 "거시요인" 상자 하나만 그리고 58초를 보냈다★ 나레이션은 오늘의 인과 넷을
+    // 읊는데 화면은 아무 관계 없는 일반 도식이었다. 실제 사슬을 그대로 그린다.
+    engine: 'stock',
+    stock: {
+      kind: 'chains',
+      cards: [],
+      big: '',
+      caption: '',
+      groups: [],
+      rows: b.causal.slice(0, 4).map((c) => {
+        const parts = splitReason(c);
+        const right = parts?.to ?? '';
+        const dash = right.indexOf('—');
+        return {
+          name: parts?.from ?? c,
+          from: '',
+          to: (dash === -1 ? right : right.slice(0, dash)).trim(),
+          pct: 0,
+          note: dash === -1 ? '' : right.slice(dash + 1).trim(),
+        };
+      }),
     },
-    engine: 'whiteboard',
   });
 
   // ── 3. 오늘 순풍이 붙은 섹터 ────────────────────────────────────────────
@@ -316,7 +326,20 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         rightTitle: '새로 들어온 종목',
         rightItems: fresh.map((f) => f.name).slice(0, 4),
       },
-      engine: 'standard',
+      // ★기본 비교 화면이 항목을 다 못 담았다★ 렌더해 보니 빠진 종목 넷 중 하나만 나오고
+      // 새로 들어온 쪽은 통째로 비어 있었다. 게다가 종이 배경이라 앞뒤 어두운 화면과 튄다.
+      engine: 'stock',
+      stock: {
+        kind: 'rotation',
+        cards: [],
+        big: `${fresh.length}↔${gone.length}`,
+        caption: '들어옴 ↔ 빠짐',
+        rows: [],
+        groups: [
+          ...(gone.length ? [{ label: '빠진 종목', items: gone.map((g) => g.name), tone: 'out' as const }] : []),
+          ...(fresh.length ? [{ label: '새로 들어온 종목', items: fresh.map((f) => f.name), tone: 'in' as const }] : []),
+        ],
+      },
     });
   }
 
