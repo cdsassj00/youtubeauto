@@ -180,6 +180,12 @@ const Flow: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
 
   return (
     <Shell heading={scene.heading}>
+      {scene.stock?.big ? (
+        <div style={{ position: 'absolute', top: 72, right: 96, textAlign: 'right', zIndex: 2 }}>
+          <div style={{ color: UP, fontSize: 92, fontWeight: 800, lineHeight: 1 }}>{scene.stock.big}</div>
+          <div style={{ color: DIM, fontSize: 26, marginTop: 8 }}>{scene.stock.caption}</div>
+        </div>
+      ) : null}
       <AbsoluteFill>
         <svg width={1920} height={1080} style={{ position: 'absolute', inset: 0 }}>
           {cols.slice(0, 2).map((g, ci) =>
