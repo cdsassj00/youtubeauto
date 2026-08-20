@@ -10,6 +10,7 @@
  * (illustrated 엔진으로 전체화면 표시)과 손그림·목록·도식을 번갈아 놓는다.
  */
 import type { Brief } from './stockBrief.js';
+import { speakNumbers, ordinal } from './koreanNumber.js';
 import type { Scene } from '../schema.js';
 
 /** 한국어 나레이션 속도 — 320자/분으로 잡는다(실측 TTS 로 다시 측정되므로 계획용 값). */
@@ -75,8 +76,15 @@ const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
 export function attach(word: string, withFinal: string, without: string): string {
   const ch = word[word.length - 1] ?? '';
   const code = ch.charCodeAt(0);
-  const hasFinal = code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0;
-  return word + (hasFinal ? withFinal : without);
+  if (code >= 0xac00 && code <= 0xd7a3) return word + ((code - 0xac00) % 28 !== 0 ? withFinal : without);
+  // ★라틴 문자로 끝나는 이름★ 한글로 읽었을 때 받침이 생기는 글자가 있다 — S-Oil 은
+  // "에스오일" 이라 "S-Oil이" 가 맞는데, 한글이 아니라고 넘기면 "S-Oil가" 가 된다.
+  // l·m·n·r 로 끝나면 받침이 생기고, 나머지 알파벳은 "에스·비·티"처럼 모음으로 끝난다.
+  const latin = /[A-Za-z]/.test(ch);
+  if (latin) return word + (/[lmnrLMNR]/.test(ch) ? withFinal : without);
+  // 숫자로 끝나면 읽는 소리로 판단한다(1 일, 3 삼, 6 육, 7 칠, 8 팔, 0 영 → 받침).
+  if (/[0-9]/.test(ch)) return word + ('1367880'.includes(ch) ? withFinal : without);
+  return word + without;
 }
 
 /**
@@ -124,8 +132,12 @@ export function fixParticles(text: string): string {
 
 export function buildStockScenes(b: Brief): PlannedScene[] {
   const out: PlannedScene[] = [];
+  // ★나레이션은 반드시 여기를 지난다★ 씬마다 따로 처리하면 언젠가 한 곳을 빠뜨리고,
+  // 그 씬만 "102,000원"을 날것으로 읽는다. 실제로 첫 영상이 그래서 못 쓰게 됐다.
+  // 조사 보정 → 기호 정리 → 숫자 한글화 순서로 한 번에 통과시킨다.
   const add = (scene: Omit<Scene, 'bullets' | 'illustration' | 'sourceNote'> & Partial<Scene>, sceneView?: string) => {
     const full: Scene = { bullets: [], illustration: '', sourceNote: '', ...scene } as Scene;
+    full.narration = speakNumbers(speakable(fixParticles(full.narration))).replace(/\s{2,}/g, ' ').trim();
     out.push({ scene: full, sceneView, estSec: full.narration.length / CHARS_PER_SEC });
   };
 
@@ -151,7 +163,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       heading: '어제 추천, 오늘 결과',
       narration:
         `종목별로 보겠습니다. ` +
-        prev.picks.map((p) => `${p.name}은 ${p.recPrice.toLocaleString()}원에서 ${p.nowPrice.toLocaleString()}원, ${pct(p.changePct)}입니다.`).join(' ') +
+        prev.picks.map((p) => `${attach(p.name, '은', '는')} ${p.recPrice.toLocaleString()}원에서 ${p.nowPrice.toLocaleString()}원, ${pct(p.changePct)}입니다.`).join(' ') +
         ` 기준은 추천한 시점의 시세와 오늘 계산 시점의 시세입니다.`,
       bullets: prev.picks.slice(0, 5).map((p) => `${p.name} ${pct(p.changePct)}`),
       visual: 'bullets',
@@ -239,8 +251,8 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       id: 'delta',
       heading: '어제와 달라진 것',
       narration:
-        (gone.length ? `어제 목록에 있던 ${gone.map((g) => g.name).join(', ')}가 오늘 빠졌습니다. ${gone[0].reason}. ` : '') +
-        (fresh.length ? `대신 ${fresh.map((f) => f.name).join(', ')}가 새로 들어왔습니다.` : ''),
+        (gone.length ? `어제 목록에 있던 ${attach(gone.map((g) => g.name).join(', '), '이', '가')} 오늘 빠졌습니다. ${gone[0].reason}. ` : '') +
+        (fresh.length ? `대신 ${attach(fresh.map((f) => f.name).join(', '), '이', '가')} 새로 들어왔습니다.` : ''),
       bullets: [...gone.map((g) => `빠짐 · ${g.name}`), ...fresh.map((f) => `신규 · ${f.name}`)].slice(0, 5),
       visual: 'comparison',
       comparison: {
@@ -261,9 +273,9 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         id: `pick${i + 1}`,
         heading: `${i + 1}. ${p.name} ${p.score.toFixed(2)}`,
         narration:
-          `${i + 1}번째는 ${p.name}입니다. ${p.sector ?? '미분류'} 업종이고 현재 ${p.priceLabel}, ${pct(p.changePct)}입니다. ` +
+          `${ordinal(i + 1)}는 ${p.name}입니다. ${p.sector ?? '미분류'} 업종이고 현재 ${p.priceLabel}, ${pct(p.changePct)}입니다. ` +
           (p.reasons ?? []).map(speakable).join('. ') + '.' +
-          `${days} 종합 점수는 ${p.score.toFixed(2)}점입니다.`,
+          `${days} 종합 점수는 ${p.score.toFixed(2)}입니다.`,
         visual: 'image',
         engine: 'illustrated',
       },
@@ -358,7 +370,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
     heading: '내일 또 채점합니다',
     narration:
       `오늘 고른 종목은 내일 이 자리에서 그대로 채점합니다. 맞으면 맞았다고, 틀리면 틀렸다고 숫자로 보여드립니다. ` +
-      `계산 과정 전체는 스톡온톨로지 점 시시에서 직접 보실 수 있습니다. ` +
+      `계산 과정 전체는 사이트에서 직접 보실 수 있습니다. 주소는 설명란에 적어 뒀습니다. ` +
       `이 채널은 광고 수익을 받지 않습니다. 투자 자문이나 권유가 아니고, 판단과 책임은 보시는 분께 있습니다.`,
     visual: 'outro',
     icon: 'search',
