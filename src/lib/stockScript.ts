@@ -29,8 +29,18 @@ export interface PlannedScene {
  * ★무엇을 버릴지는 미리 정해 둔다★ 길이를 줄일 때 뒤에서부터 자르면 클로징과 면책이
  * 먼저 날아간다. 오늘 무엇을 뽑았는가(pick)가 이 영상의 상품이므로 채점(open·prev)보다
  * 앞선다 — 채점은 신뢰의 근거지 인사말이 아니라서, 오늘 것을 본 다음에야 뜻이 생긴다.
+ *
+ * ★종목과 논리를 번갈아 둔다★ 종목만 이어 붙이면 이름 부르기가 되고, 논리만 모으면
+ * 강의가 된다. 종목 → 왜 그런 인과가 나왔나 → 종목 순으로 엮어야 회차가 지루하지 않다.
+ *
+ * ★narrative(같은 국면 N일째)를 아래로 내렸다★ 44초짜리인데 "어제와 왜 비슷한지"를
+ * 해명하는 씬이라, 어제 것을 본 적 없는 사람에게는 없는 질문에 답하는 꼴이다.
+ * 단골에게는 값이 있으므로 긴 회차에서는 살린다.
  */
-const KEEP_ORDER = ['pick1', 'narrative', 'pick2', 'open', 'prev', 'pick3', 'regime', 'principle', 'causal', 'engines', 'sector', 'pick4', 'league', 'delta', 'pick5'];
+const KEEP_ORDER = [
+  'pick1', 'causal1', 'pick2', 'causal2', 'principle', 'pick3', 'causal3',
+  'open', 'prev', 'regime', 'pick4', 'causal4', 'sector', 'engines', 'narrative', 'league', 'delta', 'pick5',
+];
 
 /**
  * 어떤 길이에서도 반드시 남는 씬.
@@ -334,36 +344,42 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
     },
   );
 
-  // ── 2. 왜 그렇게 됐나 — 손그림으로 인과를 그린다 ────────────────────────
-  add({
-    id: 'causal',
-    heading: '지금 작동 중인 인과',
-    narration: (b.speech?.causal?.length ? b.speech.causal : b.causal).slice(0, 4).join(' '),
-    bullets: b.causal.slice(0, 4).map((c) => c.split('—')[0].trim()),
-    visual: 'diagram',
-    // ★손그림이 "거시요인" 상자 하나만 그리고 58초를 보냈다★ 나레이션은 오늘의 인과 넷을
-    // 읊는데 화면은 아무 관계 없는 일반 도식이었다. 실제 사슬을 그대로 그린다.
-    engine: 'stock',
-    stock: {
-      kind: 'chains',
-      cards: [],
-      big: '',
-      caption: '',
-      groups: [],
-      rows: b.causal.slice(0, 4).map((c) => {
-        const parts = splitReason(c);
-        const right = parts?.to ?? '';
-        const dash = right.indexOf('—');
-        return {
-          name: parts?.from ?? c,
-          from: '',
-          to: (dash === -1 ? right : right.slice(0, dash)).trim(),
-          pct: 0,
-          note: dash === -1 ? '' : right.slice(dash + 1).trim(),
-        };
-      }),
-    },
-  });
+  // ── 2. 왜 그렇게 됐나 — 인과를 하나씩 따로 떼어 회차 중간중간에 끼운다 ───
+  //
+  // ★넷을 한 씬에 몰아 넣으면 58초짜리 벽이 된다★ 그리고 그 58초 동안 화면은 한 번
+  // 채워진 뒤 그대로 멈춘다. 종목과 종목 사이에 하나씩 끼워 넣으면 같은 정보가 리듬이 된다.
+  //
+  // ★설명문은 오늘 방향과 반대일 수 있다★ 사이트가 주는 문장은 일반 법칙이라
+  // "달러인덱스 -1.18% → 금 +4.16% — 달러 강세는 금 가격에 부담입니다" 처럼 온다.
+  // 오늘 달러는 내렸는데 "강세"라고 읽히면 시청자가 숫자를 의심한다. "원리는 이렇습니다"를
+  // 앞에 붙여 오늘의 움직임이 아니라 법칙이라는 것을 분명히 한다.
+  const addCausal = (i: number) => {
+    const c = b.causal[i];
+    if (!c) return;
+    const parts = splitReason(c);
+    const right = parts?.to ?? '';
+    const dash = right.indexOf('—');
+    const effect = (dash === -1 ? right : right.slice(0, dash)).trim();
+    const law = dash === -1 ? '' : right.slice(dash + 1).trim();
+    add({
+      id: `causal${i + 1}`,
+      heading: '오늘 작동한 인과',
+      narration: `${parts?.from ?? c}, ${effect}.` + (law ? ` 원리는 이렇습니다. ${law}.` : ''),
+      bullets: [c.split('—')[0].trim()],
+      visual: 'diagram',
+      engine: 'stock',
+      stock: {
+        kind: 'chains',
+        cards: [],
+        big: '',
+        caption: '',
+        groups: [],
+        // 화면의 설명문에도 "원리"를 붙인다. 안 붙이면 오늘 달러가 내렸는데 "달러 강세"라고
+        // 적혀 있어 시청자가 위의 숫자를 의심하게 된다.
+        rows: [{ name: parts?.from ?? c, from: '', to: effect, pct: 0, note: law ? `원리 · ${law}` : '' }],
+      },
+    });
+  };
 
   // ── 3. 오늘 순풍이 붙은 섹터 ────────────────────────────────────────────
   const topSector = b.sectors.recommend[0];
@@ -424,10 +440,12 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
       {
         id: `pick${i + 1}`,
         heading: `${i + 1}. ${p.name}`,
+        // ★근거를 셋 다 읽으면 한 종목이 43초다★ 그동안 화면은 5초쯤 채워지고 멈춘다.
+        // 가장 큰 둘만 말하고 나머지는 화면에 남긴다 — 30초 아래로 떨어진다.
         narration:
-          `${ordinal(i + 1)}는 ${p.name}입니다. ${p.sector ?? '미분류'} 업종이고 현재 ${p.priceLabel}, ${pct(p.changePct)}입니다. ` +
-          (p.reasons ?? []).map(speakable).join('. ') + '.' +
-          `${days} 종합 점수는 ${p.score.toFixed(2)}입니다.`,
+          `${ordinal(i + 1)}는 ${p.name}입니다. ${p.sector ?? '미분류'} 업종, ${p.priceLabel}, ${pct(p.changePct)}. ` +
+          (p.reasons ?? []).slice(0, 2).map(speakable).join('. ') + '.' +
+          `${days} 종합 점수 ${p.score.toFixed(2)}입니다.`,
         visual: 'image',
         engine: 'stock',
         stock: {
@@ -454,7 +472,12 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
         },
       },
     );
+    // 종목 하나 뒤에 인과 하나. 이름 부르기와 논리가 번갈아 나온다.
+    addCausal(i);
   });
+
+  // 종목보다 인과가 많이 남았으면 뒤에 붙인다(종목이 3개뿐인 날 등).
+  for (let i = b.picks.length; i < Math.min(4, b.causal.length); i++) addCausal(i);
 
   // ── 5-1. 어제 뽑은 것을 채점한다 ────────────────────────────────────────
   // 오늘의 종목을 다 보여준 다음에 온다. 순서가 뒤바뀌면 "어제 5종목 중 3개"가
@@ -468,17 +491,33 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   add({
     id: 'principle',
     heading: '점수는 이렇게 나옵니다',
+    // 42초짜리를 반으로 줄였다. 세 축과 비중, 그리고 "예측이 아니다" 한 문장이면 충분하다.
     narration:
-      '잠깐, 이 점수가 어떻게 나오는지 짚고 가겠습니다. ' +
-      '유가나 환율 같은 거시 지표가 먼저 움직이고, 그 신호가 업종별 민감도를 타고 종목까지 내려옵니다. ' +
-      '거기에 최근 가격 흐름과 뉴스 감성을 더해 하나의 점수로 합칩니다. ' +
-      '비중은 거시 인과가 0.35, 가격 흐름이 0.45, 뉴스가 0.2입니다. ' +
-      '예측이 아니라, 이미 일어난 거시의 움직임이 종목까지 도달하는 데 걸리는 시차를 노리는 방식입니다.',
+      '이 점수가 어떻게 나오는지 짚고 가겠습니다. ' +
+      '거시 인과에 0.35, 최근 가격 흐름에 0.45, 뉴스 감성에 0.2를 곱해 하나로 합칩니다. ' +
+      '예측이 아니라, 이미 일어난 거시의 움직임이 종목까지 도달하는 시차를 노리는 방식입니다.',
     bullets: ['거시 인과 ×0.35', '가격 흐름 ×0.45', '뉴스 감성 ×0.2'],
     visual: 'diagram',
-    // ★여기도 손그림이 상자 하나만 그리고 있었다★ 나레이션은 세 축의 비중을 말하는데
-    // 화면에는 그 숫자가 없었다. 비중을 막대로 보여주면 말과 화면이 같은 것을 가리킨다.
-    engine: 'stock',
+    // ★여기 한 씬만 화이트보드로 뺀다★ 어두운 데이터 화면이 계속 이어지면 눈이 지친다.
+    // 원리를 설명하는 대목은 손으로 그려 나가는 결이 내용과도 맞는다.
+    //
+    // ★단, 그리려면 그릴 것을 줘야 한다★ 예전에 이 씬을 손그림에 맡겼을 때 상자 하나만
+    // 그리고 41초를 보냈다. diagram(노드·엣지)을 비워 둔 채 넘겼기 때문이다. 세 축이
+    // 종합 점수로 합쳐지는 그림을 실제로 만들어 넘긴다.
+    engine: 'whiteboard',
+    diagram: {
+      nodes: [
+        { id: 'macro', label: '거시 인과' },
+        { id: 'price', label: '가격 흐름' },
+        { id: 'news', label: '뉴스 감성' },
+        { id: 'total', label: '종합 점수' },
+      ],
+      edges: [
+        { from: 'macro', to: 'total', label: '×0.35' },
+        { from: 'price', to: 'total', label: '×0.45' },
+        { from: 'news', to: 'total', label: '×0.2' },
+      ],
+    },
     stock: {
       kind: 'scoreBars',
       cards: [],
