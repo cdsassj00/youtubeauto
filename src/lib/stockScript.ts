@@ -271,7 +271,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
     add(
       {
         id: `pick${i + 1}`,
-        heading: `${i + 1}. ${p.name} ${p.score.toFixed(2)}`,
+        heading: `${i + 1}. ${p.name}`,
         narration:
           `${ordinal(i + 1)}는 ${p.name}입니다. ${p.sector ?? '미분류'} 업종이고 현재 ${p.priceLabel}, ${pct(p.changePct)}입니다. ` +
           (p.reasons ?? []).map(speakable).join('. ') + '.' +
