@@ -1,10 +1,11 @@
 /**
  * 하루치 브리프를 미드폼 대본(씬 배열)으로 조립한다.
  *
- * ★Claude 를 부르지 않는다★ 처음에는 LLM 에게 대본을 맡기려 했는데, 이 브리프는 이미
- * 문장(speech)과 근거(reasons)를 완성해서 준다. 거기에 LLM 을 한 번 더 통과시키면
- *  (1) 매일 돈이 들고 (2) 없는 숫자를 지어낼 여지가 생긴다. 숫자를 다루는 채널에서
- * 후자는 치명적이다. 그래서 조립은 순수 함수로 두고, 값은 응답에 있는 것만 쓴다.
+ * ★값과 말을 나눈다★ 숫자는 이 파일이 응답에서 그대로 옮긴다 — 계산도 반올림도 하지
+ * 않는다. 하지만 값만 옮기면 나레이션이 API 를 소리 내어 읽는 것이 되어서, "왜 유가가
+ * 오르면 정유화학이 좋아지는가" 를 아무도 말해 주지 않는다. 그 설명은 Claude 가 쓰고
+ * (stockNarrate.ts), 모델이 쓴 문장에 화면에 없는 숫자가 있으면 코드가 잡아 버린다.
+ * 조립은 여전히 순수 함수다 — 설명이 실패해도 이 파일의 문장이 그대로 나간다.
  *
  * ★화풍을 씬마다 바꾼다★ 8분을 한 화면으로 버틸 수 없다. 사이트가 그려 준 실제 화면
  * (illustrated 엔진으로 전체화면 표시)과 손그림·목록·도식을 번갈아 놓는다.
@@ -12,6 +13,7 @@
 import type { Brief } from './stockBrief.js';
 import { speakNumbers, ordinal } from './koreanNumber.js';
 import type { Scene } from '../schema.js';
+import { narrateStock } from './stockNarrate.js';
 
 /** 한국어 나레이션 속도 — 320자/분으로 잡는다(실측 TTS 로 다시 측정되므로 계획용 값). */
 const CHARS_PER_SEC = 320 / 60;
@@ -21,6 +23,12 @@ export interface PlannedScene {
   /** 이 씬 배경으로 깔 사이트 화면 (없으면 엔진이 자체 렌더). */
   sceneView?: string;
   estSec: number;
+  /**
+   * 이 씬 화면에 떠 있는 값 — 설명 나레이션을 쓸 때 모델에게 주는 사실 전부이자,
+   * 모델이 쓸 수 있는 숫자의 허용 목록이다(stockNarrate.ts 가 이걸로 대조한다).
+   * 비어 있으면 그 씬은 설명을 붙이지 않고 조립본 그대로 나간다.
+   */
+  facts?: string;
 }
 
 /**
@@ -90,6 +98,14 @@ export function trimScenes(planned: PlannedScene[], maxMinutes: number): Planned
 }
 
 const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+
+/**
+ * 사람이 쓴/모델이 쓴 문장을 TTS 가 읽을 수 있는 형태로 바꾼다.
+ * 조사 보정 → 기호 정리 → 숫자 한글화. 나레이션은 반드시 여기를 지나간다.
+ */
+export function toSpeech(text: string): string {
+  return speakNumbers(speakable(fixParticles(text))).replace(/\s{2,}/g, ' ').trim();
+}
 
 /**
  * "정유화학이(가)" 같은 미해결 조사를 앞 글자 받침에 맞춰 하나로 고른다.
@@ -171,13 +187,18 @@ function splitReason(r: string): { from: string; to: string } | null {
 
 export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   const out: PlannedScene[] = [];
-  // ★나레이션은 반드시 여기를 지난다★ 씬마다 따로 처리하면 언젠가 한 곳을 빠뜨리고,
-  // 그 씬만 "102,000원"을 날것으로 읽는다. 실제로 첫 영상이 그래서 못 쓰게 됐다.
-  // 조사 보정 → 기호 정리 → 숫자 한글화 순서로 한 번에 통과시킨다.
-  const add = (scene: Omit<Scene, 'bullets' | 'illustration' | 'sourceNote'> & Partial<Scene>, sceneView?: string) => {
+  // ★나레이션은 날것으로 담아 두고 마지막에 한 번 변환한다★ 예전에는 여기서 바로
+  // 조사·기호·숫자를 처리했는데, 그러면 설명 나레이션(Claude)이 나중에 갈아 끼워질 때
+  // 그 문장만 변환을 안 거치고 나가게 된다. 길이 추정만 변환본으로 하고, 실제 변환은
+  // finalizeSpeech 가 전부 한 곳에서 한다.
+  const add = (
+    scene: Omit<Scene, 'bullets' | 'illustration' | 'sourceNote'> & Partial<Scene>,
+    sceneView?: string,
+    facts?: string,
+  ) => {
     const full: Scene = { bullets: [], illustration: '', sourceNote: '', ...scene } as Scene;
-    full.narration = speakNumbers(speakable(fixParticles(full.narration))).replace(/\s{2,}/g, ' ').trim();
-    out.push({ scene: full, sceneView, estSec: full.narration.length / CHARS_PER_SEC });
+    const spoken = toSpeech(full.narration);
+    out.push({ scene: full, sceneView, estSec: spoken.length / CHARS_PER_SEC, facts });
   };
 
   const mk = b.marketKo;
@@ -361,24 +382,41 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
     const dash = right.indexOf('—');
     const effect = (dash === -1 ? right : right.slice(0, dash)).trim();
     const law = dash === -1 ? '' : right.slice(dash + 1).trim();
-    add({
-      id: `causal${i + 1}`,
-      heading: '오늘 작동한 인과',
-      narration: `${parts?.from ?? c}, ${effect}.` + (law ? ` 원리는 이렇습니다. ${law}.` : ''),
-      bullets: [c.split('—')[0].trim()],
-      visual: 'diagram',
-      engine: 'stock',
-      stock: {
-        kind: 'chains',
-        cards: [],
-        big: '',
-        caption: '',
-        groups: [],
-        // 화면의 설명문에도 "원리"를 붙인다. 안 붙이면 오늘 달러가 내렸는데 "달러 강세"라고
-        // 적혀 있어 시청자가 위의 숫자를 의심하게 된다.
-        rows: [{ name: parts?.from ?? c, from: '', to: effect, pct: 0, note: law ? `원리 · ${law}` : '' }],
+    add(
+      {
+        id: `causal${i + 1}`,
+        heading: '오늘 작동한 인과',
+        narration: `${parts?.from ?? c}, ${effect}.` + (law ? ` 원리는 이렇습니다. ${law}.` : ''),
+        bullets: [c.split('—')[0].trim()],
+        visual: 'diagram',
+        engine: 'stock',
+        stock: {
+          kind: 'chains',
+          cards: [],
+          big: '',
+          caption: '',
+          groups: [],
+          // 화면의 설명문에도 "원리"를 붙인다. 안 붙이면 오늘 달러가 내렸는데 "달러 강세"라고
+          // 적혀 있어 시청자가 위의 숫자를 의심하게 된다.
+          rows: [{ name: parts?.from ?? c, from: '', to: effect, pct: 0, note: law ? `원리 · ${law}` : '' }],
+        },
       },
-    });
+      undefined,
+      [
+        `화면 왼쪽 상자: ${parts?.from ?? c}`,
+        `화면 오른쪽 상자: ${effect}`,
+        law ? `사이트가 준 원리 설명: ${law}` : '',
+        `오늘 국면: ${b.regime.label}`,
+        '',
+        '★이 설명문은 오늘 방향과 반대일 수 있다★ 사이트는 일반 법칙을 그대로 붙여 주므로',
+        '달러가 내린 날에도 "달러 강세는 ~" 이라고 온다. 오늘 실제 움직임(왼쪽 상자의 부호)을',
+        '보고, 그 방향으로 원리를 다시 풀어서 설명해라. 두 값이 서로 반대 부호면 반대로 움직이는',
+        '관계이고, 같은 부호면 같이 움직이는 관계다.',
+        '이 씬은 인과 하나만 다룬다. 왜 왼쪽이 움직이면 오른쪽이 그렇게 되는지를 사람 말로 설명하는 것이 전부다.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
   };
 
   // ── 3. 오늘 순풍이 붙은 섹터 ────────────────────────────────────────────
@@ -471,6 +509,25 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
           ],
         },
       },
+      undefined,
+      [
+        `순번: ${ordinal(i + 1)}`,
+        `종목: ${p.name}`,
+        `업종: ${p.sector ?? '미분류'}`,
+        `현재가: ${p.priceLabel}`,
+        `등락률: ${pct(p.changePct)}`,
+        `종합 점수: ${p.score.toFixed(2)}`,
+        p.daysInList && p.daysInList > 1 ? `목록에 남은 일수: ${p.daysInList}일째` : p.isNew ? '오늘 새로 들어온 종목' : '',
+        `오늘 국면: ${b.regime.label}`,
+        '화면 도식(왼쪽 → 오른쪽 세 열, 왼쪽이 움직인 거시, 가운데가 업종에 준 힘, 오른쪽이 이 종목):',
+        ...(p.reasons ?? []).map((r) => `  ${r}`),
+        '',
+        '★값을 읽지 말고 경로를 설명해라★ 왼쪽 거시가 왜 이 업종을 밀어 올리는지(또는 끌어내리는지),',
+        `그 업종 안에서 ${p.name}이 왜 그 힘을 받는지를 사람 말로 풀어라. 민감도 숫자는 그 설명의 근거로만 쓴다.`,
+        '민감도가 음수인 항목이 섞여 있으면 그것도 짚어라 — 다 좋다고만 하면 안 된다.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     );
     // 종목 하나 뒤에 인과 하나. 이름 부르기와 논리가 번갈아 나온다.
     addCausal(i);
@@ -491,33 +548,17 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   add({
     id: 'principle',
     heading: '점수는 이렇게 나옵니다',
-    // 42초짜리를 반으로 줄였다. 세 축과 비중, 그리고 "예측이 아니다" 한 문장이면 충분하다.
+    // 42초 → 25초 → 다시 줄였다. 점수 계산법은 짚고만 넘어간다.
     narration:
-      '이 점수가 어떻게 나오는지 짚고 가겠습니다. ' +
-      '거시 인과에 0.35, 최근 가격 흐름에 0.45, 뉴스 감성에 0.2를 곱해 하나로 합칩니다. ' +
+      '점수는 세 가지를 섞어서 냅니다. 거시 인과에 0.35, 최근 가격 흐름에 0.45, 뉴스 감성에 0.2입니다. ' +
       '예측이 아니라, 이미 일어난 거시의 움직임이 종목까지 도달하는 시차를 노리는 방식입니다.',
     bullets: ['거시 인과 ×0.35', '가격 흐름 ×0.45', '뉴스 감성 ×0.2'],
     visual: 'diagram',
-    // ★여기 한 씬만 화이트보드로 뺀다★ 어두운 데이터 화면이 계속 이어지면 눈이 지친다.
-    // 원리를 설명하는 대목은 손으로 그려 나가는 결이 내용과도 맞는다.
-    //
-    // ★단, 그리려면 그릴 것을 줘야 한다★ 예전에 이 씬을 손그림에 맡겼을 때 상자 하나만
-    // 그리고 41초를 보냈다. diagram(노드·엣지)을 비워 둔 채 넘겼기 때문이다. 세 축이
-    // 종합 점수로 합쳐지는 그림을 실제로 만들어 넘긴다.
-    engine: 'whiteboard',
-    diagram: {
-      nodes: [
-        { id: 'macro', label: '거시 인과' },
-        { id: 'price', label: '가격 흐름' },
-        { id: 'news', label: '뉴스 감성' },
-        { id: 'total', label: '종합 점수' },
-      ],
-      edges: [
-        { from: 'macro', to: 'total', label: '×0.35' },
-        { from: 'price', to: 'total', label: '×0.45' },
-        { from: 'news', to: 'total', label: '×0.2' },
-      ],
-    },
+    // ★화이트보드를 시도했다가 되돌렸다★ 어두운 화면만 이어지는 게 답답해서 이 씬을
+    // 손그림으로 뺐는데, rough.js 가 상자 넷을 2×2 로 놓고 화살표가 서로를 가로지르면서
+    // 가중치 글자를 선이 덮었다. 종이 질감은 좋았지만 읽히지 않으면 소용이 없다.
+    // 화면 변화는 인과 씬과 사이트 화면이 이미 만들어 준다.
+    engine: 'stock',
     stock: {
       kind: 'scoreBars',
       cards: [],
@@ -654,8 +695,24 @@ export function planSummary(scenes: PlannedScene[]): string {
  * 조회 50~100회, 고유명사가 앞에 온 제목은 2,900~7,100회였다. 그래서 업종명과 종목명을
  * 앞에 두고 날짜는 괄호로 뒤에 붙인다.
  */
-export function buildStockScript(b: Brief, date: string, disclaimer: string, maxMinutes = 0) {
+export async function buildStockScript(b: Brief, date: string, disclaimer: string, maxMinutes = 0) {
   const planned = trimScenes(buildStockScenes(b, date), maxMinutes);
+
+  // ★설명을 붙이는 것은 자를 것을 다 자른 뒤다★ 이번 회차에 안 나가는 씬까지 설명을
+  // 받아 오면 그만큼 돈이 새고, 3분 컷에서는 나가는 씬보다 잘리는 씬이 더 많다.
+  const explainable = planned.filter((p) => p.facts);
+  const written = await narrateStock(
+    explainable.map((p) => ({ id: p.scene.id, heading: p.scene.heading, facts: p.facts!, fallback: p.scene.narration, targetSec: p.estSec })),
+  );
+  for (const p of planned) {
+    const better = written.get(p.scene.id);
+    if (better) p.scene.narration = better;
+    // ★변환은 여기 한 곳에서만★ 조립본이든 모델이 쓴 문장이든 똑같이 통과시킨다.
+    // 씬마다 따로 하면 언젠가 한 갈래를 빠뜨리고 그 씬만 "102,000원"을 날것으로 읽는다.
+    p.scene.narration = toSpeech(p.scene.narration);
+    p.estSec = p.scene.narration.length / CHARS_PER_SEC;
+  }
+
   const md = `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   const top = b.sectors.recommend[0]?.sector ?? b.regime.label;
   const names = b.picks.map((p) => p.name);
