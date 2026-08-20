@@ -87,11 +87,13 @@ async function stepScript(): Promise<Script> {
     const market = (process.env.STOCK_MARKET ?? 'KR').toUpperCase() as 'KR' | 'US';
     console.log(`▶ [1/4] 주식 브리프 조립 (${market})`);
     const { date, brief, disclaimer } = await fetchBrief(market);
-    const { script, views } = buildStockScript(brief, date, disclaimer);
+    // 0 이면 전부(약 9분 30초). 미리보기·짧은 회차는 STOCK_MAX_MIN 으로 줄인다.
+    const maxMin = Number(process.env.STOCK_MAX_MIN ?? '0') || 0;
+    const { script, views } = buildStockScript(brief, date, disclaimer, maxMin);
     await writeJson(SCRIPT_PATH, script);
     await writeJson(STOCK_VIEWS_PATH, views);
     console.log(`  · ${date} ${brief.marketKo} · ${brief.regime.label}`);
-    console.log(`  · 씬 ${script.scenes.length}개 · 사이트 화면 ${Object.keys(views).length}장`);
+    console.log(`  · 씬 ${script.scenes.length}개 · 사이트 화면 ${Object.keys(views).length}장${maxMin ? ` (${maxMin}분 목표로 줄임)` : ''}`);
     console.log(`  · 제목: ${script.title}`);
     const blank = [...brief.picks, ...brief.avoid].filter((p) => !p.sector);
     if (blank.length) console.warn(`  ⚠ 섹터가 비어 있는 종목: ${blank.map((p) => p.name).join(', ')}`);

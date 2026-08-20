@@ -22,6 +22,46 @@ export interface PlannedScene {
   estSec: number;
 }
 
+/**
+ * 짧게 만들 때 남길 순서.
+ *
+ * ★무엇을 버릴지는 미리 정해 둔다★ 길이를 줄일 때 뒤에서부터 자르면 클로징과 면책이
+ * 먼저 날아간다. 이 채널의 정체성은 "어제 한 말을 오늘 채점한다" 이므로 채점(open·prev)과
+ * 국면 설명(narrative)이 종목 소개보다 먼저다. 면책은 어떤 길이에서도 빠지지 않는다.
+ */
+const KEEP_ORDER = ['open', 'prev', 'narrative', 'pick1', 'regime', 'principle', 'pick2', 'causal', 'engines', 'sector', 'pick3', 'league', 'delta', 'pick4', 'pick5'];
+
+/** 어떤 길이에서도 반드시 남는 씬 — 면책이 여기 들어 있다. */
+const MANDATORY = ['outro'];
+
+/**
+ * 목표 길이(분) 안에 들어오도록 씬을 고른다. 0 이면 전부 쓴다.
+ *
+ * ★면책은 예산에서 먼저 뗀다★ 우선순위로만 채우면 짧은 회차에서 클로징이 밀려 나가고,
+ * 그러면 투자 자문이 아니라는 고지 없이 종목 이름만 부르는 영상이 된다.
+ *
+ * ★15% 넘침을 허용한다★ 딱 맞게 자르면 마지막 한 씬이 몇 초 차이로 빠진다. 3분 목표에서
+ * 사이트 화면이 한 장밖에 안 들어가 화면이 단조로워지는 일이 실제로 생겼다. 몇 초 길어지는
+ * 것보다 화면이 하나 더 바뀌는 편이 낫다.
+ */
+export function trimScenes(planned: PlannedScene[], maxMinutes: number): PlannedScene[] {
+  if (!maxMinutes || maxMinutes <= 0) return planned;
+  const budget = maxMinutes * 60 * 1.15;
+  const rank = (id: string) => {
+    const i = KEEP_ORDER.indexOf(id);
+    return i === -1 ? KEEP_ORDER.length : i;
+  };
+  const keep = new Set<string>(planned.filter((p) => MANDATORY.includes(p.scene.id)).map((p) => p.scene.id));
+  let used = planned.filter((p) => keep.has(p.scene.id)).reduce((a, p) => a + p.estSec, 0);
+  for (const p of [...planned].sort((a, b) => rank(a.scene.id) - rank(b.scene.id))) {
+    if (keep.has(p.scene.id)) continue;
+    if (used + p.estSec > budget) continue;
+    keep.add(p.scene.id);
+    used += p.estSec;
+  }
+  return planned.filter((p) => keep.has(p.scene.id));
+}
+
 const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
 
 /**
@@ -348,8 +388,8 @@ export function planSummary(scenes: PlannedScene[]): string {
  * 조회 50~100회, 고유명사가 앞에 온 제목은 2,900~7,100회였다. 그래서 업종명과 종목명을
  * 앞에 두고 날짜는 괄호로 뒤에 붙인다.
  */
-export function buildStockScript(b: Brief, date: string, disclaimer: string) {
-  const planned = buildStockScenes(b);
+export function buildStockScript(b: Brief, date: string, disclaimer: string, maxMinutes = 0) {
+  const planned = trimScenes(buildStockScenes(b), maxMinutes);
   const md = `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   const top = b.sectors.recommend[0]?.sector ?? b.regime.label;
   const names = b.picks.map((p) => p.name);
