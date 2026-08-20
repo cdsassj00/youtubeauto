@@ -43,7 +43,7 @@ import { generateThumbnail } from '../lib/thumbnail.js';
 import { printUsage } from '../lib/usage.js';
 import { uploadVideo, setThumbnail, setPrivacy } from '../lib/youtube.js';
 import { pickVisualThemeMode } from '../lib/visualTheme.js';
-import { fetchBrief, fetchSceneImage } from '../lib/stockBrief.js';
+import { fetchBrief, fetchSceneImage, freshnessProblem } from '../lib/stockBrief.js';
 import { buildStockScript } from '../lib/stockScript.js';
 import { drawStockThumbnail } from '../lib/stockThumbnail.js';
 
@@ -80,13 +80,27 @@ async function writeJson(p: string, data: unknown): Promise<void> {
 
 /** 1) 대본 생성 */
 async function stepScript(): Promise<Script> {
-  // ★주식 데일리는 Claude 를 부르지 않는다★ stockontology.cc 응답이 이미 문장(speech)과
-  // 근거(reasons)를 준다. 거기에 LLM 을 한 번 더 통과시키면 매일 돈이 들고, 무엇보다 없는
-  // 숫자를 지어낼 여지가 생긴다. 숫자가 곧 신뢰인 채널이라 조립만 한다.
+  // ★주식 데일리는 값과 말을 나눈다★ 숫자는 stockontology.cc 응답에서 그대로 옮기고,
+  // "왜 그런가"만 Claude 가 쓴다(stockScript → stockNarrate). 모델이 쓴 문장에 화면에 없는
+  // 숫자가 있으면 그 씬은 버려지고 조립본이 나간다 — 숫자가 곧 신뢰인 채널이라서다.
   if (config.videoEngine === 'stock') {
     const market = (process.env.STOCK_MARKET ?? 'KR').toUpperCase() as 'KR' | 'US';
     console.log(`▶ [1/4] 주식 브리프 조립 (${market})`);
     const { date, brief, disclaimer } = await fetchBrief(market);
+
+    // ★자동 발행에서 제일 위험한 실패는 조용히 어제 것을 오늘 것이라고 내보내는 것이다★
+    // 여기서 막지 않으면 시세 수집이 멈춘 날 낡은 값으로 종목을 추천하고, 다음 날 그걸
+    // 채점까지 한다. 눈으로는 구별이 안 되는 종류의 사고다.
+    const stale = freshnessProblem(date, brief);
+    if (stale) {
+      console.error(`⏭ 오늘은 발행하지 않습니다 — ${stale}`);
+      console.error(`   date=${date} basis=${brief.basis} dataAgeMinutes=${brief.dataAgeMinutes ?? '?'}`);
+      // 워크플로에 알려 뒤 단계(나레이션·렌더·업로드)를 건너뛰게 한다.
+      // ★실패로 끝내지 않는다★ 건너뛰는 것은 정상 동작이라, 빨간 X 로 남기면 진짜 고장과
+      // 구별이 안 되고 매번 알림이 울려 나중에는 아무도 안 본다.
+      if (process.env.GITHUB_OUTPUT) await fs.appendFile(process.env.GITHUB_OUTPUT, 'skip=true\n');
+      process.exit(0);
+    }
     // 0 이면 전부(약 9분 30초). 미리보기·짧은 회차는 STOCK_MAX_MIN 으로 줄인다.
     const maxMin = Number(process.env.STOCK_MAX_MIN ?? '0') || 0;
     const { script, views } = await buildStockScript(brief, date, disclaimer, maxMin);

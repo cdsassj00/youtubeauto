@@ -59,7 +59,11 @@ export interface Brief {
   };
   engines?: Array<{ id: string; nameKo: string; tagKo?: string; descKo?: string; live?: boolean; leaguePnlPct?: number; picks: Pick[] }>;
   league?: { currency: string; strategies: Array<{ nameKo: string; tagKo: string; live: boolean; pnlPct: number; equity: number }> };
+  /** 시세가 마지막으로 갱신된 시각. */
   dataAsOf: number;
+  /** 그게 몇 분 전인지 — 수집이 멈췄는지 판단하는 값(freshnessProblem). */
+  dataAgeMinutes?: number;
+  /** 이 응답을 계산한 시각. 이 사이트는 부르는 순간 계산하므로 대개 지금이다. */
   generatedAt: number;
 }
 
@@ -87,6 +91,38 @@ export async function fetchBrief(market: Market): Promise<{ date: string; brief:
   const brief = data.briefs?.[0];
   if (!brief) throw new Error(`daily-brief 응답에 ${market} 블록이 없습니다.`);
   return { date: data.date, brief, disclaimer: data.disclaimer };
+}
+
+/** 오늘 날짜(KST). 사이트의 date 가 KST 기준이라 UTC 로 비교하면 새벽 회차가 하루 어긋난다. */
+export function todayKst(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * 이 브리프로 영상을 만들어도 되는가. 문제가 있으면 사람이 읽을 이유를, 없으면 null.
+ *
+ * ★자동 발행에서 제일 위험한 실패는 "조용히 어제 것을 오늘 것이라고 내보내는 것"이다★
+ * 이 사이트는 밤에 도는 배치가 없고 API 를 부르는 순간 계산하므로 "어제 파일이 남는"
+ * 형태의 실패는 없다. 하지만 시세 수집이 멈춘 채로도 계산은 되기 때문에, 낡은 시세로
+ * 만들어진 오늘치 응답이 나올 수 있다. 그건 눈으로 구별이 안 된다 — 필드로 봐야 한다.
+ *
+ * 규칙은 사이트 쪽과 맞춘 것이다(docs/DAILY-BRIEF-API.md 3-1):
+ *   · date 가 오늘(KST)일 것
+ *   · basis 가 intraday 가 아닐 것 — 장중 값은 종가가 아니라서 내일 채점 기준이 흔들린다
+ *   · dataAgeMinutes 가 12시간 미만일 것
+ *
+ * ★미국이 prev_close 로 오는 것은 정상이다★ 미국장은 그날 아침(KST)에 이미 끝나 있어
+ * 저녁에 부르면 "직전 종가"가 최신이다. 이건 낡은 값이 아니라 확정된 값이다.
+ */
+export function freshnessProblem(date: string, brief: Brief, maxAgeMinutes = 720): string | null {
+  const today = todayKst();
+  if (date !== today) return `브리프 날짜가 ${date} 입니다(오늘은 ${today}).`;
+  if (brief.basis === 'intraday') return '장중(intraday) 기준 값입니다 — 종가가 확정된 뒤에 만들어야 합니다.';
+  const age = brief.dataAgeMinutes;
+  if (typeof age === 'number' && age >= maxAgeMinutes) {
+    return `시세가 ${Math.round(age / 60)}시간 전 값입니다(허용 ${maxAgeMinutes / 60}시간) — 수집이 멈춘 것으로 보입니다.`;
+  }
+  return null;
 }
 
 /** 사이트가 서버에서 그려 주는 1920×1080 완성 화면. view 는 overview / sector:X / stock:CODE / league / backtest. */

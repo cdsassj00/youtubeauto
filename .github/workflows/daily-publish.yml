@@ -1,11 +1,21 @@
 name: 매일 AI 영상 자동 발행
 
 on:
-  # 자동 스케줄 발행은 끔 — 사용자가 사이트에서 직접 넣을 때만 만든다.
-  # (매일 07:00 KST 로 돌면서 비공개 영상이 계속 쌓이고 비용이 나갔다.)
-  # 다시 켜려면 아래 두 줄의 주석을 풀면 된다:
+  # ── 주식 데일리 자동 발행 ────────────────────────────────────────────────
+  # 아래 두 줄의 주석을 풀면 평일 17:30 KST 에 자동으로 돈다.
+  #
+  # ★왜 17:30 KST 인가★ 한국장이 15:30 에 마감하므로 종가가 반영돼 있고, 미국장은
+  # 그날 아침 05:00 KST 에 이미 끝나 확정 상태다. 한 번 호출로 한국·미국 소재를 다 얻는다.
+  # (미국편을 아침에 따로 만들려면 '10 21 * * 0-4' = 06:10 KST 를 하나 더 둔다.)
+  #
+  # ★켜기 전에 반드시 확인할 것★ 스케줄 실행은 inputs 가 전부 비어 아래 기본값으로 돈다.
+  # vars 에 VIDEO_ENGINE=stock, STOCK_MARKET=KR, TARGET_CHANNEL·PRIVACY 를 맞춰 두지 않으면
+  # 엉뚱한 엔진으로 기본 채널에 올라간다(실제로 그 사고가 한 번 났다).
+  #
   #   schedule:
-  #     - cron: '0 22 * * *'   # 22:00 UTC = 다음날 07:00 KST
+  #     - cron: '30 8 * * 1-5'   # 08:30 UTC = 17:30 KST, 평일
+  #
+  # 브리프가 낡은 날에는 대본 스텝이 skip=true 를 내고 뒤 단계가 전부 건너뛴다.
   workflow_dispatch:
     inputs:
       topic:
@@ -65,7 +75,9 @@ jobs:
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       # 공개 상태: 리뷰 흐름은 웹앱이 unlisted 로 전달 → 확인 후 발행(public)으로 전환. 스케줄은 vars 기본값.
-      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || github.event.client_payload.opts.privacy || github.event.client_payload.privacy || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
+      # 스케줄 발행은 비공개로 쌓는다 — 아무도 안 본 영상이 매일 공개로 나가는 것을 막는다.
+      # 공개 자동 발행으로 바꾸려면 여기 'private' 을 'public' 으로 고친다.
+      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || github.event.client_payload.opts.privacy || github.event.client_payload.privacy || (github.event_name == 'schedule' && 'private') || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
       YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
       # ── 두 번째 채널(ch2) 자격증명 — TARGET_CHANNEL=ch2 일 때 사용. 새 채널 OAuth 후 아래 시크릿을 등록. ──
@@ -77,7 +89,10 @@ jobs:
       YOUTUBE_DESC_FOOTER_CH2: ${{ vars.YOUTUBE_DESC_FOOTER_CH2 }}
       YOUTUBE_PRIVACY_STATUS_CH2: ${{ vars.YOUTUBE_PRIVACY_STATUS_CH2 }}
       # 업로드 대상 채널 선택 (default | ch2). 웹앱/수동 실행에서 전달.
-      TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'default' }}
+      # ★스케줄 실행은 inputs 가 전부 비어 있다★ 그대로 두면 'default'(AI 강의 채널)로
+      # 떨어져 주식 영상이 남의 채널에 올라간다 — 실제로 한 번 그렇게 발행됐다.
+      # vars 설정에 기대지 않고 여기서 못박는다.
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || github.event.client_payload.channel || (github.event_name == 'schedule' && 'ch2') || 'default' }}
       # 합성 콘텐츠 공개 표시 — 목소리 클론 나레이션 + 비실사 일러스트는 YouTube 명시적 예외 대상이라 기본 false.
       SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'false' }}
       # TOPIC 은 잡 수준에 두지 않는다 — '대본 생성' 스텝에만 있다(위 주석 참고).
@@ -116,7 +131,7 @@ jobs:
       STOCK_MARKET: ${{ github.event.inputs.market || github.event.client_payload.opts.market || github.event.client_payload.market || 'KR' }}
       # style=stock 일 때 목표 길이(분). 0 이면 전부 쓴다.
       STOCK_MAX_MIN: ${{ github.event.inputs.max_min || github.event.client_payload.opts.max_min || '0' }}
-      VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.opts.style || github.event.client_payload.style || vars.VIDEO_ENGINE || 'illustrated' }}
+      VIDEO_ENGINE: ${{ github.event.inputs.style || github.event.client_payload.opts.style || github.event.client_payload.style || (github.event_name == 'schedule' && 'stock') || vars.VIDEO_ENGINE || 'illustrated' }}
       # 목록형 엔진이 쓸 자료 폴더(assets/listing/<이름>/items.json).
       LISTING_SET: ${{ github.event.client_payload.opts.listing_set || '' }}
       # 씬 일러스트 화풍(src/lib/artStyle.ts). 'auto' 는 회차마다 날짜 기준으로 회전.
@@ -169,6 +184,7 @@ jobs:
 
       # ── 여기부터 4단계: 웹앱 진행바가 이 스텝 이름으로 진행도를 표시 ──
       - name: 대본 생성
+        id: script
         run: npm run generate:script
         # ★TOPIC 은 여기서만 준다★
         # 잡 수준 env 에 두면 GitHub 가 "모든" 스텝의 시작에 env 덤프를 찍으면서
@@ -179,13 +195,20 @@ jobs:
         env:
           TOPIC: ${{ github.event.inputs.topic || github.event.client_payload.topic || '' }}
 
+      # ★뒤 단계는 브리프가 신선할 때만 돈다★ 대본 스텝이 skip=true 를 내면 그날은
+      # 시세가 낡았거나 날짜가 어긋난 것이라, 여기서 멈추지 않으면 어제 값으로 만든 종목
+      # 추천이 오늘 것으로 올라가고 다음 날 그걸 채점까지 한다.
+      # (실패가 아니라 정상적인 건너뛰기라 잡은 초록으로 끝난다 — 진짜 고장과 구별되게.)
       - name: 나레이션 생성
+        if: steps.script.outputs.skip != 'true'
         run: npm run generate:voice
 
       - name: 렌더링
+        if: steps.script.outputs.skip != 'true'
         run: npm run render
 
       - name: 유튜브 업로드
+        if: steps.script.outputs.skip != 'true'
         run: npm run upload
 
       - name: 산출물 업로드(디버그용 아티팩트)
