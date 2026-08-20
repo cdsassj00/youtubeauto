@@ -1,20 +1,46 @@
-import { fixParticles } from '../src/lib/stockScript.js';
-const cases: Array<[string, string]> = [
+/**
+ * 나레이션 문자열 다듬기 — 조사·기호.
+ *
+ * ★귀로 확인할 수 없어서 테스트로 잡는다★ 나레이션은 렌더까지 가야 소리로 들리는데
+ * 그건 돈이 든다. "차트 거장는", "금리와 본다" 같은 것은 여기서 잡아야 한다.
+ */
+import { fixParticles, attach, speakable } from '../src/lib/stockScript.js';
+
+let fail = 0;
+const eq = (got: string, want: string, label: string) => {
+  const ok = got === want;
+  if (!ok) fail++;
+  console.log(ok ? '  ✓' : '  ✗', label, ok ? '' : `\n      받음: ${JSON.stringify(got)}\n      기대: ${JSON.stringify(want)}`);
+};
+
+console.log('■ fixParticles — 사이트가 보내는 "이(가)" 형태');
+for (const [inp, want] of [
   ['정유화학이(가) 유지되고', '정유화학이 유지되고'],
   ['증권·2차전지·인터넷이(가) 새로', '증권·2차전지·인터넷이 새로'],
-  ['코스맥스이(가)', '코스맥스가'],
+  ['2차전지이(가) 새로', '2차전지가 새로'],
   ['농심은(는) 올랐다', '농심은 올랐다'],
   ['GS은(는) 올랐다', 'GS는 올랐다'],
   ['금리를(을) 본다', '금리를 본다'],
   ['한국콜마을(를) 본다', '한국콜마를 본다'],
   ['괄호 없는 문장', '괄호 없는 문장'],
-];
-let fail = 0;
-for (const [inp, want] of cases) {
-  const got = fixParticles(inp);
-  const ok = got === want;
-  if (!ok) fail++;
-  console.log(ok ? '✓' : '✗', JSON.stringify(inp), '→', JSON.stringify(got), ok ? '' : `(기대: ${want})`);
-}
-console.log(fail ? `실패 ${fail}건` : '전부 통과');
+] as Array<[string, string]>) eq(fixParticles(inp), want, JSON.stringify(inp));
+
+console.log('■ attach — 이름이 데이터에서 오므로 조사를 붙여야 한다');
+eq(attach('차트 거장', '은', '는'), '차트 거장은', '차트 거장 + 은/는');
+eq(attach('융합', '은', '는'), '융합은', '융합 + 은/는');
+eq(attach('수급·차트', '은', '는'), '수급·차트는', '수급·차트 + 은/는');
+eq(attach('코스맥스', '이', '가'), '코스맥스가', '코스맥스 + 이/가');
+eq(attach('현대해상', '이', '가'), '현대해상이', '현대해상 + 이/가');
+
+console.log('■ speakable — 화면용 기호를 소리로 읽을 수 있게');
+eq(speakable('추세 — 20일선 +20.4% · 20/60선 정배열(13.2%)'), '추세, 20일선 +20.4%, 20/60선 정배열, 13.2%', '줄표·가운뎃점·괄호');
+eq(speakable('온톨로지 +0.42 와 수급 +0.92 가 모두 긍정 — 반반 평균'), '온톨로지 +0.42 와 수급 +0.92 가 모두 긍정, 반반 평균', '줄표');
+eq(speakable('기호 없는 문장'), '기호 없는 문장', '변경 없음');
+// ★음수 부호를 먹으면 안 된다★ 실제로 "-1.57%" 가 ", 1.57%" 로 바뀌어 부호가 사라졌었다.
+eq(speakable('원/달러 -1.57% → 유통소비 민감도 -0.35'), '원/달러 -1.57%, 유통소비 민감도 -0.35', '음수 부호 보존');
+eq(speakable('코스피 +4.53% → 유통소비 민감도 +0.35'), '코스피 +4.53%, 유통소비 민감도 +0.35', '화살표 → 쉼표');
+eq(speakable('20일 +27.6% · 5일 -3.4%'), '20일 +27.6%, 5일 -3.4%', '가운뎃점 + 음수 유지');
+eq(speakable('앞 - 뒤'), '앞, 뒤', '띄어쓴 붙임표는 구분자');
+
+console.log(fail ? `\n실패 ${fail}건` : '\n전부 통과');
 process.exit(fail ? 1 : 0);

@@ -31,6 +31,41 @@ const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
  * 음성으로는 "정유화학이 괄호 가"로 나간다. 화면 자막에도 그대로 박힌다. 받침 유무만 보면
  * 되는 규칙이라 여기서 고친다(원문을 고쳐 달라고 하는 것보다 우리 쪽이 즉시 안전하다).
  */
+/** 앞말 받침을 보고 조사를 붙인다. 이름이 데이터에서 오므로 하드코딩할 수 없다. */
+export function attach(word: string, withFinal: string, without: string): string {
+  const ch = word[word.length - 1] ?? '';
+  const code = ch.charCodeAt(0);
+  const hasFinal = code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0;
+  return word + (hasFinal ? withFinal : without);
+}
+
+/**
+ * 소리 내어 읽을 수 있게 기호를 다듬는다.
+ *
+ * ★근거 문자열은 화면용이다★ "추세 — 20일선 +20.4% · 20/60선 정배열(13.2%)" 처럼
+ * 줄표·가운뎃점·괄호가 섞여 있는데, TTS 는 이걸 끊어 읽지 못하거나 기호를 그대로 발음한다.
+ * 화면에는 원문을 두고 나레이션에서만 쉼표로 바꾼다.
+ */
+export function speakable(text: string): string {
+  return (
+    text
+      // ★붙임표는 양쪽이 띄어져 있을 때만 구분자다★ 처음에 [—–-] 를 한꺼번에 바꿨더니
+      // "-1.57%" 의 음수 부호까지 쉼표가 되어 "1.57%" 로 읽혔다. 부호가 뒤집히는 것은
+      // 이 채널에서 가장 위험한 종류의 버그다 — 긴 줄표는 그대로, 짧은 붙임표는 띄어쓰기가
+      // 양쪽에 있을 때만 구분자로 본다.
+      .replace(/\s*[—–]\s*/g, ', ')
+      .replace(/ +- +/g, ', ')
+      // 화살표는 소리로 읽히지 않는다. 쉼표로 끊어 준다.
+      .replace(/\s*[→⇒]\s*/g, ', ')
+      .replace(/\s*·\s*/g, ', ')
+      .replace(/\s*\(([^)]*)\)/g, ', $1')
+      .replace(/(\s*,\s*){2,}/g, ', ')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/,\s*$/, '')
+      .trim()
+  );
+}
+
 export function fixParticles(text: string): string {
   const hasFinal = (ch: string) => {
     const code = ch.charCodeAt(0);
@@ -187,7 +222,7 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         heading: `${i + 1}. ${p.name} ${p.score.toFixed(2)}`,
         narration:
           `${i + 1}번째는 ${p.name}입니다. ${p.sector ?? '미분류'} 업종이고 현재 ${p.priceLabel}, ${pct(p.changePct)}입니다. ` +
-          (p.reasons ?? []).join(' ') +
+          (p.reasons ?? []).map(speakable).join('. ') + '. ' +
           `${days} 종합 점수는 ${p.score.toFixed(2)}점입니다.`,
         visual: 'image',
         engine: 'illustrated',
@@ -196,7 +231,69 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
     );
   });
 
-  // ── 6. 네 엔진의 대결 — 이 채널의 킬러 구간 ─────────────────────────────
+  // ── 5-2. 이 점수가 어떻게 나오는가 — 원리를 매 회차 짧게 되짚는다 ────────
+  // ★매일 넣는다★ 대표 영상에서 길게 설명하더라도, 데일리를 처음 보는 사람은 대표 영상을
+  // 안 봤다. 그렇다고 매일 3분씩 원리를 반복하면 단골이 떠난다. 그래서 20초짜리 한 씬으로
+  // 고정하고, 자세한 것은 사이트로 보낸다.
+  add({
+    id: 'principle',
+    heading: '점수는 이렇게 나옵니다',
+    narration:
+      '잠깐, 이 점수가 어떻게 나오는지 짚고 가겠습니다. ' +
+      '유가나 환율 같은 거시 지표가 먼저 움직이고, 그 신호가 업종별 민감도를 타고 종목까지 내려옵니다. ' +
+      '거기에 최근 가격 흐름과 뉴스 감성을 더해 하나의 점수로 합칩니다. ' +
+      '비중은 거시 인과가 0.35, 가격 흐름이 0.45, 뉴스가 0.2입니다. ' +
+      '예측이 아니라, 이미 일어난 거시의 움직임이 종목까지 도달하는 데 걸리는 시차를 노리는 방식입니다.',
+    bullets: ['거시 인과 ×0.35', '가격 흐름 ×0.45', '뉴스 감성 ×0.2'],
+    visual: 'diagram',
+    diagram: {
+      nodes: [
+        { id: 'macro', label: '거시 신호' },
+        { id: 'sens', label: '업종 민감도' },
+        { id: 'score', label: '종목 점수' },
+      ],
+      edges: [
+        { from: 'macro', to: 'sens' },
+        { from: 'sens', to: 'score' },
+      ],
+    },
+    engine: 'whiteboard',
+  });
+
+  // ── 5-3. 다른 방식들은 뭐라고 하나 — 수급·차트·융합 ──────────────────────
+  // ★engines 블록이 이 API 에서 제일 큰 덩어리다(약 4,900자)★ 그런데 리그 성적 한 줄씩만
+  // 쓰고 버리고 있었다. 같은 날 같은 시장을 보고도 방식마다 다른 종목을 고르는 장면이라,
+  // "왜 이 종목인가"를 한 번 더 다른 각도에서 설명해 준다.
+  const others = (b.engines ?? []).filter((e) => e.id !== 'onto' && e.picks?.length);
+  if (others.length) {
+    add({
+      id: 'engines',
+      heading: '다른 방식은 뭐라고 하나',
+      narration:
+        '이 사이트에는 온톨로지 말고도 세 가지 방식이 더 돌아갑니다. ' +
+        others
+          .map((e, i) => {
+            const top = e.picks[0];
+            const why = speakable((top.reasons ?? [])[0] ?? '');
+            // ★문장 틀을 돌린다★ 같은 틀로 세 번 이어 붙이면 "오늘 이 방식이 고른 것은…"이
+            // 세 번 반복돼 듣는 사람이 바로 지친다. 회차마다가 아니라 한 씬 안에서도 마찬가지다.
+            const lead = [`${attach(e.nameKo, '은', '는')} ${e.descKo ?? e.tagKo ?? ''}`, `${attach(e.nameKo, '은', '는')} ${e.descKo ?? e.tagKo ?? ''}`, `${attach(e.nameKo, '은', '는')} ${e.descKo ?? e.tagKo ?? ''}`][i] ?? '';
+            const body = [
+              `이 방식이 오늘 고른 종목은 ${top.name}입니다. ${why}.`,
+              `여기서는 ${attach(top.name, '이', '가')} 1위입니다. ${why}.`,
+              `오늘의 선택은 ${top.name}. ${why}.`,
+            ][i % 3];
+            return `${lead} ${body}`;
+          })
+          .join(' ') +
+        ' 같은 날 같은 시장을 보고도 고르는 종목이 갈립니다.',
+      bullets: others.map((e) => `${e.nameKo} · ${e.picks[0].name}`).slice(0, 5),
+      visual: 'bullets',
+      engine: 'listing',
+    });
+  }
+
+  // ── 6. 네 엔진의 성적 — 이 채널의 킬러 구간 ─────────────────────────────
   if (b.league?.strategies?.length) {
     const s = b.league.strategies;
     add(
@@ -204,9 +301,10 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
         id: 'league',
         heading: '네 방식이 같은 조건으로 싸운다',
         narration:
-          `이 사이트에는 서로 철학이 다른 분석 방식이 네 개 있습니다. ` +
-          s.map((x) => `${x.nameKo}는 ${x.tagKo}로 고르고 지금 ${pct(x.pnlPct)}입니다.`).join(' ') +
-          ` 같은 원금, 같은 매매 규칙이고 다른 것은 무엇을 살까 하나뿐입니다. 그래서 어느 철학이 실제로 버는지가 공정하게 비교됩니다.`,
+          `그럼 어느 방식이 실제로 벌고 있을까요. ` +
+          s.map((x) => `${attach(x.nameKo, '은', '는')} ${pct(x.pnlPct)}.`).join(' ') +
+          ` 네 방식 모두 같은 원금에 같은 매매 규칙으로 돌고, 다른 것은 무엇을 살까 하나뿐입니다. ` +
+          `그래서 이 비교는 공정합니다. 지는 방식도 그대로 공개합니다.`,
         visual: 'image',
         engine: 'illustrated',
       },
