@@ -168,7 +168,15 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       narration: `어제 이 채널이 고른 ${mk} ${prev.picks.length}종목 가운데 ${hit}개가 올랐습니다. 평균 ${pct(prev.avgChangePct)}입니다. 맞은 것도 틀린 것도 그대로 보여드리고 시작하겠습니다.`,
       visual: 'metric',
       metric: { value: `${hit}/${prev.picks.length}`, label: '어제 추천 적중', note: `평균 ${pct(prev.avgChangePct)}` },
-      engine: 'standard',
+      engine: 'stock',
+      stock: {
+        kind: 'headline',
+        cards: [],
+        big: `${hit}/${prev.picks.length}`,
+        caption: `평균 ${pct(prev.avgChangePct)}`,
+        groups: [],
+        rows: [{ name: `어제 고른 ${b.marketKo} ${prev.picks.length}종목 중`, from: '', to: '', pct: 0, note: 'dim' }],
+      },
     });
 
     add({
@@ -497,7 +505,20 @@ export function buildStockScenes(b: Brief): PlannedScene[] {
       `이 채널은 광고 수익을 받지 않습니다. 투자 자문이나 권유가 아니고, 판단과 책임은 보시는 분께 있습니다.`,
     visual: 'outro',
     icon: 'search',
-    engine: 'illustrated',
+    // ★클로징이 흰 배경에 돋보기 아이콘 하나였다★ 채널명도 사이트 주소도 없었다.
+    engine: 'stock',
+    stock: {
+      kind: 'headline',
+      cards: [],
+      big: '',
+      caption: '오늘 고른 종목은 내일 이 자리에서 채점합니다',
+      groups: [],
+      rows: [
+        { name: 'stockontology.cc', from: '', to: '', pct: 0, note: '' },
+        { name: '광고 수익을 받지 않는 무료 채널입니다', from: '', to: '', pct: 0, note: 'dim' },
+        { name: '투자 자문·권유가 아니며 판단과 책임은 이용자 본인에게 있습니다', from: '', to: '', pct: 0, note: 'dim' },
+      ],
+    },
   });
 
   return out;
