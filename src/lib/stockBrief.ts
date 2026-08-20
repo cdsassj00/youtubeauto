@@ -57,7 +57,7 @@ export interface Brief {
     summaryKo: string;
     meaningKo: string;
   };
-  engines?: Array<{ id: string; nameKo: string; tagKo?: string; live?: boolean; leaguePnlPct?: number; picks: Pick[] }>;
+  engines?: Array<{ id: string; nameKo: string; tagKo?: string; descKo?: string; live?: boolean; leaguePnlPct?: number; picks: Pick[] }>;
   league?: { currency: string; strategies: Array<{ nameKo: string; tagKo: string; live: boolean; pnlPct: number; equity: number }> };
   dataAsOf: number;
   generatedAt: number;
