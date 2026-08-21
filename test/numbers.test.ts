@@ -4,7 +4,7 @@
  * ★이걸 놓쳐서 첫 영상이 못 쓰게 됐다★ "102,000원"과 "-2.04%"를 TTS 에 날것으로 넘겼고,
  * 음성은 쉼표에서 끊고 마이너스를 빼먹었다. 주식 채널에서 부호가 사라지는 것은 치명적이다.
  */
-import { sino, speakNumbers, ordinal } from '../src/lib/koreanNumber.js';
+import { sino, speakNumbers, ordinal, speakLatinAcronyms } from '../src/lib/koreanNumber.js';
 
 let fail = 0;
 const eq = (got: string, want: string, label: string) => {
@@ -45,6 +45,16 @@ console.log('■ 범위·고유어 단위');
 eq(speakNumbers('평균 보유 6~13일'), '평균 보유 육일에서 십삼일', '물결표 = 범위, 단위 복사');
 eq(speakNumbers('3~5%'), '삼 퍼센트에서 오 퍼센트', '범위에 퍼센트');
 eq(speakNumbers('2~3배로'), '이에서 삼배로', '단위 목록에 없으면 복사하지 않는다');
+
+console.log('■ 라틴 약어 낱글자 읽기');
+// TTS 가 영어 단어로 읽으려다 실패해 어색해지는 것을 막는다 — 한국어로 실제 읽는
+// 방식(낱글자 이름을 이어 붙임)을 그대로 텍스트에 박는다.
+eq(speakLatinAcronyms('변동성, VIX 플러스 십일'), '변동성, 브이아이엑스 플러스 십일', 'VIX');
+eq(speakLatinAcronyms('이평·MACD·일목'), '이평·엠에이씨디·일목', 'MACD');
+eq(speakLatinAcronyms('GS는 정유화학'), '지에스는 정유화학', '두 글자 티커');
+// 한 글자만 대문자이거나 소문자가 섞이면 건드리지 않는다 — 다른 규칙(attach)의 자리다.
+eq(speakLatinAcronyms('S-Oil은 정유'), 'S-Oil은 정유', '회사명 일부는 손대지 않는다');
+eq(speakLatinAcronyms('Pretendard 폰트'), 'Pretendard 폰트', '소문자 섞인 단어는 손대지 않는다');
 eq(speakNumbers('한국 5종목 가운데'), '한국 다섯 종목 가운데', '종목 = 고유어');
 
 console.log(fail ? `\n실패 ${fail}건` : '\n전부 통과');

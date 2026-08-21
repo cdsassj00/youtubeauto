@@ -12,6 +12,7 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { SceneWithAudio } from '../../schema.js';
+import { captionChunks } from '../components/beats.js';
 
 const BG = '#070d1a';
 const BG2 = '#0c1730';
@@ -494,6 +495,58 @@ const Headline: React.FC<{ scene: SceneWithAudio }> = ({ scene }) => {
         })}
       </div>
     </AbsoluteFill>
+  );
+};
+
+/**
+ * 화면 하단 자막 — 다른 모든 엔진(Illustrated·Footage·Whiteboard·Scrapbook·Listing)은
+ * 갖고 있는데 이 엔진만 없었다. Mixed.tsx 주석에 "자막·오디오는 여기서 얹는다"고
+ * 적어 두고 실제로는 오디오만 얹고 있었다 — 소리를 꺼도, 놓쳐도 따라갈 방법이 없었다.
+ *
+ * 화면이 이미 짙은 남색이라 다른 엔진의 흰 알약(WordCaption)을 그대로 쓰면 붕 뜬다.
+ * 이 화면의 팔레트(GOLD/WHITE/DIM)에 맞춘 어두운 알약으로 만든다.
+ */
+export const StockCaption: React.FC<{ narration: string; durationInFrames: number; speechFrames: number }> = ({
+  narration,
+  durationInFrames,
+  speechFrames,
+}) => {
+  const frame = useCurrentFrame();
+  const chunks = captionChunks(narration, durationInFrames, 18, speechFrames);
+  if (chunks.length === 0) return null;
+  const cur = chunks.find((b) => frame >= b.start && frame < b.end) ?? chunks[chunks.length - 1];
+  const pop = interpolate(frame - cur.start, [0, 6], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 56,
+        left: 80,
+        right: 80,
+        textAlign: 'center',
+        transform: `translateY(${(1 - pop) * 14}px)`,
+        opacity: pop,
+      }}
+    >
+      <span
+        style={{
+          display: 'inline-block',
+          fontFamily: FONT,
+          fontSize: 40,
+          fontWeight: 700,
+          lineHeight: 1.3,
+          color: WHITE,
+          background: 'rgba(7,13,26,0.86)',
+          border: `1px solid rgba(217,164,65,0.35)`,
+          borderRadius: 14,
+          padding: '12px 28px',
+          maxWidth: 1600,
+        }}
+      >
+        {cur.text}
+      </span>
+    </div>
   );
 };
 

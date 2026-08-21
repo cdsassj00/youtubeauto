@@ -110,3 +110,27 @@ export function ordinal(n: number): string {
   if (n === 1) return '첫 번째';
   return n >= 2 && n <= 10 ? `${NATIVE[n]} 번째` : `${sino(n)} 번째`;
 }
+
+/** 영문 알파벳 → 한국어 낱글자 이름. TTS 가 라틴 약어를 영어 단어처럼 읽으려다 어색해지는 것을 막는다. */
+const LETTER_KO: Record<string, string> = {
+  A: '에이', B: '비', C: '씨', D: '디', E: '이', F: '에프', G: '지', H: '에이치', I: '아이', J: '제이',
+  K: '케이', L: '엘', M: '엠', N: '엔', O: '오', P: '피', Q: '큐', R: '알', S: '에스', T: '티',
+  U: '유', V: '브이', W: '더블유', X: '엑스', Y: '와이', Z: '지',
+};
+
+/**
+ * VIX·MACD 같은 라틴 약어를 한국어 낱글자 이름으로 풀어 읽는다.
+ *
+ * ★"어색한 발음"의 정체★ TTS 는 한글 사이에 낀 대문자 약어를 영어 단어로 읽으려다
+ * 실패해 이도저도 아닌 소리를 낸다. 한국어 화자는 "GDP"를 영어 발음이 아니라
+ * "지디피"처럼 낱글자를 이어 읽는다 — 그 방식을 그대로 텍스트에 박아 주면 TTS 가
+ * 흔들릴 이유가 없어진다.
+ *
+ * 2~6 글자 대문자 연속에만 적용한다. 회사명 일부(예: "S-Oil"의 S)처럼 한 글자만
+ * 대문자이거나 소문자가 섞이면 건드리지 않는다 — 그런 자리는 다른 규칙(attach)이 맡는다.
+ */
+export function speakLatinAcronyms(text: string): string {
+  return text.replace(/\b[A-Z]{2,6}\b/g, (m) =>
+    [...m].map((ch) => LETTER_KO[ch] ?? ch).join(''),
+  );
+}
