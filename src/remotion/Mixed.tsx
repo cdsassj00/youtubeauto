@@ -20,7 +20,7 @@ import { Scrapbook } from './Scrapbook.js';
 import { Whiteboard } from './Whiteboard.js';
 import { Listing } from './Listing.js';
 import { Footage } from './Footage.js';
-import { StockScene } from './stock/StockScene.js';
+import { StockScene, StockCaption } from './stock/StockScene.js';
 import type { RenderManifest, SceneWithAudio } from '../schema.js';
 
 const ENGINES = {
@@ -43,6 +43,13 @@ export const Mixed: React.FC<RenderManifest> = (manifest) => (
         return (
           <Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.durationInFrames} name={`stock · ${scene.heading}`}>
             <StockScene scene={scene as SceneWithAudio} />
+            {/* ★자막은 여기서 얹는다고 주석엔 적혀 있었지만 실제로는 안 얹혀 있었다★
+                소리를 끄고 보거나 발음이 흔들리는 대목에서도 이걸로 따라갈 수 있어야 한다. */}
+            <StockCaption
+              narration={scene.captionText ?? scene.narration}
+              durationInFrames={scene.durationInFrames}
+              speechFrames={Math.round((scene as SceneWithAudio).durationSec * manifest.fps)}
+            />
             {scene.audioPath && <Audio src={staticFile(scene.audioPath)} />}
           </Sequence>
         );

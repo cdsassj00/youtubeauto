@@ -11,7 +11,7 @@
  * (illustrated 엔진으로 전체화면 표시)과 손그림·목록·도식을 번갈아 놓는다.
  */
 import type { Brief } from './stockBrief.js';
-import { speakNumbers, ordinal } from './koreanNumber.js';
+import { speakNumbers, ordinal, speakLatinAcronyms } from './koreanNumber.js';
 import type { Scene } from '../schema.js';
 import { narrateStock } from './stockNarrate.js';
 
@@ -104,7 +104,9 @@ const pct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
  * 조사 보정 → 기호 정리 → 숫자 한글화. 나레이션은 반드시 여기를 지나간다.
  */
 export function toSpeech(text: string): string {
-  return speakNumbers(speakable(fixParticles(text))).replace(/\s{2,}/g, ' ').trim();
+  // ★약어는 숫자보다 먼저 푼다★ speakNumbers 는 숫자만 보므로 순서는 상관없지만,
+  // 약어 안에 숫자가 낄 일이 없어 여기 순서로 고정해 둔다(VIX·MACD 등).
+  return speakLatinAcronyms(speakNumbers(speakable(fixParticles(text)))).replace(/\s{2,}/g, ' ').trim();
 }
 
 /**
@@ -213,6 +215,8 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   /** 설명이 붙는 씬의 목표 길이(초). 이 값으로 자르고, 이 값을 모델에게도 준다. */
   const PICK_SEC = 42;
   const CAUSAL_SEC = 24;
+  const REGIME_SEC = 34;
+  const ENGINES_SEC = 45;
 
   const mk = b.marketKo;
 
@@ -376,6 +380,23 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
         ],
       },
     },
+    undefined,
+    // ★예전엔 사이트 줄을 그대로 이어 붙였다★ "금리: 미 10년 상승 압력 — 은행·보험 순풍,
+    // 성장주·바이오·인터넷·기술 역풍" 을 speakable() 로 기호만 지우면 결론만 나열될 뿐
+    // 왜 그런지는 아무도 말해 주지 않는다. 사이트 줄 자체가 이미 근거를 담고 있으니
+    // 설명 나레이션에게 문장으로 풀어 잇게 한다.
+    [
+      `오늘 국면: ${b.regime.label}`,
+      '근거 줄(각 줄은 이미 결론+근거 형태다):',
+      ...b.regime.lines.map((l) => `  ${l}`),
+      '',
+      '★결론만 읽지 말고 왜 그런지 이어라★ "금리 상승 → 은행·보험 순풍" 이라고만 하면',
+      '값을 읽은 것이다. 금리가 오르면 왜 은행·보험이 좋아지고 성장주가 나빠지는지를',
+      '한 문장씩 붙여라(예: 대출 마진이 커진다 / 먼 미래 이익을 지금 값으로 당겨오는',
+      '방식이라 할인율이 커지면 불리하다). 모든 줄을 다 설명할 필요는 없다 — 오늘',
+      '국면에서 중요한 2~3가지만 골라 원리를 붙이고 나머지는 짧게 스쳐도 된다.',
+    ].join('\n'),
+    REGIME_SEC,
   );
 
   // ── 2. 왜 그렇게 됐나 — 인과를 하나씩 따로 떼어 회차 중간중간에 끼운다 ───
@@ -689,45 +710,66 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   // "왜 이 종목인가"를 한 번 더 다른 각도에서 설명해 준다.
   const others = (b.engines ?? []).filter((e) => e.id !== 'onto' && e.picks?.length);
   if (others.length) {
-    add({
-      id: 'engines',
-      heading: '다른 방식은 뭐라고 하나',
-      narration:
-        '이 사이트에는 온톨로지 말고도 세 가지 방식이 더 돌아갑니다. ' +
-        others
-          .map((e, i) => {
-            const top = e.picks[0];
-            const why = speakable((top.reasons ?? [])[0] ?? '');
-            // ★문장 틀을 돌린다★ 같은 틀로 세 번 이어 붙이면 "오늘 이 방식이 고른 것은…"이
-            // 세 번 반복돼 듣는 사람이 바로 지친다. 회차마다가 아니라 한 씬 안에서도 마찬가지다.
-            const lead = [`${attach(e.nameKo, '은', '는')} ${e.descKo ?? e.tagKo ?? ''}`, `${attach(e.nameKo, '은', '는')} ${e.descKo ?? e.tagKo ?? ''}`, `${attach(e.nameKo, '은', '는')} ${e.descKo ?? e.tagKo ?? ''}`][i] ?? '';
-            const body = [
-              `이 방식이 오늘 고른 종목은 ${top.name}입니다. ${why}.`,
-              `여기서는 ${attach(top.name, '이', '가')} 1위입니다. ${why}.`,
-              `오늘의 선택은 ${top.name}. ${why}.`,
-            ][i % 3];
-            return `${lead} ${body}`;
-          })
-          .join(' ') +
-        ' 같은 날 같은 시장을 보고도 고르는 종목이 갈립니다.',
-      bullets: others.map((e) => `${e.nameKo} · ${e.picks[0].name}`).slice(0, 5),
-      visual: 'bullets',
-      engine: 'stock',
-      stock: {
-        kind: 'cards',
-        big: '',
-        caption: '',
-        rows: [],
-        groups: [],
-        cards: (b.engines ?? []).map((e) => ({
-          title: e.nameKo,
-          sub: e.descKo ?? e.tagKo ?? '',
-          value: e.leaguePnlPct == null ? '' : pct(e.leaguePnlPct),
-          items: (e.picks ?? []).slice(0, 3).map((p) => `${p.name} ${p.score.toFixed(2)}`),
-          highlight: Boolean(e.live),
-        })),
+    add(
+      {
+        id: 'engines',
+        heading: '다른 방식은 뭐라고 하나',
+        narration:
+          '이 사이트에는 온톨로지 말고도 세 가지 방식이 더 돌아갑니다. ' +
+          others
+            .map((e, i) => {
+              const top = e.picks[0];
+              const why = speakable((top.reasons ?? [])[0] ?? '');
+              // ★문장 틀을 돌린다★ 같은 틀로 세 번 이어 붙이면 "오늘 이 방식이 고른 것은…"이
+              // 세 번 반복돼 듣는 사람이 바로 지친다. 회차마다가 아니라 한 씬 안에서도 마찬가지다.
+              const lead = [`${attach(e.nameKo, '은', '는')} ${e.descKo ?? e.tagKo ?? ''}`, `${attach(e.nameKo, '은', '는')} ${e.descKo ?? e.tagKo ?? ''}`, `${attach(e.nameKo, '은', '는')} ${e.descKo ?? e.tagKo ?? ''}`][i] ?? '';
+              const body = [
+                `이 방식이 오늘 고른 종목은 ${top.name}입니다. ${why}.`,
+                `여기서는 ${attach(top.name, '이', '가')} 1위입니다. ${why}.`,
+                `오늘의 선택은 ${top.name}. ${why}.`,
+              ][i % 3];
+              return `${lead} ${body}`;
+            })
+            .join(' ') +
+          ' 같은 날 같은 시장을 보고도 고르는 종목이 갈립니다.',
+        bullets: others.map((e) => `${e.nameKo} · ${e.picks[0].name}`).slice(0, 5),
+        visual: 'bullets',
+        engine: 'stock',
+        stock: {
+          kind: 'cards',
+          big: '',
+          caption: '',
+          rows: [],
+          groups: [],
+          cards: (b.engines ?? []).map((e) => ({
+            title: e.nameKo,
+            sub: e.descKo ?? e.tagKo ?? '',
+            value: e.leaguePnlPct == null ? '' : pct(e.leaguePnlPct),
+            items: (e.picks ?? []).slice(0, 3).map((p) => `${p.name} ${p.score.toFixed(2)}`),
+            highlight: Boolean(e.live),
+          })),
+        },
       },
-    });
+      undefined,
+      [
+        '오늘 온톨로지 말고 다른 세 방식이 무엇을 골랐는가:',
+        ...others.map((e) =>
+          [
+            `${e.nameKo}(${e.tagKo ?? ''}) — ${e.descKo ?? ''}`,
+            `  오늘 1위: ${e.picks[0].name}, 점수 ${e.picks[0].score.toFixed(2)}`,
+            `  근거: ${(e.picks[0].reasons ?? []).join(' / ')}`,
+          ].join('\n'),
+        ),
+        '',
+        '★원문 라벨을 그대로 읽지 마라★ "20일선 +24.8%, 20/60선 정배열" 같은 문구를',
+        '그대로 읽으면 값을 읽은 것이지 설명이 아니다. "최근 20일 동안 주가가 크게',
+        '올랐다" 처럼 무슨 뜻인지 풀어써라. MACD·RSI 같은 지표 이름을 나열하지 말고,',
+        '"여러 기술적 지표의 합의로 고른다" 처럼 그 방식이 보는 원리를 한 문장으로',
+        '요약해라. 방식마다 무엇을 보는지(이유/돈의 흐름/가격 패턴)가 서로 다르다는',
+        '것이 이 씬의 핵심이니 그 차이를 분명히 말해라.',
+      ].join('\n'),
+      ENGINES_SEC,
+    );
   }
 
   // ── 6. 네 엔진의 성적 — 이 채널의 킬러 구간 ─────────────────────────────
@@ -817,6 +859,11 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
   for (const p of planned) {
     const better = written.get(p.scene.id);
     if (better) p.scene.narration = better;
+    // ★자막은 toSpeech() 를 거치기 전에 떠 둔다★ toSpeech() 는 TTS 를 위해 "-0.93%" 를
+    // "마이너스 영 점 구삼 퍼센트" 로 바꾼다. 그 문장을 그대로 자막에 쓰면 화면 위 도식은
+    // "-0.93%"인데 자막은 "영 점 구삼"이라 같은 값이 두 가지로 보인다. 기호만 정리하고
+    // 숫자·약어는 원래 표기로 남긴 버전을 자막용으로 따로 만든다.
+    p.scene.captionText = speakable(fixParticles(p.scene.narration)).replace(/\s{2,}/g, ' ').trim();
     // ★변환은 여기 한 곳에서만★ 조립본이든 모델이 쓴 문장이든 똑같이 통과시킨다.
     // 씬마다 따로 하면 언젠가 한 갈래를 빠뜨리고 그 씬만 "102,000원"을 날것으로 읽는다.
     p.scene.narration = toSpeech(p.scene.narration);

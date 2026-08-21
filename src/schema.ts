@@ -104,6 +104,15 @@ export const SceneSchema = z.object({
   id: z.string(),
   heading: z.string(), // 화면 상단 짧은 제목
   narration: z.string(), // 성우가 읽을 나레이션 (해당 언어)
+  /**
+   * 화면 자막용 텍스트. 없으면 narration 을 그대로 쓴다.
+   *
+   * ★주식 데일리는 이 둘이 달라야 한다★ narration 은 TTS 를 위해 숫자를 한글 수사로
+   * 바꾼 상태다("-0.93%" → "마이너스 영 점 구삼 퍼센트"). 그 문장을 자막으로도 그대로
+   * 띄우면 화면 위 도식은 "-0.93%"인데 자막은 "영 점 구삼"이라고 적혀 있어 같은 값을
+   * 두 가지 표기로 보여주게 된다. captionText 는 숫자를 원래 표기로 남긴 버전이다.
+   */
+  captionText: z.string().optional(),
   bullets: z.array(z.string()).max(5).default([]),
   // AI 일러스트용 영어 시각 묘사 — 폴백 전용(icon 이 없을 때만 사용). title/outro 는 기본적으로
   // 아래 icon 필드로 렌더링되므로 보통 채울 필요 없다.
