@@ -1,0 +1,57 @@
+name: AI 쇼츠 3편 업로드 (다비드·자유의여신상·모아이)
+
+# 일회성 업로드 워크플로. Higgsfield/Seedance 로 만든 완성 클립 3개를
+# scripts/shorts-manifest.json 에서 읽어 CDSA 마무리 카드를 붙이고 유튜브에 올린다.
+# 대본·나레이션·렌더 비용이 없다(ffmpeg 합성만) — 도는 것은 업로드뿐이다.
+on:
+  workflow_dispatch:
+    inputs:
+      privacy:
+        description: '공개 상태 (public | unlisted | private)'
+        required: false
+        default: 'public'
+      only:
+        description: '일부만 올리려면 id 를 콤마로(예: 2,3). 비우면 3편 전부.'
+        required: false
+        default: ''
+      channel:
+        description: '업로드 채널 (default | ch2)'
+        required: false
+        default: 'default'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
+      YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
+      SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'false' }}
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || 'default' }}
+      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || 'public' }}
+      ONLY: ${{ github.event.inputs.only || '' }}
+      DO_UPLOAD: 'true'
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 한국어 폰트 설치 (마무리 카드용)
+        run: sudo apt-get update -y && sudo apt-get install -y fonts-noto-cjk
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 클립 합성 + 업로드
+        run: npx tsx scripts/upload-shorts.mjs
