@@ -1,0 +1,63 @@
+name: 영상 상태 조회 (읽기 전용)
+
+# 채널 최근 업로드의 실제 상태(공개상태·업로드상태·처리상태)를 유튜브 API로 그대로
+# 찍어 본다. 아무것도 바꾸지 않는다 — 로그로만 확인한다.
+#
+# ★왜 필요한가★ 이 채팅 세션에는 유튜브 자격증명이 없어서(GitHub Actions 시크릿에만
+# 있음) "그 영상 지금 어떻게 됐어?"를 직접 조회할 방법이 없다. 이 워크플로가 대신
+# 자격증명을 갖고 조회해서 로그·요약에 남긴다.
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: '조회할 채널 (default | ch2)'
+        required: false
+        default: 'default'
+      count:
+        description: '최근 몇 개를 볼지'
+        required: false
+        default: '10'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || 'default' }}
+      COUNT: ${{ github.event.inputs.count || '10' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      # config.ts 가 로드될 때 있어야 하는 값들 — 이 조회에는 쓰이지 않는다.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 최근 업로드 상태 조회
+        run: npx tsx scripts/check-video-status.mjs | tee status.txt
+
+      - name: 요약
+        if: always()
+        run: |
+          {
+            echo "### 최근 업로드 상태 (${TARGET_CHANNEL})"
+            echo ""
+            echo '```'
+            cat status.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
