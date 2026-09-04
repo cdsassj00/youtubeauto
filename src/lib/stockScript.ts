@@ -11,6 +11,7 @@
  * (illustrated 엔진으로 전체화면 표시)과 손그림·목록·도식을 번갈아 놓는다.
  */
 import type { Brief } from './stockBrief.js';
+import { nearSupport, nearResistance, gapToHigh } from './stockBrief.js';
 import { speakNumbers, ordinal, speakLatinAcronyms } from './koreanNumber.js';
 import type { Scene } from '../schema.js';
 import { narrateStock } from './stockNarrate.js';
@@ -18,6 +19,27 @@ import { agreedPicks, engineNames, independentEngineCount, plainReason, type Con
 
 /** 요일까지 붙이면 "언제"가 손에 잡힌다 — "9/7"보다 "9/7 월요일"이 훨씬 구체적이다. */
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
+
+/**
+ * 그 종목의 지지·저항. 없는 날은 null 이다.
+ *
+ * ★대표 목록에 없는 종목일 수 있다★ 합의 종목이 picks 밖에 있는 경우가 흔해서
+ * (9/4 자 SK케미칼이 그랬다) 엔진별 목록까지 뒤져야 한다.
+ */
+function levelsOf(b: Brief, code: string) {
+  const all = [...b.picks, ...(b.engines ?? []).flatMap((e) => e.picks ?? [])];
+  return all.find((p) => p.code === code && p.levels)?.levels ?? null;
+}
+
+/** 그 종목의 현재가. 합의 종목이 대표 목록 밖일 수 있어 엔진별 목록까지 뒤진다. */
+function priceOf(b: Brief, code: string): number {
+  const all = [...b.picks, ...(b.engines ?? []).flatMap((e) => e.picks ?? [])];
+  return all.find((p) => p.code === code)?.price ?? 0;
+}
+
+/** 시장에 맞는 금액 표기 — 원은 정수, 달러는 소수 둘째 자리. */
+const money = (b: Brief, n: number) =>
+  b.market === 'US' ? `$${n.toFixed(2)}` : `${Math.round(n).toLocaleString()}원`;
 
 /**
  * 업종별 강조색 — 그날 주인공 종목의 업종에서 뽑는다.
@@ -56,6 +78,29 @@ export function nextSessionLabel(date: string): string {
 export function nextSessionWithDay(date: string): string {
   const d = nextSessionDate(date);
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${WEEKDAY_KO[d.getUTCDay()]}요일`;
+}
+
+/**
+ * 이 브리프가 가리키는 거래일. 사이트의 targetSession(공휴일 반영)을 쓰고, 없을 때만
+ * 주말만 건너뛰는 자체 계산으로 떨어진다.
+ *
+ * ★자체 계산은 휴장일에 틀린다★ 2026-09-04 자 미국 브리프의 targetSession 은 9/8 인데
+ * (9/7 이 Labor Day) 주말만 보면 9/7 이 나온다. 하루 틀린 날짜를 썸네일에 박게 된다.
+ */
+function sessionLabels(brief: Brief, date?: string) {
+  const iso = brief.targetSession;
+  if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const d = new Date(`${iso}T00:00:00Z`);
+    const md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+    return {
+      label: md,
+      withDay: `${md} ${WEEKDAY_KO[d.getUTCDay()]}요일`,
+      spoken: `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일`,
+    };
+  }
+  // targetSession 도 date 도 없으면 날짜를 지어내지 않는다 — 빈 값이면 호출부가 그 자리를 생략한다.
+  if (!date) return { label: '', withDay: '', spoken: '' };
+  return { label: nextSessionLabel(date), withDay: nextSessionWithDay(date), spoken: nextSessionSpoken(date) };
 }
 
 /**
@@ -296,7 +341,8 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   // 어제 뭘 골랐는지도, 이 채널이 뭔지도 모르는 상태이기 때문이다. 채점은 신뢰의 근거지
   // 인사말이 아니라서, 오늘 뭘 뽑았는지를 본 다음에야 의미가 생긴다. 뒤로 옮겼다.
   const md = date ? `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일` : '오늘';
-  const nextSession = date ? nextSessionLabel(date) : '';
+  const session = sessionLabels(b, date);
+  const nextSession = date ? session.label : '';
   const agreed = agreedPicks(b);
   const engineTotal = independentEngineCount(b);
   const topNames = (agreed.length ? agreed.slice(0, 3).map((c) => c.name) : b.picks.slice(0, 3).map((p) => p.name));
@@ -312,7 +358,7 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
    *
    * ★"오늘"이 아니라 "다음 장"이다★ 발행은 마감 뒤라 오늘 살 수 있는 것이 없다.
    */
-  const nextSpoken = date ? `${nextSessionSpoken(date)} 장에서` : '다음 장에서';
+  const nextSpoken = date ? `${session.spoken} 장에서` : '다음 장에서';
   const hookNarration = agreed.length
     ? `${nextSpoken} 눈여겨볼 ${mk} 종목입니다. ${topNames.join(', ')}. ` +
       `${attach(topNames[0], '은', '는')} 서로 근거가 다른 방식 ${engineTotal}개 가운데 ${agreed[0].independentCount}개가 동시에 지목했습니다. ` +
@@ -1041,7 +1087,8 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
   const agreedTop = agreedPicks(b);
   const engines = independentEngineCount(b);
   const lead: ConsensusPick[] = agreedTop.slice(0, 2);
-  const nextLabel = nextSessionLabel(date);
+  const session2 = sessionLabels(b, date);
+  const nextLabel = session2.label;
 
   /**
    * ★미국 종목은 티커를 쓴다★ "Marathon Petroleum·Valero Energy"는 썸네일 한 줄에
@@ -1064,8 +1111,26 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
       ? `AI ${engines}개가 전부 찍었다`
       : `AI ${engines}개 중 ${lead[0].independentCount}개가 찍었다`
     : '';
-  const whyLine = lead.length ? plainReason(lead[0]) : '';
-  const dayLabel = nextSessionWithDay(date);
+  /**
+   * 곁가지 한 줄 — 근거 숫자. 지지선이 있으면 그것을 먼저 쓴다.
+   *
+   * ★"얼마"가 제일 궁금하다★ "유가 +8.85% 수혜"는 왜 오르는지를 말해 주지만 얼마에
+   * 사야 하는지는 말해 주지 않는다. 사이트가 지지·저항을 주기 시작했으니, 가격이 있는
+   * 날은 그 숫자를 앞에 둔다. 없는 날은 원래대로 이유만 쓴다 — 없는 가격을 지어내지 않는다.
+   */
+  const leadPrice = lead.length ? priceOf(b, lead[0].code) : 0;
+  const leadLevels = lead.length ? levelsOf(b, lead[0].code) : null;
+  const sup = nearSupport(leadLevels, leadPrice);
+  const gap = sup ? null : gapToHigh(leadLevels, leadPrice);
+  const priceFact = sup
+    ? `지지 ${money(b, sup.price)} (${sup.touches}번 지지)`
+    : gap !== null && gap <= 10
+      ? `52주 최고가까지 ${gap.toFixed(1)}%`
+      : '';
+  const whyLine = lead.length
+    ? [priceFact, plainReason(lead[0], priceFact ? 1 : 2)].filter(Boolean).join(' · ')
+    : '';
+  const dayLabel = session2.withDay;
 
   const title = (
     turned
@@ -1083,14 +1148,30 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
     '',
   );
   if (lead.length) {
-    lines.push(`■ 방식이 다른 엔진이 동시에 지목한 종목 (근거가 겹친 순서)`);
+    lines.push(`■ 서로 다른 방식이 동시에 고른 종목 (겹친 순서)`);
     for (const c of agreedTop.slice(0, 5)) {
-      lines.push(`${c.name} (${c.sector ?? '미분류'}) — ${engineNames(c).join(' + ')} 동시 지목 · ${c.priceLabel}`);
+      lines.push(`${c.name} (${c.sector ?? '미분류'}) — ${engineNames(c).join(' + ')} · ${c.priceLabel}`);
       for (const e of c.engines.filter((x) => !x.derived)) lines.push(`   · ${e.nameKo}: ${e.reason}`);
+      // 지지·저항은 있는 날만. 없으면 줄을 통째로 생략한다 — 빈 값을 0 원으로 읽으면 최악이다.
+      // ★현재가에서 먼 지지·저항은 적지 않는다★ 계산으로는 맞아도 며칠 단위로 보는
+      // 이 영상에서는 닿을 수 없는 가격이라, 적어 두면 사라는 가격으로 읽힌다.
+      const lv = levelsOf(b, c.code);
+      const px = priceOf(b, c.code);
+      if (lv) {
+        const s = nearSupport(lv, px);
+        const r = nearResistance(lv, px);
+        if (s) lines.push(`   · 지지 ${money(b, s.price)} (${s.touches}번 지지 · 최근 ${s.lastTouchDate})`);
+        if (r) lines.push(`   · 저항 ${money(b, r.price)} (${r.touches}번 저항 · 최근 ${r.lastTouchDate})`);
+        if (s && lv.levelNote) lines.push(`   · ${lv.levelNote}`);
+        const g = gapToHigh(lv, px);
+        if (!s && !r && g !== null && g <= 10) lines.push(`   · 52주 최고가 ${money(b, lv.week52!.high)}까지 ${g.toFixed(1)}%`);
+      }
+      const hz = b.picks.find((p) => p.code === c.code);
+      if (hz?.horizonDays) lines.push(`   · 이 방식의 백테스트 평균 보유 ${hz.horizonDays}일 (예측이 아니라 실측값입니다)`);
     }
-    lines.push('', `※ 융합 엔진은 온톨로지·수급 결과를 재조합한 것이라 동시 지목 수에서 뺐습니다.`, '');
+    lines.push('', `※ 융합 엔진은 온톨로지·수급 결과를 재조합한 것이라 겹친 수에서 뺐습니다.`, '');
   } else {
-    lines.push(`■ 오늘은 방식이 다른 엔진끼리 겹친 종목이 없습니다.`, '');
+    lines.push(`■ 오늘은 서로 다른 방식이 함께 고른 종목이 없습니다.`, '');
   }
   if (prev && prev.picks.length) {
     lines.push(`어제 뽑은 ${prev.picks.length}종목 중 ${hit}개가 올랐습니다. 평균 ${pct(prev.avgChangePct)}.`, '');
