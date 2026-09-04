@@ -33,6 +33,8 @@ export interface ConsensusEngine {
 
 export interface ConsensusPick {
   code: string;
+  /** 미국 종목의 티커. 한국은 없다(code 가 숫자라 화면에 쓸 수 없다). */
+  ticker?: string | null;
   name: string;
   sector: string | null;
   price: number;
@@ -74,6 +76,7 @@ export function consensusPicks(brief: Brief): ConsensusPick[] {
       if (!hit) {
         hit = {
           code: p.code,
+          ticker: p.ticker,
           name: p.name,
           sector: p.sector,
           price: p.price,

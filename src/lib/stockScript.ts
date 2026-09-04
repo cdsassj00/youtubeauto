@@ -1033,7 +1033,16 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
   const engines = independentEngineCount(b);
   const lead: ConsensusPick[] = agreedTop.slice(0, 2);
   const nextLabel = nextSessionLabel(date);
-  const leadNames = lead.length ? lead.map((c) => c.name) : names.slice(0, 2);
+
+  /**
+   * ★미국 종목은 티커를 쓴다★ "Marathon Petroleum·Valero Energy"는 썸네일 한 줄에
+   * 넣으면 글자가 작아져 360px 에서 안 읽힌다. 미국 주식은 티커(MPC·VLO)가 표준 표기라
+   * 짧으면서 알아보기도 쉽다. 한국 종목은 code 가 숫자(285130)라 이름을 그대로 쓴다.
+   */
+  const short = (name: string, ticker?: string | null) => (b.market === 'US' && ticker ? ticker : name);
+  const leadNames = lead.length
+    ? lead.map((c) => short(c.name, c.ticker))
+    : b.picks.slice(0, 2).map((p) => short(p.name, p.ticker));
 
   const title = (
     turned
@@ -1092,10 +1101,19 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
       thumbnailSub: lead.length
         ? `${engineNames(lead[0]).join(' + ')} 동시 지목`
         : `${top}에 순풍 · ${b.regime.label}`,
-      thumbnailFoot: agreedTop.length > 2 ? `${agreedTop.slice(2, 5).map((c) => c.name).join(' · ')}도 방식 합의` : names.slice(2, 5).join(' · '),
+      // ★미국편은 하단에 회사 풀네임을 깐다★ 큰 글씨가 티커(MPC·VLO)라 그것만 보면
+      // 무슨 회사인지 알 수 없다. 한국편은 큰 글씨가 이미 회사 이름이라 그 자리에
+      // 나머지 합의 종목을 넣는 편이 낫다.
+      thumbnailFoot:
+        b.market === 'US' && lead.length
+          ? lead.map((c) => c.name).join(' · ')
+          : agreedTop.length > 2
+            ? `${agreedTop.slice(2, 5).map((c) => c.name).join(' · ')}도 방식 합의`
+            : names.slice(2, 5).join(' · '),
       thumbnailAccent: accentFor(lead[0]?.sector ?? b.picks[0]?.sector),
-      // 배지는 "언제 볼 종목인가" — 지난 성적이 아니라 다음 장을 가리킨다.
-      thumbnailBadge: `${nextLabel} 장`,
+      // 배지는 "언제·어느 장을 볼 종목인가". 한국편과 미국편이 같은 시리즈로 나란히
+      // 걸리므로 시장을 안 적으면 목록에서 둘이 구분되지 않는다.
+      thumbnailBadge: `${nextLabel} ${b.marketKo}장`,
       scenes: planned.map((p) => p.scene),
     },
     views: Object.fromEntries(planned.filter((p) => p.sceneView).map((p) => [p.scene.id, p.sceneView!])) as Record<string, string>,
