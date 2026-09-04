@@ -62,7 +62,18 @@ const DECK_ENGINES = ['signal3d', 'deck3d'];
 const isDeckEngine = () => DECK_ENGINES.includes(config.videoEngine);
 
 /** 업로드/썸네일이 쓰는 메타 — 엔진에 따라 script.json 또는 deck-meta.json 에서 읽는다. */
-type VideoMeta = { title: string; description: string; tags: string[]; topic: string; thumbnailHeadline: string; thumbnailBadge?: string };
+type VideoMeta = {
+  title: string;
+  description: string;
+  tags: string[];
+  topic: string;
+  thumbnailHeadline: string;
+  thumbnailBadge?: string;
+  // 주식 데일리 썸네일이 쓰는 값들. 다른 엔진의 대본에는 없어서 전부 선택이다.
+  thumbnailSub?: string;
+  thumbnailFoot?: string;
+  thumbnailAccent?: string;
+};
 async function loadMeta(): Promise<VideoMeta> {
   if (isDeckEngine()) return (await readJson(DECK_META_PATH)) as VideoMeta;
   const s = ScriptSchema.parse(await readJson(SCRIPT_PATH));
@@ -480,9 +491,12 @@ async function makeThumbnail(): Promise<void> {
     const now = new Date();
     await drawStockThumbnail({
       headline: meta.thumbnailHeadline,
-      badge: meta.thumbnailBadge || '한국',
-      names,
-      dateLabel: `${now.getMonth() + 1}/${now.getDate()}`,
+      sub: meta.thumbnailSub,
+      // 곁가지가 비어 있으면(옛 대본) 종목 이름으로 채운다 — 빈 줄로 두면 아래가 휑하다.
+      foot: meta.thumbnailFoot || names.slice(0, 3).join(' · '),
+      badge: meta.thumbnailBadge || '다음 장',
+      dateLabel: `${now.getMonth() + 1}/${now.getDate()} 마감 기준`,
+      accent: meta.thumbnailAccent,
       outPath: THUMBNAIL_PATH,
     });
     console.log('  · 썸네일(코드 렌더):', THUMBNAIL_PATH);

@@ -182,6 +182,23 @@ export const ScriptSchema = z.object({
   thumbnailHeadline: z.string(),
   // 문구를 짧게 쓰는 대신 "무엇에 대한 영상인지"를 남기는 구석 배지 (제품·회사명). 없으면 배지 생략.
   thumbnailBadge: z.string().optional().default(''),
+  /**
+   * 큰 글씨 아래 한 줄 — 왜 눌러야 하는지의 근거.
+   *
+   * ★큰 글씨만으로는 클릭이 안 된다★ 종목 이름만 크게 박으면 "그래서 뭐"가 남는다.
+   * "서로 다른 2개 방식이 동시 지목" 같은 근거가 붙어야 눌러 볼 이유가 생긴다.
+   */
+  thumbnailSub: z.string().optional().default(''),
+  /** 썸네일 하단에 작게 까는 곁가지(엔진 이름·다른 종목). 큰 글씨를 방해하지 않는 선에서. */
+  thumbnailFoot: z.string().optional().default(''),
+  /**
+   * 그날의 강조색(#rrggbb).
+   *
+   * ★매일 같은 색이면 목록에서 한 덩어리로 보인다★ 실제로 열 편이 전부 같은 남색이라
+   * 어느 것이 오늘 것인지 구분되지 않았다. 그날 주인공 종목의 업종에서 색을 뽑아
+   * 회차끼리 서로 달라 보이게 한다.
+   */
+  thumbnailAccent: z.string().optional().default(''),
   scenes: z.array(SceneSchema).min(6),
 });
 
