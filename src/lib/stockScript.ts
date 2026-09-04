@@ -14,6 +14,66 @@ import type { Brief } from './stockBrief.js';
 import { speakNumbers, ordinal, speakLatinAcronyms } from './koreanNumber.js';
 import type { Scene } from '../schema.js';
 import { narrateStock } from './stockNarrate.js';
+import { agreedPicks, engineNames, independentEngineCount, type ConsensusPick } from './stockConsensus.js';
+
+/**
+ * 업종별 강조색 — 그날 주인공 종목의 업종에서 뽑는다.
+ *
+ * ★목록에서 회차가 구분되어야 한다★ 열 편이 전부 같은 남색 썸네일이라 어느 것이 오늘
+ * 것인지 알 수 없었다. 업종을 색으로 쓰면 매일 달라지면서도 아무 뜻 없는 무작위는 아니다.
+ */
+const SECTOR_COLOR: Record<string, string> = {
+  정유화학: '#e8564a',
+  유통소비: '#e8894a',
+  바이오: '#4ac0e8',
+  보험: '#22b8a6',
+  은행: '#5b8def',
+  항공: '#8f7ae8',
+  건설: '#c9a227',
+  반도체: '#3fb950',
+  자동차: '#e85a8f',
+};
+const accentFor = (sector: string | null | undefined) => (sector && SECTOR_COLOR[sector]) || '#d9a441';
+
+/**
+ * 이 영상이 가리키는 장 — 다음 거래일.
+ *
+ * ★발행은 15:30 마감 뒤인 17:30 이다★ 그런데 대본은 "오늘 뽑은 종목"이라고 말하고
+ * 썸네일도 오늘 날짜를 달고 있었다. 장이 끝난 뒤에 오늘 살 종목을 알려 주는 것은 아무
+ * 쓸모가 없다 — 보는 사람이 실제로 주문을 낼 수 있는 첫 시점은 다음 거래일 아침이다.
+ * 주말은 건너뛴다(공휴일까지는 알 수 없어 하루 앞뒤로 틀릴 수 있고, 그건 "다음 장"이라는
+ * 말 자체로 흡수된다).
+ */
+export function nextSessionLabel(date: string): string {
+  const d = nextSessionDate(date);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+
+/**
+ * 같은 날짜를 읽을 수 있는 말로 — "9월 7일".
+ *
+ * ★"9/7"을 나레이션에 그대로 넣으면 안 된다★ 숫자 변환기가 슬래시를 날짜로 보지 않아
+ * "구 슬래시 칠"도 아닌 "구, 칠"로 읽어 버린다(실제로 "구/칠 장에서"가 나왔다).
+ * 화면에 쓰는 표기와 읽는 말을 따로 만든다 — 이 파일이 자막·나레이션을 나눠 두는 것과 같은 이유다.
+ */
+export function nextSessionSpoken(date: string): string {
+  const d = nextSessionDate(date);
+  return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일`;
+}
+
+function nextSessionDate(date: string): Date {
+  const d = new Date(`${date}T00:00:00Z`);
+  do {
+    d.setUTCDate(d.getUTCDate() + 1);
+  } while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  return d;
+}
+
+/**
+ * 엔진 이름을 소리 내어 읽을 형태로 — "수급·차트" → "수급 차트".
+ * 가운뎃점을 남기면 TTS 가 쉼표처럼 끊어 서로 다른 두 엔진처럼 들린다.
+ */
+const spokenEngine = (s: string) => s.replace(/·/g, ' ');
 
 /** 한국어 나레이션 속도 — 320자/분으로 잡는다(실측 TTS 로 다시 측정되므로 계획용 값). */
 const CHARS_PER_SEC = 320 / 60;
@@ -217,6 +277,8 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   const CAUSAL_SEC = 24;
   const REGIME_SEC = 34;
   const ENGINES_SEC = 45;
+  /** 합의 씬은 이 영상의 상품이라 길이를 넉넉히 준다. */
+  const CONSENSUS_SEC = 40;
 
   const mk = b.marketKo;
 
@@ -225,25 +287,102 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
   // 어제 뭘 골랐는지도, 이 채널이 뭔지도 모르는 상태이기 때문이다. 채점은 신뢰의 근거지
   // 인사말이 아니라서, 오늘 뭘 뽑았는지를 본 다음에야 의미가 생긴다. 뒤로 옮겼다.
   const md = date ? `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일` : '오늘';
-  const topNames = b.picks.slice(0, 3).map((p) => p.name);
+  const nextSession = date ? nextSessionLabel(date) : '';
+  const agreed = agreedPicks(b);
+  const engineTotal = independentEngineCount(b);
+  const topNames = (agreed.length ? agreed.slice(0, 3).map((c) => c.name) : b.picks.slice(0, 3).map((p) => p.name));
+
+  /**
+   * ── 0. 후크 — "다음 장에 볼 종목"과 그 근거를 첫 10초에 다 말한다 ──────────
+   *
+   * ★온톨로지 목록을 그대로 읽으면 안 된다★ 예전 후크는 대표 목록 상위 3종목을 불렀는데,
+   * 그건 엔진 하나(거시 인과)의 의견일 뿐이다. 9/4 자를 보면 대표 목록(SK이노베이션·
+   * S-Oil·아난티·JB금융지주)에 다른 엔진이 아무도 동의하지 않았고, 정작 방식이 다른 둘이
+   * 겹친 종목(SK케미칼·롯데웰푸드)은 영상에 주인공으로 나오지 않았다. 시청자가 알고 싶은
+   * 것은 후자다 — 근거가 다른 방식이 같은 종목에서 만나는 것 자체가 신호이기 때문이다.
+   *
+   * ★"오늘"이 아니라 "다음 장"이다★ 발행은 마감 뒤라 오늘 살 수 있는 것이 없다.
+   */
+  const nextSpoken = date ? `${nextSessionSpoken(date)} 장에서` : '다음 장에서';
+  const hookNarration = agreed.length
+    ? `${nextSpoken} 눈여겨볼 ${mk} 종목입니다. ${topNames.join(', ')}. ` +
+      `${attach(topNames[0], '은', '는')} 서로 근거가 다른 방식 ${engineTotal}개 가운데 ${agreed[0].independentCount}개가 동시에 지목했습니다. ` +
+      `왜 겹쳤는지, 무엇을 보고 뽑았는지 지금부터 보여드리겠습니다.`
+    : `${nextSpoken} 눈여겨볼 ${mk} 종목입니다. ${topNames.join(', ')}. ` +
+      `오늘은 방식이 다른 엔진끼리 겹친 종목이 없습니다. 그래서 어디까지가 한 엔진의 의견인지도 그대로 말씀드리겠습니다.`;
+
   add({
     id: 'hook',
-    heading: `AI 온톨로지가 뽑은 ${mk} 주식 · ${md}`,
+    heading: `${nextSession ? `${nextSession} 장 ` : ''}눈여겨볼 ${mk} 종목`,
     // ★후크는 짧아야 후크다★ 처음엔 24초짜리를 썼는데, 그건 후크가 아니라 서론이다.
-    // 무엇을·누가·언제까지만 말하고 곧장 넘긴다. 주소는 화면에 박혀 있다.
-    narration: `AI 온톨로지가 뽑은 ${md} ${mk} 주식입니다. ${topNames.join(', ')}. 왜 이 ${topNames.length === 3 ? '셋' : '종목들'}인지, 3분 안에 보여드리겠습니다.`,
+    narration: hookNarration,
     visual: 'metric',
     engine: 'stock',
     stock: {
       kind: 'headline',
       cards: [],
       big: '',
-      caption: b.regime.label,
+      caption: agreed.length ? `방식 ${engineTotal}개 중 ${agreed[0].independentCount}개가 동시 지목` : b.regime.label,
       // 종목 이름은 칩으로 크게, 주소는 그 아래 금색 한 줄.
       groups: [{ label: '', items: topNames, tone: 'in' }],
       rows: [{ name: 'stockontology.cc', from: '', to: '', pct: 0, note: 'link' }],
     },
   });
+
+  // ── 0-0. 어느 방식이 어디서 겹쳤나 — 이 영상의 상품 ─────────────────────
+  // ★표 하나로 끝내지 않는다★ 겹쳤다는 사실보다 "무엇과 무엇이 겹쳤는가"가 정보다.
+  // 거시 인과가 든 이유와 차트가 든 이유는 서로 완전히 다른 말이라, 둘을 나란히 놓는
+  // 것만으로 시청자가 스스로 판단할 재료가 된다.
+  if (agreed.length) {
+    const top = agreed.slice(0, 4);
+    add(
+      {
+        id: 'consensus',
+        heading: `방식이 다른데 같은 종목을 지목했다`,
+        // ★엔진 이름에 조사를 붙일 때는 attach 를 쓴다★ 그냥 '과'로 이으면 "온톨로지과",
+        // "차트 거장가" 가 나온다. 가운뎃점도 빼야 한다 — "수급·차트"를 그대로 읽히면
+        // TTS 가 쉼표처럼 끊어 서로 다른 두 엔진처럼 들린다.
+        narration:
+          `근거가 다른 방식 ${engineTotal}개를 각각 돌립니다. 거시 인과로 푸는 온톨로지, 거래대금과 돌파를 보는 수급 차트, ` +
+          `전략 열세 종의 합의를 보는 차트 거장입니다. 서로 보는 것이 달라서 대개는 결과도 갈립니다. ` +
+          `그런데 ${top
+            .map((c) => {
+              const es = engineNames(c).map(spokenEngine);
+              // 마지막 엔진에는 주격 조사(이/가), 그 앞은 연결 조사(와/과)를 붙인다.
+              const joined = es
+                .slice(0, -1)
+                .map((e) => attach(e, '과', '와'))
+                .concat(attach(es[es.length - 1], '이', '가'))
+                .join(' ');
+              return `${attach(c.name, '은', '는')} ${joined}`;
+            })
+            .join(', ')} 함께 들었습니다. ` +
+          `보는 눈이 다른데 같은 종목에서 만났다는 뜻입니다.`,
+        bullets: top.map((c) => `${c.name} — ${engineNames(c).join(' + ')}`),
+        visual: 'bullets',
+        engine: 'stock',
+        stock: {
+          kind: 'prevTable',
+          big: `${top[0].independentCount}/${engineTotal}`,
+          caption: `${top[0].name} — ${engineNames(top[0]).join(' + ')} 동시 지목`,
+          cards: [],
+          rows: top.map((c) => ({
+            name: c.name,
+            from: engineNames(c).join(' + '),
+            to: c.priceLabel,
+            pct: c.changePct,
+            note: '',
+          })),
+          groups: [],
+        },
+      },
+      undefined,
+      top
+        .map((c) => `${c.name}(${c.sector ?? '미분류'}) — ${c.engines.filter((e) => !e.derived).map((e) => `${e.nameKo}: ${e.reason}`).join(' / ')}`)
+        .join('\n'),
+      CONSENSUS_SEC,
+    );
+  }
 
   // ── 0-1. 사이트가 이렇게 생겼다 — 말이 아니라 화면으로 보여준다 ──────────
   // ★overview 화면이 이 채널의 설명 전부다★ 거시 다섯 → 섹터 넷 → 종목 여섯이 선으로
@@ -879,18 +1018,48 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
   // ★국면이 꺾인 날이 시리즈의 하이라이트다★ 그날은 적중률보다 전환을 앞세운다 —
   // 온톨로지가 갈아타는 장면이 이 전략의 존재 이유이기 때문이다.
   const turned = b.narrative?.regime?.changed;
-  // ★제목이 곧 후크다★ 예전에는 "어제 3/5 적중"으로 시작했는데, 목록에서 이 영상을 처음
-  // 보는 사람에게 어제 성적은 아무 뜻이 없다. 누가 · 언제 · 무엇을 뽑았는지를 앞에 둔다.
-  const head = turned ? '국면 전환 · ' : '';
-  const title = `${head}AI 온톨로지가 뽑은 ${md} ${b.marketKo} 주식 — ${names.slice(0, 3).join('·')} · ${top} 순풍`.slice(0, 100);
+
+  /**
+   * ★제목·썸네일은 "다음 장에 뭘 볼지"만 말한다★
+   *
+   * 예전 제목은 "AI 온톨로지가 뽑은 9/4 한국 주식 — SK이노베이션·…", 썸네일 큰 글씨는
+   * "어제 4/5 적중"이었다. 둘 다 만든 사람의 사정이지 보는 사람의 관심이 아니다. 열 편이
+   * 그렇게 나갔고 조회수는 전부 0 이었다. 세 가지를 바꾼다.
+   *   1) 지난 성적이 아니라 다음 거래일을 가리킨다 — 발행이 마감 뒤라 오늘은 살 수 없다.
+   *   2) 온톨로지 단독 목록이 아니라 방식이 겹친 종목을 앞에 둔다.
+   *   3) 큰 글씨는 종목 이름 — 목록에서 360px 로 줄어도 읽히는 것은 이름뿐이다.
+   */
+  const agreedTop = agreedPicks(b);
+  const engines = independentEngineCount(b);
+  const lead: ConsensusPick[] = agreedTop.slice(0, 2);
+  const nextLabel = nextSessionLabel(date);
+  const leadNames = lead.length ? lead.map((c) => c.name) : names.slice(0, 2);
+
+  const title = (
+    turned
+      ? `국면 전환 · ${nextLabel} 장 ${b.marketKo} 주목 — ${leadNames.join('·')}`
+      : lead.length
+        ? `${nextLabel} 장 눈여겨볼 ${b.marketKo} 종목 — ${leadNames.join('·')} (방식 ${engines}개 중 ${lead[0].independentCount}개 동시 지목)`
+        : `${nextLabel} 장 눈여겨볼 ${b.marketKo} 종목 — ${leadNames.join('·')} · ${top} 순풍`
+  ).slice(0, 100);
 
   const lines: string[] = [];
   lines.push(
-    `AI 온톨로지가 매일 아침 뽑는 ${b.marketKo} 종목입니다. ${md} 오늘은 ${top}에 순풍이 붙었습니다.`,
+    `${nextLabel} 장에서 눈여겨볼 ${b.marketKo} 종목입니다. ${md} 마감 시세로 계산했습니다.`,
     '',
     `▸ 계산 결과 전체·근거·전 종목 점수 : https://stockontology.cc`,
     '',
   );
+  if (lead.length) {
+    lines.push(`■ 방식이 다른 엔진이 동시에 지목한 종목 (근거가 겹친 순서)`);
+    for (const c of agreedTop.slice(0, 5)) {
+      lines.push(`${c.name} (${c.sector ?? '미분류'}) — ${engineNames(c).join(' + ')} 동시 지목 · ${c.priceLabel}`);
+      for (const e of c.engines.filter((x) => !x.derived)) lines.push(`   · ${e.nameKo}: ${e.reason}`);
+    }
+    lines.push('', `※ 융합 엔진은 온톨로지·수급 결과를 재조합한 것이라 동시 지목 수에서 뺐습니다.`, '');
+  } else {
+    lines.push(`■ 오늘은 방식이 다른 엔진끼리 겹친 종목이 없습니다.`, '');
+  }
   if (prev && prev.picks.length) {
     lines.push(`어제 뽑은 ${prev.picks.length}종목 중 ${hit}개가 올랐습니다. 평균 ${pct(prev.avgChangePct)}.`, '');
   }
@@ -916,8 +1085,17 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
       description: lines.join('\n').slice(0, 4900),
       tags,
       topic: `${date} ${b.marketKo} 온톨로지 브리프`,
-      thumbnailHeadline: prev && prev.picks.length ? `어제 ${hit}/${prev.picks.length} 적중` : `${top} 순풍`,
-      thumbnailBadge: b.marketKo,
+      // 큰 글씨는 종목 이름만 — 360px 로 줄었을 때 읽히는 것은 이것뿐이다.
+      thumbnailHeadline: leadNames.join('·'),
+      // ★엔진 이름은 ' + ' 로 잇는다★ 가운뎃점으로 이으면 엔진 이름 자체가 "수급·차트"라
+      // "온톨로지·수급·차트"가 되어 세 엔진이 동의한 것처럼 읽힌다.
+      thumbnailSub: lead.length
+        ? `${engineNames(lead[0]).join(' + ')} 동시 지목`
+        : `${top}에 순풍 · ${b.regime.label}`,
+      thumbnailFoot: agreedTop.length > 2 ? `${agreedTop.slice(2, 5).map((c) => c.name).join(' · ')}도 방식 합의` : names.slice(2, 5).join(' · '),
+      thumbnailAccent: accentFor(lead[0]?.sector ?? b.picks[0]?.sector),
+      // 배지는 "언제 볼 종목인가" — 지난 성적이 아니라 다음 장을 가리킨다.
+      thumbnailBadge: `${nextLabel} 장`,
       scenes: planned.map((p) => p.scene),
     },
     views: Object.fromEntries(planned.filter((p) => p.sceneView).map((p) => [p.scene.id, p.sceneView!])) as Record<string, string>,
