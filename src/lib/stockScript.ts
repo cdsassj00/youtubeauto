@@ -14,7 +14,10 @@ import type { Brief } from './stockBrief.js';
 import { speakNumbers, ordinal, speakLatinAcronyms } from './koreanNumber.js';
 import type { Scene } from '../schema.js';
 import { narrateStock } from './stockNarrate.js';
-import { agreedPicks, engineNames, independentEngineCount, type ConsensusPick } from './stockConsensus.js';
+import { agreedPicks, engineNames, independentEngineCount, plainReason, type ConsensusPick } from './stockConsensus.js';
+
+/** 요일까지 붙이면 "언제"가 손에 잡힌다 — "9/7"보다 "9/7 월요일"이 훨씬 구체적이다. */
+const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
 /**
  * 업종별 강조색 — 그날 주인공 종목의 업종에서 뽑는다.
@@ -47,6 +50,12 @@ const accentFor = (sector: string | null | undefined) => (sector && SECTOR_COLOR
 export function nextSessionLabel(date: string): string {
   const d = nextSessionDate(date);
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+
+/** "9/7 월요일" — 제목에 쓴다. 요일이 있어야 언제 얘기인지 바로 잡힌다. */
+export function nextSessionWithDay(date: string): string {
+  const d = nextSessionDate(date);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${WEEKDAY_KO[d.getUTCDay()]}요일`;
 }
 
 /**
@@ -1044,12 +1053,26 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
     ? lead.map((c) => short(c.name, c.ticker))
     : b.picks.slice(0, 2).map((p) => short(p.name, p.ticker));
 
+  /**
+   * ★썸네일·제목에 내부 용어를 쓰지 않는다★ "방식 3개 중 2개 동시 지목", "현대해상도
+   * 방식 합의" 는 이걸 만든 사람만 아는 말이다. 목록에서 1초 보고 지나가는 사람에게는
+   * 알아들을 수 없는 글자다. 같은 사실을 사람이 쓰는 말로 바꾼다 —
+   * "AI 3개 중 2개가 찍었다", "유가 +8.85% 수혜 · 20일선 정배열".
+   */
+  const hitLine = lead.length
+    ? lead[0].independentCount >= engines
+      ? `AI ${engines}개가 전부 찍었다`
+      : `AI ${engines}개 중 ${lead[0].independentCount}개가 찍었다`
+    : '';
+  const whyLine = lead.length ? plainReason(lead[0]) : '';
+  const dayLabel = nextSessionWithDay(date);
+
   const title = (
     turned
-      ? `국면 전환 · ${nextLabel} 장 ${b.marketKo} 주목 — ${leadNames.join('·')}`
+      ? `국면 전환 · ${dayLabel} ${b.marketKo}장 주목 — ${leadNames.join('·')}`
       : lead.length
-        ? `${nextLabel} 장 눈여겨볼 ${b.marketKo} 종목 — ${leadNames.join('·')} (방식 ${engines}개 중 ${lead[0].independentCount}개 동시 지목)`
-        : `${nextLabel} 장 눈여겨볼 ${b.marketKo} 종목 — ${leadNames.join('·')} · ${top} 순풍`
+        ? `${dayLabel} ${b.marketKo}장 — ${leadNames.join('·')} | ${hitLine}`
+        : `${dayLabel} ${b.marketKo}장 — ${leadNames.join('·')} | ${top}에 순풍`
   ).slice(0, 100);
 
   const lines: string[] = [];
@@ -1096,20 +1119,14 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
       topic: `${date} ${b.marketKo} 온톨로지 브리프`,
       // 큰 글씨는 종목 이름만 — 360px 로 줄었을 때 읽히는 것은 이것뿐이다.
       thumbnailHeadline: leadNames.join('·'),
-      // ★엔진 이름은 ' + ' 로 잇는다★ 가운뎃점으로 이으면 엔진 이름 자체가 "수급·차트"라
-      // "온톨로지·수급·차트"가 되어 세 엔진이 동의한 것처럼 읽힌다.
-      thumbnailSub: lead.length
-        ? `${engineNames(lead[0]).join(' + ')} 동시 지목`
-        : `${top}에 순풍 · ${b.regime.label}`,
+      // 칩에는 후크를, 곁가지에는 근거 숫자를 — 둘 다 사람이 쓰는 말로.
+      thumbnailSub: hitLine || `${top}에 순풍`,
       // ★미국편은 하단에 회사 풀네임을 깐다★ 큰 글씨가 티커(MPC·VLO)라 그것만 보면
-      // 무슨 회사인지 알 수 없다. 한국편은 큰 글씨가 이미 회사 이름이라 그 자리에
-      // 나머지 합의 종목을 넣는 편이 낫다.
+      // 무슨 회사인지 알 수 없다. 그 뒤에 근거를 붙인다.
       thumbnailFoot:
         b.market === 'US' && lead.length
-          ? lead.map((c) => c.name).join(' · ')
-          : agreedTop.length > 2
-            ? `${agreedTop.slice(2, 5).map((c) => c.name).join(' · ')}도 방식 합의`
-            : names.slice(2, 5).join(' · '),
+          ? [lead.map((c) => c.name).join(' · '), whyLine].filter(Boolean).join('  |  ')
+          : whyLine || names.slice(2, 5).join(' · '),
       thumbnailAccent: accentFor(lead[0]?.sector ?? b.picks[0]?.sector),
       // 배지는 "언제·어느 장을 볼 종목인가". 한국편과 미국편이 같은 시리즈로 나란히
       // 걸리므로 시장을 안 적으면 목록에서 둘이 구분되지 않는다.
