@@ -123,6 +123,43 @@ export function engineNames(c: ConsensusPick): string[] {
   return c.engines.filter((e) => !e.derived).map((e) => e.nameKo);
 }
 
+/**
+ * 엔진이 든 이유를 썸네일에 박을 수 있는 사람 말로 줄인다.
+ *
+ * ★썸네일에 내부 용어를 쓰면 아무도 안 누른다★ "온톨로지 + 수급·차트 동시 지목",
+ * "현대해상도 방식 합의" 같은 말은 이 파이프라인을 만든 사람만 아는 말이다. 목록에서
+ * 1초 보고 지나가는 사람에게는 무슨 소리인지 알 수 없는 글자 덩어리다. 엔진이 실제로 든
+ * 근거는 "유가가 8.85% 올랐다", "20일선 위에 있고 정배열이다" 처럼 그 자체로 알아들을 수
+ * 있는 말이라, 그것을 그대로 꺼내 쓴다.
+ *
+ * 응답의 이유 문장은 엔진마다 형식이 일정하다(양쪽 시장 모두 확인).
+ *   onto  : "유가(WTI) +8.85% → 정유화학 민감도 +0.65"
+ *   quant : "추세 — 20일선 +12.3% · 20/60선 정배열(12.4%)"
+ *   ta    : "차트 거장 13종 전략 합의 점수 +0.40 (이평·MACD·일목·터틀 등)"
+ * 형식이 바뀌면 빈 문자열이 나오고 호출부가 알아서 곁가지를 생략한다 — 이상한 글자가
+ * 썸네일에 박히는 것보다 아무것도 없는 편이 낫다.
+ */
+export function plainReason(c: ConsensusPick, max = 2): string {
+  const out: string[] = [];
+  for (const e of c.engines) {
+    if (e.derived) continue;
+    const r = e.reason ?? '';
+    if (e.id === 'onto') {
+      // 화살표 앞이 원인이다. 괄호 안 약어(WTI)는 빼야 짧고 읽힌다.
+      const cause = r.split('→')[0].replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+      if (/[+-]?\d/.test(cause)) out.push(`${cause} 수혜`);
+    } else if (e.id === 'quant') {
+      const ma = /20일선\s*([+-][\d.]+%)/.exec(r);
+      if (/정배열/.test(r)) out.push(ma ? `20일선 ${ma[1]} 정배열` : '차트 정배열');
+      else if (ma) out.push(`20일선 ${ma[1]}`);
+    } else if (e.id === 'ta') {
+      const n = /(\d+)종/.exec(r);
+      out.push(n ? `차트전략 ${n[1]}종 합의` : '차트전략 합의');
+    }
+  }
+  return out.slice(0, max).join(' · ');
+}
+
 /** 대표 목록에만 있고 다른 엔진은 아무도 안 든 종목 — "온톨로지 단독"임을 밝혀야 하는 자리. */
 export function soloPicks(brief: Brief): Pick[] {
   const agreed = new Set(agreedPicks(brief).map((c) => c.code));

@@ -33,6 +33,21 @@ function fitSize(text: string, maxWidth: number, max: number, min: number): numb
 }
 
 /**
+ * 폭에 맞춰 크기를 줄이고, 최소 크기로도 안 들어가면 잘라 낸다.
+ *
+ * ★크기만 줄이면 화면 밖으로 나간다★ 미국편 곁가지("Marathon Petroleum · Valero Energy |
+ * 유가 +6.7% 수혜 · 20일선 +8.3% 정배열")가 실제로 오른쪽에서 잘려 "정배열"이 사라졌다.
+ * 최소 크기 아래로는 줄이면 안 읽히므로, 그때부터는 글자를 버리고 말줄임표를 붙인다.
+ */
+function fitText(text: string, maxWidth: number, max: number, min: number): { text: string; size: number } {
+  const size = fitSize(text, maxWidth, max, min);
+  if (widthUnits(text) * size <= maxWidth) return { text, size };
+  let cut = text;
+  while (cut.length > 1 && widthUnits(`${cut}…`) * size > maxWidth) cut = cut.slice(0, -1);
+  return { text: `${cut.trimEnd()}…`, size };
+}
+
+/**
  * 시리즈 이름 — 매 회차 같은 자리에 같은 글씨로 박힌다.
  *
  * ★이름이 있어야 시리즈가 된다★ 회차마다 종목 이름이 바뀌니, 고정된 표식이 없으면
@@ -71,7 +86,12 @@ export async function drawStockThumbnail(opts: {
   // 큰 글씨 덩어리 — 위에는 시리즈 이름, 아래에는 근거 줄이 붙으므로 그 사이에 놓는다.
   const blockTop = 348 - ((lines.length - 1) * lineH) / 2;
 
-  const subSize = sub ? fitSize(sub, 1120, 60, 34) : 0;
+  // 칩 안쪽 여백(좌우 28씩)을 뺀 폭에 맞춘다.
+  const subFit = sub ? fitText(sub, 1094, 60, 34) : { text: '', size: 0 };
+  const subText = subFit.text;
+  const subSize = subFit.size;
+  // 곁가지는 좌우 64 여백 안에서.
+  const footFit = foot ? fitText(foot, 1152, 38, 26) : { text: '', size: 0 };
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720">
 <defs>
@@ -100,13 +120,13 @@ ${lines
   .join('\n')}
 
 ${
-  sub
-    ? `<rect x="64" y="${blockTop + (lines.length - 1) * lineH + 52}" width="${Math.min(1150, subSize * widthUnits(sub) + 56)}" height="${subSize + 40}" rx="12" fill="${ACC}"/>
-<text x="92" y="${blockTop + (lines.length - 1) * lineH + 52 + subSize + 6}" font-family="${FONT}" font-size="${subSize}" font-weight="bold" fill="#0b1020">${esc(sub)}</text>`
+  subText
+    ? `<rect x="64" y="${blockTop + (lines.length - 1) * lineH + 52}" width="${Math.min(1150, subSize * widthUnits(subText) + 56)}" height="${subSize + 40}" rx="12" fill="${ACC}"/>
+<text x="92" y="${blockTop + (lines.length - 1) * lineH + 52 + subSize + 6}" font-family="${FONT}" font-size="${subSize}" font-weight="bold" fill="#0b1020">${esc(subText)}</text>`
     : ''
 }
 
-${foot ? `<text x="64" y="646" font-family="${FONT}" font-size="38" fill="${DIM}">${esc(foot)}</text>` : ''}
+${footFit.text ? `<text x="64" y="646" font-family="${FONT}" font-size="${footFit.size}" fill="${DIM}">${esc(footFit.text)}</text>` : ''}
 <text x="64" y="694" font-family="${FONT}" font-size="30" fill="${DIM}">${esc(dateLabel)}</text>
 <text x="1224" y="694" font-family="${FONT}" font-size="32" fill="${ACC}" text-anchor="end">주식온톨로지</text>
 </svg>`;
