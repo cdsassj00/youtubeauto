@@ -15,6 +15,58 @@ const BASE = process.env.STOCK_API_BASE ?? 'https://stockontology.cc';
 
 export type Market = 'KR' | 'US';
 
+/**
+ * 지지·저항과 그 근거. 사이트가 스윙 피벗 → 1.5% 클러스터링 → 2회 이상 부딪힌 자리만
+ * 채택해서 계산한다.
+ *
+ * ★없으면 null 이다★ 근거가 없는 날은 추정으로 채우지 않는다고 사이트가 명시했다.
+ * 실제로 한국 브리프는 levels 가 null 로 오는 날이 있다. 그러므로 이 값을 쓰는 자리는
+ * 전부 "없으면 그 줄을 통째로 생략"으로 짜야 한다 — 빈 값을 0 원으로 읽으면 최악이다.
+ */
+export interface Levels {
+  support: Array<{ price: number; touches: number; lastTouchDate: string }>;
+  resistance: Array<{ price: number; touches: number; lastTouchDate: string }>;
+  ma?: { ma5?: number; ma20?: number; ma60?: number; ma120?: number };
+  week52?: { high: number; low: number };
+  atr14?: number;
+  volume?: { today: number; avg20: number };
+  /** "36,200은 최근 3번 저항받은 자리(최근 8월)입니다" — 왜 그 가격이 의미 있는지. */
+  levelNote?: string;
+}
+
+/**
+ * 지금 가격에서 의미가 있는 지지선만 고른다.
+ *
+ * ★먼 지지선은 거짓말이 된다★ 2026-09-04 자 미국 응답에서 MPC 는 현재가 $382 인데
+ * 지지선이 $190.36 으로 왔다(-50%). 52주 최저가 근처의 오래된 스윙 피벗이라 계산으로는
+ * 맞지만, "다음 장에 볼 종목"의 썸네일에 "지지 $190"을 박으면 반값에 사라는 말로 읽힌다.
+ * 며칠 단위로 보는 이 영상에서 닿을 수 없는 가격은 정보가 아니라 오해다.
+ *
+ * 그래서 현재가에서 band 안에 있는 것만 쓰고, 없으면 아무 말도 하지 않는다.
+ */
+export function nearSupport(levels: Levels | null | undefined, price: number, bandPct = 12) {
+  if (!levels?.support?.length || !price) return null;
+  const near = levels.support.filter((s) => s.price <= price && (price - s.price) / price <= bandPct / 100);
+  return near.sort((a, b) => b.price - a.price)[0] ?? null; // 가장 가까운(=가장 높은) 지지
+}
+
+/** 같은 이유로 저항도 위쪽 band 안에 있는 것만. */
+export function nearResistance(levels: Levels | null | undefined, price: number, bandPct = 15) {
+  if (!levels?.resistance?.length || !price) return null;
+  const near = levels.resistance.filter((r) => r.price >= price && (r.price - price) / price <= bandPct / 100);
+  return near.sort((a, b) => a.price - b.price)[0] ?? null;
+}
+
+/**
+ * 52주 최고가까지 얼마나 남았는가 — 지지선이 멀 때 쓸 수 있는 다른 사실.
+ * 신고가에 가깝다는 것은 그 자체로 구체적이고 확인 가능한 숫자다.
+ */
+export function gapToHigh(levels: Levels | null | undefined, price: number): number | null {
+  const hi = levels?.week52?.high;
+  if (!hi || !price || hi < price) return null;
+  return ((hi - price) / price) * 100;
+}
+
 export interface Pick {
   code: string;
   ticker?: string | null;
@@ -28,6 +80,26 @@ export interface Pick {
   reasons?: string[];
   isNew?: boolean;
   daysInList?: number;
+  /** 지지·저항. 근거가 없으면 null 로 온다. */
+  levels?: Levels | null;
+  /**
+   * 이 엔진의 백테스트 실측 평균 보유일.
+   * ★예측이 아니다★ "이 종목이 며칠 유효하다"가 아니라 "이 방식은 평균 며칠 들고 있었다"다.
+   * 영상에서 말할 때 이 구분을 흐리면 하지 않은 약속을 하는 셈이 된다.
+   */
+  horizonDays?: number | null;
+  horizonNote?: string | null;
+}
+
+/** 사이트가 계산해 주는 엔진 합의. 계산을 한 곳에서만 하려고 이 값을 그대로 쓴다. */
+export interface AgreementItem {
+  code: string;
+  ticker?: string | null;
+  name: string;
+  sector: string | null;
+  independentCount: number;
+  engines: Array<{ id: string; nameKo: string; tagKo?: string; derived: boolean; reason: string; leaguePnlPct?: number }>;
+  inHeadlineList: boolean;
 }
 
 export interface Brief {
@@ -37,7 +109,12 @@ export interface Brief {
   basisNote?: string;
   regime: { label: string; tone: string; riskOff: number; lines: string[] };
   causal: string[];
-  sectors: { recommend: Array<{ sector: string; score: number; reasons: string[] }>; avoid: Array<{ sector: string; score: number; reasons: string[] }> };
+  sectors: {
+    recommend: Array<{ sector: string; score: number; reasons: string[] }>;
+    avoid: Array<{ sector: string; score: number; reasons: string[] }>;
+    /** 상위 4개로 자르지 않은 전 섹터. sector:<이름> 화면이 이 목록에서 찾는다. */
+    all?: Array<{ sector: string; score: number; reasons?: string[] }>;
+  };
   picks: Pick[];
   avoid: Pick[];
   dropped?: Array<{ code: string; name: string; reason: string }>;
@@ -57,7 +134,21 @@ export interface Brief {
     summaryKo: string;
     meaningKo: string;
   };
-  engines?: Array<{ id: string; nameKo: string; tagKo?: string; descKo?: string; live?: boolean; leaguePnlPct?: number; picks: Pick[] }>;
+  engines?: Array<{ id: string; nameKo: string; tagKo?: string; descKo?: string; live?: boolean; leaguePnlPct?: number; derived?: boolean; picks: Pick[] }>;
+  /** 사이트가 계산한 엔진 합의. 있으면 이걸 그대로 쓴다(계산은 한 곳에서만). */
+  agreement?: AgreementItem[];
+  /**
+   * 이 계산을 실제로 매매에 쓸 수 있는 첫 거래일. 공휴일까지 반영된 값이다.
+   *
+   * ★직접 계산하면 틀린다★ 예전에는 주말만 건너뛰어 다음 날을 구했는데, 2026-09-04 자
+   * 미국 브리프의 실제 targetSession 은 9/8 이다(9/7 이 Labor Day). 주말만 보면 9/7 로
+   * 잘못 나온다. 휴장일은 사이트가 알고 있으므로 이 값을 그대로 쓴다.
+   */
+  targetSession?: string;
+  /** 계산에 쓴 시세의 거래일. */
+  dataSessionDate?: string;
+  /** 이 시세가 마감 확정값인가. false 면 발행하지 않는다. */
+  sessionClosed?: boolean;
   league?: { currency: string; strategies: Array<{ nameKo: string; tagKo: string; live: boolean; pnlPct: number; equity: number }> };
   /** 시세가 마지막으로 갱신된 시각. */
   dataAsOf: number;
@@ -117,6 +208,10 @@ export function todayKst(): string {
 export function freshnessProblem(date: string, brief: Brief, maxAgeMinutes = 720): string | null {
   const today = todayKst();
   if (date !== today) return `브리프 날짜가 ${date} 입니다(오늘은 ${today}).`;
+  // ★sessionClosed 가 공식 판정이다★ basis 는 값이 셋(prev_close/intraday/post_close)이고
+  // 앞으로 늘 수도 있어서, 문자열 하나만 걸러 내는 방식은 새 값이 생기면 조용히 통과시킨다.
+  // 사이트가 "마감 확정인가"를 불리언으로 따로 주기로 해서 그것을 먼저 본다.
+  if (brief.sessionClosed === false) return '아직 장이 끝나지 않았습니다(sessionClosed=false) — 마감 확정 뒤에 만들어야 합니다.';
   if (brief.basis === 'intraday') return '장중(intraday) 기준 값입니다 — 종가가 확정된 뒤에 만들어야 합니다.';
   const age = brief.dataAgeMinutes;
   if (typeof age === 'number' && age >= maxAgeMinutes) {

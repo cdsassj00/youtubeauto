@@ -50,9 +50,12 @@ export interface ConsensusPick {
   bestScore: number;
 }
 
+/** 파생 엔진인가. 사이트가 derived 를 주면 그 값을, 없으면 id 로 판단한다. */
+const isDerived = (e: { id: string; derived?: boolean }) => e.derived ?? DERIVED_ENGINE_IDS.has(e.id);
+
 /** 독립 엔진이 몇 개인지 — "N개 중 M개가 겹쳤다"의 N. */
 export function independentEngineCount(brief: Brief): number {
-  return (brief.engines ?? []).filter((e) => !DERIVED_ENGINE_IDS.has(e.id)).length;
+  return (brief.engines ?? []).filter((e) => !isDerived(e)).length;
 }
 
 /**
@@ -63,6 +66,38 @@ export function independentEngineCount(brief: Brief): number {
  * 표를 같은 무게로 두면, 못 맞히는 엔진끼리 겹친 종목이 앞으로 온다.
  */
 export function consensusPicks(brief: Brief): ConsensusPick[] {
+  // ★사이트가 계산해 주면 그것을 쓴다★ 같은 숫자를 두 곳에서 계산하면 언젠가 갈라지고,
+  // 그날 사이트 화면과 영상이 서로 다른 말을 하게 된다. 사이트에 agreement 가 생겼으므로
+  // 그것이 정답이고, 아래 자체 계산은 옛 응답을 위한 대비책으로만 남긴다.
+  if (brief.agreement?.length) {
+    const priced = new Map(
+      [...brief.picks, ...(brief.engines ?? []).flatMap((e) => e.picks ?? [])].map((p) => [p.code, p]),
+    );
+    return brief.agreement.map((a) => {
+      const p = priced.get(a.code);
+      return {
+        code: a.code,
+        ticker: a.ticker ?? p?.ticker ?? null,
+        name: a.name,
+        sector: a.sector,
+        price: p?.price ?? 0,
+        priceLabel: p?.priceLabel ?? '',
+        changePct: p?.changePct ?? 0,
+        engines: a.engines.map((e) => ({
+          id: e.id,
+          nameKo: e.nameKo,
+          tagKo: e.tagKo,
+          reason: e.reason,
+          pnlPct: e.leaguePnlPct,
+          derived: e.derived,
+        })),
+        independentCount: a.independentCount,
+        inHeadlineList: a.inHeadlineList,
+        bestScore: p?.score ?? 0,
+      };
+    });
+  }
+
   const engines = brief.engines ?? [];
   if (engines.length < 2) return []; // 엔진이 하나뿐이면 "합의"라는 말 자체가 성립하지 않는다.
 
@@ -70,7 +105,7 @@ export function consensusPicks(brief: Brief): ConsensusPick[] {
   const byCode = new Map<string, ConsensusPick>();
 
   for (const e of engines) {
-    const derived = DERIVED_ENGINE_IDS.has(e.id);
+    const derived = isDerived(e);
     for (const p of e.picks ?? []) {
       let hit = byCode.get(p.code);
       if (!hit) {
