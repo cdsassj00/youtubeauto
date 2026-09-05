@@ -134,12 +134,36 @@ export function feedProblem(f: Pick<Feed, 'asOf' | 'staleAfterMinutes'>): string
 /**
  * 화면·나레이션에 쓸 기준 시점 문구.
  *
- * ★장중에 "마감 기준"이라고 하면 거짓말이다★ 같은 값이라도 장이 열려 있으면 몇 분 뒤에
- * 달라진다. 그래서 무엇을 기준으로 한 값인지 말로 남긴다.
+ * ★"오늘"이라고 말하면 며칠 뒤 이 영상은 거짓말이 된다★ 영상은 올린 날에만 보는 것이
+ * 아니다. 일주일 뒤에 본 사람에게 "오늘 종가 기준"은 그날 종가라는 뜻으로 들린다.
+ * 사이트가 주는 sessionKo("장 마감 — 오늘 종가 기준입니다")를 그대로 쓰면 그렇게 된다.
+ * 그래서 asOf 로 날짜를 박아 우리가 직접 쓴다.
+ *
+ * ★장중에 "마감 기준"이라고 하면 그것도 거짓말이다★ 같은 값이라도 장이 열려 있으면
+ * 몇 분 뒤에 달라진다. 무엇을 기준으로 한 값인지 말로 남긴다.
  */
-export function sessionLabel(state: SessionState, sessionKo?: string): string {
-  if (sessionKo) return sessionKo;
-  if (state === 'open') return '장중 — 지금 이 시각 기준입니다';
-  if (state === 'pre') return '장 시작 전 — 직전 거래일 종가 기준입니다';
-  return '장 마감 — 오늘 종가 기준입니다';
+export function sessionLabel(state: SessionState, asOf?: number, market: Market = 'KR'): string {
+  const tz = market === 'US' ? 'America/New_York' : 'Asia/Seoul';
+  const t = asOf && Number.isFinite(asOf) ? new Date(asOf) : new Date();
+  const p = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: tz,
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(t);
+  const g = (k: string) => p.find((x) => x.type === k)?.value ?? '';
+  const day = `${g('month')}월 ${g('day')}일`;
+  const clock = `${Number(g('hour'))}시 ${g('minute')}분`;
+  if (state === 'open') return `${day} ${clock} 기준입니다`;
+  if (state === 'pre') return `${day} 장 시작 전 — 직전 거래일 종가 기준입니다`;
+  return `${day} 종가 기준입니다`;
+}
+
+/** 썸네일 배지처럼 짧게. 날짜는 배지 옆 날짜줄이 따로 들고 있다. */
+export function sessionBadge(state: SessionState): string {
+  if (state === 'open') return '장중';
+  if (state === 'pre') return '장 시작 전';
+  return '종가 기준';
 }

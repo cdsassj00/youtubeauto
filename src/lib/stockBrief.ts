@@ -281,7 +281,11 @@ export function freshnessProblem(date: string, brief: Brief, maxAgeMinutes = 720
 
 /** 사이트가 서버에서 그려 주는 1920×1080 완성 화면. view 는 overview / sector:X / stock:CODE / league / backtest. */
 export async function fetchSceneImage(market: Market, view: string, outPath: string): Promise<void> {
-  const url = `${BASE}/api/scene.svg?market=${market}&view=${encodeURIComponent(view)}`;
+  // ★주소를 통째로 받는 자리도 있다★ 데일리는 "chart:005830" 같은 키를 넘기지만, 번들
+  // 응답(/api/stock/<코드>/bundle)의 views 는 완성된 주소로 온다. 그것을 키인 줄 알고
+  // 다시 감싸면 view=https%3A%2F%2F... 가 되어 400 이 떨어진다 — 수시 발행에서는 사이트
+  // 화면이 한 장도 안 깔린다는 뜻이다. 주소로 오면 그대로 부른다.
+  const url = /^https?:\/\//.test(view) ? view : `${BASE}/api/scene.svg?market=${market}&view=${encodeURIComponent(view)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
   const svg = Buffer.from(await res.arrayBuffer());

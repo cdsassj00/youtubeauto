@@ -12,8 +12,8 @@
  */
 import type { Scene } from '../schema.js';
 import type { Bundle, FeedEvent, SessionState } from './stockFeed.js';
-import { sessionLabel } from './stockFeed.js';
-import { attach } from './stockScript.js';
+import { sessionLabel, sessionBadge } from './stockFeed.js';
+import { attach, fixParticles } from './stockScript.js';
 import { nearSupport, nearResistance, gapToHigh } from './stockBrief.js';
 import { speakNumbers, speakLatinAcronyms } from './koreanNumber.js';
 import type { PlannedScene } from './stockScript.js';
@@ -48,7 +48,10 @@ const ENGINE_KO: Record<string, string> = {
   fusion: '융합',
 };
 const humanize = (t: string) =>
-  t.replace(/\b(onto|quant|ta|fusion)\b/g, (m) => ENGINE_KO[m] ?? m);
+  // ★조사 자리표시자가 그대로 나갔다★ 사이트 문장에 "차트 거장이(가) 새로 들어왔습니다"
+  // 처럼 고르지 않은 쌍이 섞여 온다. 데일리에는 fixParticles 를 통과시키고 있었는데
+  // 수시 발행에는 안 걸어 둬서, 자막에도 나레이션에도 괄호가 그대로 찍혔다.
+  fixParticles(t.replace(/\b(onto|quant|ta|fusion)\b/g, (m) => ENGINE_KO[m] ?? m));
 
 /** 전략 판정 영문 코드를 화면에 쓸 말로. 내부 값이 그대로 나가지 않게 한다. */
 const VERDICT_KO: Record<string, string> = { buy: '매수', sell: '매도', neutral: '중립', wait: '대기' };
@@ -69,7 +72,7 @@ const bodyOf = (s: { nameKo: string; text: string }) => {
  * 처럼 표에서 온 기호가 섞여 있다. 눈으로는 읽히지만 TTS 는 그냥 건너뛰어 두 값이
  * 한 문장으로 붙어 버린다. 쉼표로 바꿔 숨 쉴 자리를 만든다.
  */
-const readable = (t: string) => t.replace(/\s*[→⇒]\s*/g, ', ').replace(/\s{2,}/g, ' ').trim();
+const readable = (t: string) => fixParticles(t.replace(/\s*[→⇒]\s*/g, ', ').replace(/\s{2,}/g, ' ')).trim();
 
 /** 지금 값에서 어느 쪽으로 몇 % 떨어져 있는지. 부호는 말로 붙이므로 절댓값만 준다. */
 const pctAway = (price: number, level: number) => `${(Math.abs(level - price) / price * 100).toFixed(1)}%`;
@@ -134,7 +137,7 @@ export function buildSpotScenes(ev: FeedEvent, b: Bundle): PlannedScene[] {
     out.push({ scene: full, sceneView: view, estSec: sec ?? full.narration.length / CHARS_PER_SEC, facts });
   };
 
-  const stamp = sessionLabel(b.sessionState as SessionState, b.sessionKo);
+  const stamp = sessionLabel(b.sessionState as SessionState, b.asOf, mk);
 
   // ── 1. 왜 지금 이 종목인가 ────────────────────────────────────────────
   // ★이벤트 문장이 이 영상의 존재 이유다★ whyNowKo 는 "직전까지는 온톨로지만 들고
@@ -146,7 +149,7 @@ export function buildSpotScenes(ev: FeedEvent, b: Bundle): PlannedScene[] {
       heading: `${b.name} — ${KIND_LABEL[ev.kind] ?? '지금 볼 이유'}`,
       // ★headlineKo 는 그 자체로 완성된 문장이다★ 앞에 "롯데웰푸드는" 을 붙이면
       // "롯데웰푸드는 겹쳤던 분석 중 하나가 손을 뗐습니다" 가 되어 주어가 둘이 된다.
-      narration: `오늘은 ${b.name}입니다. ${period(humanize(ev.headlineKo))} ${period(humanize(ev.whyNowKo))} 기준은 ${period(stamp)}`,
+      narration: `오늘은 ${b.name}입니다. ${period(humanize(ev.headlineKo))} ${period(humanize(ev.whyNowKo))} 이 값은 ${period(stamp)}`,
       visual: 'metric',
       engine: 'stock',
       stock: {
@@ -353,8 +356,11 @@ export function buildSpotScenes(ev: FeedEvent, b: Bundle): PlannedScene[] {
         heading: `전략 ${st.length}종 — 매수 ${buy} · 중립 ${neutral} · 매도 ${sell}`,
         narration: say.join(' '),
         bullets: st.slice(0, 5).map((s) => `${shortName(s.nameKo)} ${VERDICT_KO[s.verdict] ?? s.verdict}`),
-        visual: 'bullets',
-        engine: 'stock',
+        // ★사이트 화면을 깔려면 illustrated 여야 한다★ stock 엔진은 imagePath 를 보지
+        // 않아서, 아래 sceneView 로 받아 둔 전략 13종 화면이 화면에 나오지 않았다. 그
+        // 화면에는 MACD·RSI·ADX 판정이 카드로 다 들어 있어 이 나레이션과 그대로 맞는다.
+        visual: 'image',
+        engine: 'illustrated',
         stock: {
           kind: 'cards',
           big: `${buy} : ${sell}`,
@@ -379,9 +385,13 @@ export function buildSpotScenes(ev: FeedEvent, b: Bundle): PlannedScene[] {
   add({
     id: 'outro',
     heading: '기준과 면책',
+    // ★"마감 뒤에만 하는 채널"로 들리지 않게 한다★ 기준 시점을 밝히는 것과, 마감을
+    // 기다려야만 종목을 다룬다는 인상을 주는 것은 다르다. 실제로 이 채널은 분석이 바뀌면
+    // 장중에도 올린다 — 그러면 그렇게 말해야 한다.
     narration:
       `여기까지 ${attach(b.name, '이었습니다', '였습니다')}. 값은 전부 스톡온톨로지 닷 씨씨의 계산 결과이고, ` +
-      `기준은 ${stamp}. 특정 종목의 매수나 매도를 권유하는 것이 아니며, 투자 판단과 책임은 보는 분에게 있습니다.`,
+      `이 값은 ${stamp}. 이 채널은 마감을 기다렸다가 올리지 않습니다 — 분석이 바뀌면 장중에도 그때그때 올립니다. ` +
+      `특정 종목의 매수나 매도를 권유하는 것이 아니며, 투자 판단과 책임은 보는 분에게 있습니다.`,
     visual: 'outro',
     engine: 'stock',
     icon: 'chart',
@@ -420,7 +430,7 @@ export function buildSpotScript(ev: FeedEvent, b: Bundle, disclaimer = ''): Spot
     humanize(ev.headlineKo),
     humanize(ev.whyNowKo),
     '',
-    `기준 ${sessionLabel(b.sessionState as SessionState, b.sessionKo)}`,
+    `기준 시점 ${sessionLabel(b.sessionState as SessionState, b.asOf, mk).replace(/ 기준입니다$/, '')}`,
     `▸ 계산 근거 전체 : https://stockontology.cc`,
     '',
     '─────────────────────────────',
@@ -460,7 +470,7 @@ export function buildSpotScript(ev: FeedEvent, b: Bundle, disclaimer = ''): Spot
     ]
       .filter(Boolean)
       .join(' · '),
-    thumbnailBadge: sessionLabelShort(b.sessionState as SessionState),
+    thumbnailBadge: sessionBadge(b.sessionState as SessionState),
     thumbnailBigValue: '',
     thumbnailBigLabel: '',
     thumbnailAccent: '#e8564a',
@@ -470,9 +480,3 @@ export function buildSpotScript(ev: FeedEvent, b: Bundle, disclaimer = ''): Spot
   };
 }
 
-/** 썸네일 배지 — 장중이면 그렇게 적는다. */
-function sessionLabelShort(state: SessionState): string {
-  if (state === 'open') return '장중';
-  if (state === 'pre') return '장 시작 전';
-  return '마감 기준';
-}

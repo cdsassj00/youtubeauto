@@ -164,6 +164,18 @@ function sessionLabels(brief: Brief, date?: string) {
 }
 
 /**
+ * 값이 계산된 날 — 읽을 수 있는 말로("9월 5일").
+ *
+ * ★sessionLabels 는 "다음 거래일"이다★ 그것과 "이 값이 계산된 날"은 다르다. 마감 뒤에
+ * 만든 영상에서 앞의 것은 9월 7일, 뒤의 것은 9월 5일이다. 채점 씬에서 필요한 것은 뒤쪽이다.
+ */
+function dataDaySpoken(b: Brief, date?: string): string {
+  const iso = b.dataSessionDate ?? date;
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '오늘';
+  return `${Number(iso.slice(5, 7))}월 ${Number(iso.slice(8, 10))}일`;
+}
+
+/**
  * 같은 날짜를 읽을 수 있는 말로 — "9월 7일".
  *
  * ★"9/7"을 나레이션에 그대로 넣으면 안 된다★ 숫자 변환기가 슬래시를 날짜로 보지 않아
@@ -222,7 +234,9 @@ export interface PlannedScene {
 const KEEP_ORDER = [
   // ★plan 을 앞에 둔다★ "무엇을" 다음으로 궁금한 것은 "얼마에"다. 진입·손절이 빠지면
   // 종목 이름만 부르고 끝나는 영상이 된다.
-  'consensus', 'swing', 'plan', 'pick1', 'causal1', 'pick2', 'agree', 'causal2', 'engines', 'principle', 'pick3', 'causal3',
+  // ★chart 는 plan 바로 앞에 둔다★ 진입·손절 가격을 말하기 전에 그 가격이 차트 어디쯤인지
+  // 보여 줘야 숫자가 자리로 읽힌다. 이 씬이 없으면 차트 이야기를 하는 내내 글자판만 나온다.
+  'consensus', 'swing', 'chart', 'plan', 'pick1', 'causal1', 'pick2', 'agree', 'causal2', 'engines', 'principle', 'pick3', 'causal3',
   'open', 'prev', 'league', 'regime', 'pick4', 'causal4', 'sector', 'narrative', 'delta', 'pick5',
 ];
 
@@ -529,6 +543,56 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
   // ★언제 틀린 것인지도 같이 말한다★ invalidation 은 "종가가 얼마 아래로 마감하면 이
   // 계획은 틀린 것"이라는 완성 문장이다. 추천만 하고 틀렸음을 인정할 조건을 말하지 않는
   // 채널이 되지 않으려면 이 문장이 반드시 있어야 한다.
+  // ── 0-1b. 차트 — 말로만 하던 것을 화면으로 보여준다 ──────────────────────
+  //
+  // ★차트를 설명하면서 차트를 안 보여주고 있었다★ 16개 씬 가운데 사이트 화면이 깔리는
+  // 씬이 둘뿐이었고, 그중 하나(플랜)는 stock 엔진이라 받아 놓은 이미지가 화면에 나오지도
+  // 않았다. MACD·RSI·이동평균을 읊는 동안 시청자는 글자판만 봤다는 뜻이다. 사이트가
+  // chart:<코드> 로 일봉·이동평균·지지저항·거래량이 다 들어간 화면을 그려 주므로 그것을
+  // 전체화면으로 깐다(illustrated 엔진이 imagePath 를 전체화면으로 깔아 준다).
+  if (agreed.length) {
+    const lead = agreed[0];
+    const lv = levelsOf(b, lead.code);
+    const px = priceOf(b, lead.code);
+    const sup = nearSupport(lv, px);
+    const res = nearResistance(lv, px);
+    const say = (n: number) => moneySpoken(b, n);
+    const cparts: string[] = [`${attach(spokenName(b, lead.name, lead.ticker), '의', '의')} 일봉 차트입니다.`];
+    // trend 는 형태가 정해져 있지 않아(unknown) 문자열일 때만 읽는다.
+    const trendKo = typeof ta?.trend === 'string' ? ta.trend : '';
+    if (trendKo) cparts.push(/[.!?]$/.test(trendKo.trim()) ? trendKo.trim() : `${trendKo.trim()}.`);
+    if (sup) cparts.push(`점선으로 그어진 아래쪽이 ${say(sup.price)}입니다. ${sup.touches}번 지지받은 자리이고, 지금 값에서 ${((Math.abs(px - sup.price) / px) * 100).toFixed(1)}% 아래입니다.`);
+    if (res) cparts.push(`위쪽은 ${say(res.price)}, ${res.touches}번 막힌 자리입니다.`);
+    if (!res) {
+      const gap = gapToHigh(lv, px);
+      if (gap !== null && lv?.week52?.high) cparts.push(`위에 걸린 저항은 없고, 52주 최고가 ${say(lv.week52.high)}까지 ${gap.toFixed(1)}% 남았습니다.`);
+    }
+    cparts.push('아래 막대는 거래량입니다. 붉은 막대가 오른 날, 푸른 막대가 내린 날입니다.');
+    if (cparts.length > 2) {
+      add(
+        {
+          id: 'chart',
+          heading: `${lead.name} — 일봉 차트`,
+          narration: cparts.join(' '),
+          visual: 'image',
+          engine: 'illustrated',
+        },
+        `chart:${lead.code}`,
+        [
+          `종목: ${lead.name}`,
+          trendKo ? `추세: ${trendKo}` : '',
+          sup ? `지지: ${money(b, sup.price)} (${sup.touches}번)` : '',
+          res ? `저항: ${money(b, res.price)} (${res.touches}번)` : '',
+          lv?.levelNote ?? '',
+          '화면: 일봉 90개 · MA20(하늘색) · MA60(보라) · 지지저항 점선 · 아래 거래량 막대',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        30,
+      );
+    }
+  }
+
   if (ta?.plan && agreed.length) {
     const p = ta.plan;
     const m = (n: number) => money(b, n);
@@ -556,8 +620,12 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
           t1 ? `목표 ${m(t1.price)} (${pct(t1.pct)})` : '',
           typeof p.rr === 'number' ? `손익비 ${p.rr.toFixed(2)}` : '',
         ].filter(Boolean),
-        visual: 'bullets',
-        engine: 'stock',
+        // ★사이트 화면을 깔려면 illustrated 여야 한다★ stock 엔진은 imagePath 를 보지
+        // 않아서, 받아 놓은 전략 13종 화면이 화면에 나오지 않았다. 그 화면에는 MACD·RSI·
+        // ADX 판정과 진입·손절·목표가 전부 들어 있어 이 씬의 나레이션과 그대로 맞는다.
+        // (stock 필드는 화면이 안 받아졌을 때의 대비책으로 남겨 둔다.)
+        visual: 'image',
+        engine: 'illustrated',
         stock: {
           kind: 'prevTable',
           big: p.biasKo.split('—')[0].trim(),
@@ -706,7 +774,8 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
       narration:
         `종목별로 보겠습니다. ` +
         prev.picks.map((p) => `${attach(p.name, '은', '는')} ${p.recPrice.toLocaleString()}원에서 ${p.nowPrice.toLocaleString()}원, ${pct(p.changePct)}입니다.`).join(' ') +
-        ` 기준은 추천한 시점의 시세와 오늘 계산 시점의 시세입니다.`,
+        // ★"오늘"이라고만 하면 며칠 뒤에 본 사람에게는 그날이 된다★ 날짜를 박는다.
+        ` 기준은 추천한 시점의 시세와 ${dataDaySpoken(b, date)} 계산 시점의 시세입니다.`,
       bullets: prev.picks.slice(0, 5).map((p) => `${p.name} ${pct(p.changePct)}`),
       visual: 'bullets',
       engine: 'stock',
@@ -1216,6 +1285,10 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
     heading: '내일 또 채점합니다',
     narration:
       `오늘 고른 종목은 내일 이 자리에서 그대로 채점합니다. 맞으면 맞았다고, 틀리면 틀렸다고 숫자로 보여드립니다. ` +
+      // ★"마감 뒤 하루 한 번" 채널로 들리지 않게 한다★ 실제로는 분석이 바뀌면 장중에도
+      // 종목 한 편씩 올린다. 데일리만 보고 "종가가 나와야 추천하는구나" 라고 생각하면
+      // 그 사이에 올라온 편들을 아예 못 보게 된다.
+      `이 채널은 마감 뒤 하루 한 번만 올리지 않습니다. 분석이 바뀌면 장중에도 그 종목 한 편씩 따로 올립니다. ` +
       `계산 과정 전체는 사이트에서 직접 보실 수 있습니다. 주소는 설명란에 적어 뒀습니다. ` +
       `이 채널은 광고 수익을 받지 않습니다. 투자 자문이나 권유가 아니고, 판단과 책임은 보시는 분께 있습니다.`,
     visual: 'outro',
