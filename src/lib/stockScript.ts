@@ -12,6 +12,7 @@
  */
 import type { Brief } from './stockBrief.js';
 import { nearSupport, nearResistance, gapToHigh } from './stockBrief.js';
+import { fetchTaVerified, type TaResult } from './stockTa.js';
 import { speakNumbers, ordinal, speakLatinAcronyms } from './koreanNumber.js';
 import type { Scene } from '../schema.js';
 import { narrateStock } from './stockNarrate.js';
@@ -55,9 +56,22 @@ function leagueScopeNote(b: Brief): string {
   return `다만 이 성적을 낸 목록과 오늘 종목을 고른 목록이 다를 수 있습니다.`;
 }
 
-/** 시장에 맞는 금액 표기 — 원은 정수, 달러는 소수 둘째 자리. */
+/** 시장에 맞는 금액 표기 — 원은 정수, 달러는 소수 둘째 자리. 화면·설명란용. */
 const money = (b: Brief, n: number) =>
   b.market === 'US' ? `$${n.toFixed(2)}` : `${Math.round(n).toLocaleString()}원`;
+
+/**
+ * 읽을 금액 — 나레이션용.
+ *
+ * ★"$378.00"을 그대로 넘기면 "달러 삼백칠십팔 점 영영"이 된다★ 숫자 변환기는 통화
+ * 기호를 모르고, 소수점 아래 00 까지 또박또박 읽는다. 사람은 "삼백칠십팔 달러"라고
+ * 말하므로 기호를 뒤로 빼고 의미 없는 소수점은 지운다.
+ */
+const moneySpoken = (b: Brief, n: number) => {
+  if (b.market !== 'US') return `${Math.round(n).toLocaleString()}원`;
+  const v = n.toFixed(2).replace(/\.00$/, '');
+  return `${v} 달러`;
+};
 
 /**
  * 업종별 강조색 — 그날 주인공 종목의 업종에서 뽑는다.
@@ -178,7 +192,9 @@ export interface PlannedScene {
  * 단골에게는 값이 있으므로 긴 회차에서는 살린다.
  */
 const KEEP_ORDER = [
-  'pick1', 'causal1', 'pick2', 'agree', 'causal2', 'engines', 'principle', 'pick3', 'causal3',
+  // ★plan 을 앞에 둔다★ "무엇을" 다음으로 궁금한 것은 "얼마에"다. 진입·손절이 빠지면
+  // 종목 이름만 부르고 끝나는 영상이 된다.
+  'consensus', 'plan', 'pick1', 'causal1', 'pick2', 'agree', 'causal2', 'engines', 'principle', 'pick3', 'causal3',
   'open', 'prev', 'league', 'regime', 'pick4', 'causal4', 'sector', 'narrative', 'delta', 'pick5',
 ];
 
@@ -319,7 +335,7 @@ function splitReason(r: string): { from: string; to: string } | null {
   return { from: r.slice(0, i).trim(), to: r.slice(i + 1).trim() };
 }
 
-export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
+export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null): PlannedScene[] {
   const out: PlannedScene[] = [];
   // ★나레이션은 날것으로 담아 두고 마지막에 한 번 변환한다★ 예전에는 여기서 바로
   // 조사·기호·숫자를 처리했는데, 그러면 설명 나레이션(Claude)이 나중에 갈아 끼워질 때
@@ -454,6 +470,63 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
         .map((c) => `${c.name}(${c.sector ?? '미분류'}) — ${c.engines.filter((e) => !e.derived).map((e) => `${e.nameKo}: ${e.reason}`).join(' / ')}`)
         .join('\n'),
       CONSENSUS_SEC,
+    );
+  }
+
+  // ── 0-2. 그래서 얼마에 사고 어디서 손절하나 ─────────────────────────────
+  //
+  // ★"뽑혔다"와 "지금 사도 된다"는 다른 질문이다★ 오늘 1등 합의 종목(SK케미칼)의 매매
+  // 플랜 판정이 "대기 — 조건 미충족"이었다. 합의로 뽑힌 것은 맞지만 지금 가격이 들어갈
+  // 자리는 아니라는 뜻이다. 뽑힌 것만 말하고 이 판정을 빼면 사도 된다는 말로 들린다.
+  // 그래서 판정을 문장 맨 앞에 둔다 — 좋은 소식이든 아니든 같은 자리에 놓는다.
+  //
+  // ★언제 틀린 것인지도 같이 말한다★ invalidation 은 "종가가 얼마 아래로 마감하면 이
+  // 계획은 틀린 것"이라는 완성 문장이다. 추천만 하고 틀렸음을 인정할 조건을 말하지 않는
+  // 채널이 되지 않으려면 이 문장이 반드시 있어야 한다.
+  if (ta?.plan && agreed.length) {
+    const p = ta.plan;
+    const m = (n: number) => money(b, n);
+    const t1 = p.targets?.[0];
+    const say = (n: number) => moneySpoken(b, n);
+    const parts: string[] = [
+      `${attach(agreed[0].name, '은', '는')} 지금 어떤 자리일까요.`,
+      `차트 분석의 판정은 "${p.biasKo}"입니다.`,
+    ];
+    if (p.entry) parts.push(`진입은 ${say(p.entry.low)}에서 ${say(p.entry.high)} 사이를 봅니다.`);
+    if (p.stop) parts.push(`손절은 ${say(p.stop.price)}, 지금 가격에서 ${pct(p.stop.pct)}입니다.`);
+    // "…원로"가 되지 않게 받침을 보고 조사를 고른다.
+    if (t1) parts.push(`1차 목표는 ${attach(say(t1.price), '으로', '로')} ${pct(t1.pct)}입니다.`);
+    if (typeof p.rr === 'number') parts.push(`손익비는 ${p.rr.toFixed(2)}입니다.`);
+    if (p.invalidation) parts.push(p.invalidation);
+
+    add(
+      {
+        id: 'plan',
+        heading: `${agreed[0].name} — ${p.biasKo}`,
+        narration: parts.join(' '),
+        bullets: [
+          p.entry ? `진입 ${m(p.entry.low)}~${m(p.entry.high)}` : '',
+          p.stop ? `손절 ${m(p.stop.price)} (${pct(p.stop.pct)})` : '',
+          t1 ? `목표 ${m(t1.price)} (${pct(t1.pct)})` : '',
+          typeof p.rr === 'number' ? `손익비 ${p.rr.toFixed(2)}` : '',
+        ].filter(Boolean),
+        visual: 'bullets',
+        engine: 'stock',
+        stock: {
+          kind: 'prevTable',
+          big: p.biasKo.split('—')[0].trim(),
+          caption: p.gradeKo ?? '',
+          cards: [],
+          rows: [
+            p.entry ? { name: '진입', from: m(p.entry.low), to: m(p.entry.high), pct: 0, note: '' } : null,
+            p.stop ? { name: '손절', from: m(p.stop.price), to: '', pct: p.stop.pct, note: '' } : null,
+            t1 ? { name: '1차 목표', from: m(t1.price), to: '', pct: t1.pct, note: '' } : null,
+          ].filter(Boolean) as Array<{ name: string; from: string; to: string; pct: number; note: string }>,
+          groups: [],
+        },
+      },
+      // 사이트가 그려 주는 전략 13종 화면을 배경으로 깐다.
+      `strategies:${agreed[0].code}`,
     );
   }
 
@@ -1065,7 +1138,23 @@ export function planSummary(scenes: PlannedScene[]): string {
  * 앞에 두고 날짜는 괄호로 뒤에 붙인다.
  */
 export async function buildStockScript(b: Brief, date: string, disclaimer: string, maxMinutes = 0) {
-  const planned = trimScenes(buildStockScenes(b, date), maxMinutes);
+  /**
+   * 오늘의 1등 합의 종목 하나만 매매 플랜을 받아 온다.
+   *
+   * ★한 종목만 부른다★ 종목마다 최대 두 번(.KS·.KQ) 호출이 붙는다. 다섯 종목을 다 부르면
+   * 열 번이 되는데, 화면에 그만큼 쓰지도 못한다. 제일 앞에 세우는 종목의 가격만 정확히
+   * 말할 수 있으면 이 씬의 목적은 달성된다.
+   *
+   * 실패하면 null 이고, 그러면 매매 플랜 씬 없이 영상이 나간다 — 확인 못 한 가격을
+   * 말하느니 그 자리를 비운다.
+   */
+  const leadPick = agreedPicks(b)[0];
+  const ta = leadPick
+    ? await fetchTaVerified(b.market, leadPick.code, leadPick.ticker, priceOf(b, leadPick.code))
+    : null;
+  if (leadPick && !ta) console.warn(`  · ${leadPick.name} 매매 플랜을 확인하지 못해 그 씬은 넣지 않습니다.`);
+
+  const planned = trimScenes(buildStockScenes(b, date, ta), maxMinutes);
 
   // ★설명을 붙이는 것은 자를 것을 다 자른 뒤다★ 이번 회차에 안 나가는 씬까지 설명을
   // 받아 오면 그만큼 돈이 새고, 3분 컷에서는 나가는 씬보다 잘리는 씬이 더 많다.
