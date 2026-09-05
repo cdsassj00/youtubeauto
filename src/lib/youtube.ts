@@ -328,3 +328,25 @@ export async function listPublishedOrders(seriesTitle: string, seriesCode = ''):
   }
   return orders;
 }
+
+/**
+ * 최근 올린 영상의 제목을 새 것부터 n 개.
+ *
+ * ★중복 발행을 막는 근거를 따로 저장하지 않는다★ 수시 발행은 같은 종목을 며칠 연속
+ * 다루기 쉬운데, 그것을 막으려고 상태 파일을 따로 두면 러너가 매번 새로 뜨는 구조에서
+ * 그 파일이 곧 사실과 어긋난다(강의 시리즈에서 이미 겪은 문제다). 채널에 실제로 올라간
+ * 것이 사실이므로 그것을 읽는다 — 어느 경로로 올렸든, 손으로 지웠든 자동으로 맞는다.
+ */
+export async function listRecentVideoTitles(max = 30): Promise<string[]> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  const ch = await youtube.channels.list({ part: ['contentDetails'], mine: true });
+  const uploads = ch.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploads) return [];
+  const res = await youtube.playlistItems.list({
+    part: ['snippet'],
+    playlistId: uploads,
+    maxResults: Math.min(50, max),
+  });
+  return (res.data.items ?? []).map((it) => it.snippet?.title ?? '').filter(Boolean);
+}

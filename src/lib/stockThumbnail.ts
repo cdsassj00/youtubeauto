@@ -132,10 +132,15 @@ export async function drawStockThumbnail(opts: {
 
   const hasBig = Boolean(bigValue);
   const MAXW = hasBig ? 700 : 1150;
-  const size = Math.min(...lines.map((l) => fitSize(l, MAXW, lines.length === 1 ? 168 : 122, 60)));
+  // ★짧은 이름일수록 위험하다★ 상한이 168 이던 시절, "롯데웰푸드" 처럼 다섯 글자짜리
+  // 이름은 폭 제한에 걸리지 않아 상한 그대로 그려졌고, 글자 윗선이 위쪽 시리즈 이름
+  // ("AI가 추천하는 주식종목", 아랫선 y=96)을 뚫고 올라가 두 글자가 겹쳐 찍혔다. 긴
+  // 이름은 저절로 줄어들어 멀쩡했기 때문에 눈에 잘 안 띄는 종류의 깨짐이다. 상한을
+  // 겹치지 않는 크기로 낮춘다 — 1280 폭에서 132px 굵은 글씨면 여전히 충분히 크다.
+  const size = Math.min(...lines.map((l) => fitSize(l, MAXW, lines.length === 1 ? 132 : 104, 60)));
   const lineH = Math.round(size * 1.1);
-  // 이름은 위쪽에 모으고, 아래 띠는 곡선에 내준다.
-  const nameTop = 212;
+  // 이름은 위쪽에 모으고, 아래 띠는 곡선에 내준다. 두 줄이면 그만큼 위에서 시작한다.
+  const nameTop = lines.length === 1 ? 238 : 205;
   const chipY = nameTop + (lines.length - 1) * lineH + 44;
 
   const subFit = sub ? fitText(sub, 900, 50, 30) : { text: '', size: 0 };
