@@ -33,7 +33,11 @@ export type FeedKind =
   | 'plan_upgrade'
   | 'plan_downgrade'
   | 'regime_shift'
-  | 'streak';
+  | 'streak'
+  // ★아래는 사이트가 보내는 것이 아니라 우리가 만든다★ 순위표(/api/quant/rank)의 다섯
+  // 관점을 교차해 우리가 지어내는 후보다(stockRank.ts). 같은 자리를 지나가므로 같은
+  // 타입으로 두되, 사이트 응답을 파싱할 때는 이 값이 절대 오지 않는다.
+  | 'cross_profile';
 
 export interface FeedEvent {
   id: string;

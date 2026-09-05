@@ -60,11 +60,17 @@ jobs:
           N=$(echo "$BODY" | jq '[.events[]? | select(.code != null)] | length')
           echo "── $MARKET 피드 ── 종목 이벤트 ${N}건 (sessionState=$(echo "$BODY" | jq -r .sessionState))"
           echo "$BODY" | jq -r '.events[]? | "  \(.priority) \(.kind) \(.name) — \(.headlineKo)"'
-          if [ "$N" -gt 0 ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "go=0" >> "$GITHUB_OUTPUT"; fi
+          # ★후보는 피드만이 아니다★ 순위표가 살아 있으면 관점 교차로도 후보가 나온다.
+          # 여기서는 "본 잡을 띄울 가치가 있는가"만 보므로 순위표에 행이 있으면 통과시키고,
+          # 실제 교차 계산과 중복 검사는 본 잡의 대본 단계가 한다.
+          R=$(curl -sS --max-time 30 "https://stockontology.cc/api/quant/rank?market=$MARKET&limit=20&cb=$(date +%s)" | jq '[.rows[]?] | length' || echo 0)
+          echo "── $MARKET 순위표 ── ${R}행"
+          if [ "$N" -gt 0 ] || [ "$R" -gt 0 ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "go=0" >> "$GITHUB_OUTPUT"; fi
           {
             echo "### $MARKET 수시 발행 후보"
             echo ""
-            echo "종목 이벤트 **${N}건**"
+            echo "- 피드 이벤트 **${N}건**"
+            echo "- 순위표 **${R}행** (관점 교차 후보의 재료)"
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish:

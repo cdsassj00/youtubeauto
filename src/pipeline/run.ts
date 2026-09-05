@@ -45,8 +45,9 @@ import { uploadVideo, setThumbnail, setPrivacy, listRecentVideoTitles } from '..
 import { pickVisualThemeMode } from '../lib/visualTheme.js';
 import { fetchBrief, fetchSceneImage, freshnessProblem } from '../lib/stockBrief.js';
 import { buildStockScript } from '../lib/stockScript.js';
-import { fetchFeed, fetchBundle, feedProblem } from '../lib/stockFeed.js';
+import { fetchFeed, fetchBundle, feedProblem, type FeedEvent } from '../lib/stockFeed.js';
 import { buildSpotScript } from '../lib/spotScript.js';
+import { crossProfilePicks, crossPicksToEvents, fetchRank } from '../lib/stockRank.js';
 import { drawStockThumbnail } from '../lib/stockThumbnail.js';
 
 type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail' | 'rethumb' | 'setprivacy' | 'remixbgm';
@@ -140,7 +141,31 @@ async function stepSpotScript(): Promise<Script> {
   // 낡은 값으로 "지금 이렇습니다" 를 말하면 눈으로는 구별이 안 되는 거짓말이 된다.
   const stale = feedProblem(feed);
   if (stale) await skipRun(stale, `asOf=${new Date(feed.asOf).toISOString()} sessionState=${feed.sessionState}`);
-  if (!feed.events.length) await skipRun('지금은 새로 생긴 이벤트가 없습니다.', `sessionState=${feed.sessionState}`);
+
+  // ★후보를 피드 하나에만 걸지 않는다★ 피드는 "직전 대비 바뀐 것"만 주므로 조용한
+  // 날에는 0~1건이다. 350종목을 다섯 관점으로 훑어 놓고 하루 한 편은 너무 적다.
+  // 순위표를 교차해 "서로 다른 관점 여러 개가 같은 종목에 모였다" 를 두 번째 후보로
+  // 쓴다 — 순위 자체가 아니라 관점들의 겹침이 발행 이유다.
+  let crossEvents: FeedEvent[] = [];
+  try {
+    const rank = await fetchRank(market, undefined, 20);
+    const picks = await crossProfilePicks(market, 20);
+    crossEvents = crossPicksToEvents(picks, rank.universe, 3);
+    const top = picks[0]?.hits.length ?? 0;
+    console.log(`  · 순위 교차: 후보 ${picks.length}종목 (최다 ${top}개 관점) → 발행 후보 ${crossEvents.length}건`);
+  } catch (e) {
+    // 순위표를 못 받아도 피드만으로 진행한다 — 없는 축은 통째로 뺀다.
+    console.warn(`  · 순위표 실패(피드만으로 진행): ${(e as Error).message}`);
+  }
+
+  // ★같은 종목이 두 갈래로 들어오면 피드 쪽을 남긴다★ 피드 이벤트에는 사이트가 쓴
+  // "어제와 오늘의 차이" 가 들어 있어 발행 이유로 더 강하다.
+  const feedCodes = new Set(feed.events.map((e) => e.code).filter(Boolean));
+  const pool = [
+    ...[...feed.events].sort((a, b) => b.priority - a.priority),
+    ...crossEvents.filter((e) => !feedCodes.has(e.code)),
+  ];
+  if (!pool.length) await skipRun('지금은 발행할 후보가 없습니다.', `sessionState=${feed.sessionState}`);
 
   // ★중복은 채널에 물어본다★ 이 저장소는 발행 이력 파일을 두지 않는다("유튜브가 사실이다").
   // 이력 파일은 워크플로가 다른 러너에서 돌거나 수동 실행이 섞이면 곧 사실과 어긋난다.
@@ -151,9 +176,14 @@ async function stepSpotScript(): Promise<Script> {
     // 자격 증명이 없는 환경(미리보기 실행 등)에서는 중복 검사만 건너뛴다.
     console.warn(`  · 최근 영상 목록을 못 읽어 중복 검사를 건너뜁니다 — ${(e as Error).message}`);
   }
-  const published = (name: string) => recent.some((t) => t.includes(name));
+  // ★짧은 이름은 부분일치로 걸러지면 억울하다★ "한화" 는 "한화오션" 안에 들어 있어,
+  // 단순 포함 검사로는 한화오션 영상 한 편이 한화를 열흘 동안 막는다. 수시 발행 제목은
+  // "종목명, ..." 형태라 앞부분이 정확히 일치하는지를 먼저 보고, 세 글자 이상인 이름만
+  // 포함 검사까지 허용한다(데일리 영상 제목에 섞여 나온 경우를 잡기 위해).
+  const published = (name: string) =>
+    recent.some((t) => t.startsWith(`${name},`) || (name.length >= 3 && t.includes(name)));
 
-  const candidates = [...feed.events].sort((a, b) => b.priority - a.priority);
+  const candidates = pool;
   for (const ev of candidates) {
     // 시장 전체 이벤트(regime_shift)는 종목이 없어 종목 한 편으로 만들 수 없다.
     if (!ev.code) continue;
