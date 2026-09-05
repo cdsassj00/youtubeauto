@@ -57,6 +57,14 @@ function fitText(text: string, maxWidth: number, max: number, min: number): { te
  * 목록에서 같은 시리즈의 다른 편이라는 것을 알 수가 없다.
  */
 const SERIES = 'AI가 추천하는 주식종목';
+/**
+ * 썸네일 아래쪽에 크게 박는 채널 문구.
+ *
+ * ★자랑이 아니라 구별이다★ 유튜브 목록에서 주식 썸네일은 다 비슷하게 생겼다. 종목
+ * 이름과 숫자만으로는 "또 그런 채널"로 보여서 지나간다. 이 줄은 "여기는 근거를 다
+ * 까 놓는 곳"이라는 신호이고, 실제로 그렇게 만들고 있으므로 과장이 아니다.
+ */
+const BANNER = '진짜 작정하고 공개하는 채널';
 
 /**
  * 곡선이 그려지는 자리 — 아래쪽 띠. 글자와 겹치지 않는 높이로 잡는다.
@@ -66,6 +74,9 @@ const SERIES = 'AI가 추천하는 주식종목';
  * 화면 끝까지 늘려 배경처럼 보이게 한다.
  */
 const CHART = { x: -40, y: 372, w: 1256, h: 248 };
+/** 채널 문구 판 — 곡선 위, 하단 정보 줄(640·690) 위. */
+const BANNER_Y = 516;
+const BANNER_H = 84;
 
 /**
  * 종가 배열을 부드러운 곡선 path 로. 값이 모자라면 null.
@@ -116,6 +127,14 @@ export async function drawStockThumbnail(opts: {
   foot?: string;
   /** 좌하단 (예: "9/5 마감 기준"). */
   dateLabel: string;
+  /**
+   * 가로로 크게 박는 채널 문구. 빈 문자열이면 안 그린다.
+   *
+   * ★구독자 0인 채널에서는 종목 이름만으로 안 눌린다★ 목록에 뜬 순간 시청자가 아는
+   * 것은 이 채널이 처음 보는 곳이라는 사실뿐이다. 종목 이름은 그 사람이 이미 관심
+   * 있는 종목일 때만 후크가 된다. 그래서 "여기는 뭘 하는 곳인가"를 한 줄로 크게 박는다.
+   */
+  banner?: string;
   /** 그날의 강조색. 없으면 금색. */
   accent?: string;
   /** 배경에 깔 실제 종가 시계열(60거래일). 없으면 곡선 없이 그린다. */
@@ -123,6 +142,7 @@ export async function drawStockThumbnail(opts: {
   outPath: string;
 }): Promise<void> {
   const { headline, sub = '', badge, bigValue = '', bigLabel = '', foot = '', dateLabel, accent, spark, outPath } = opts;
+  const banner = opts.banner ?? BANNER;
   const ACC = /^#[0-9a-f]{6}$/i.test(accent ?? '') ? accent! : '#d9a441';
   const sp = spark?.length ? sparkPaths(spark) : null;
 
@@ -145,6 +165,9 @@ export async function drawStockThumbnail(opts: {
 
   const subFit = sub ? fitText(sub, 900, 50, 30) : { text: '', size: 0 };
   const footFit = foot ? fitText(foot, 1010, 34, 24) : { text: '', size: 0 };
+  // 배너는 폭에 맞춰 글자를 줄이고, 판 너비는 글자에 맞춘다(짧으면 판도 짧아진다).
+  const bannerFit = banner ? fitText(banner, 1120, 54, 38) : { text: '', size: 0 };
+  const bannerW = bannerFit.text ? Math.min(1184, Math.round(bannerFit.size * widthUnits(bannerFit.text) + 76)) : 0;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720">
 <defs>
@@ -225,6 +248,15 @@ ${bigLabel ? `<text x="${x + w / 2}" y="192" font-family="${FONT}" font-size="29
     : ''
 }
 
+${
+  bannerFit.text
+    ? `<!-- 채널 문구: 목록에서 이 채널을 구별하게 하는 한 줄. 흰 판에 검은 글씨가 어두운
+         배경에서 제일 세게 튄다 — 칩(액센트 채움)과 무게가 겹치지 않게 색을 나눈다. -->
+<rect x="48" y="${BANNER_Y}" width="${bannerW}" height="${BANNER_H}" rx="14" fill="${WHITE}"/>
+<rect x="48" y="${BANNER_Y}" width="10" height="${BANNER_H}" rx="5" fill="${ACC}"/>
+<text x="${48 + bannerW / 2}" y="${BANNER_Y + BANNER_H / 2 + bannerFit.size * 0.36}" font-family="${FONT}" font-size="${bannerFit.size}" font-weight="bold" fill="#0a0f1c" text-anchor="middle">${esc(bannerFit.text)}</text>`
+    : ''
+}
 ${footFit.text ? `<text x="60" y="640" font-family="${FONT}" font-size="${footFit.size}" fill="${WHITE}" opacity=".9">${esc(footFit.text)}</text>` : ''}
 <text x="60" y="690" font-family="${FONT}" font-size="28" fill="${DIM}">${esc(dateLabel)}</text>
 <text x="1224" y="690" font-family="${FONT}" font-size="30" font-weight="bold" fill="${ACC}" text-anchor="end">주식온톨로지</text>

@@ -160,11 +160,17 @@ async function stepSpotScript(): Promise<Script> {
 
   // ★같은 종목이 두 갈래로 들어오면 피드 쪽을 남긴다★ 피드 이벤트에는 사이트가 쓴
   // "어제와 오늘의 차이" 가 들어 있어 발행 이유로 더 강하다.
-  const feedCodes = new Set(feed.events.map((e) => e.code).filter(Boolean));
-  const pool = [
-    ...[...feed.events].sort((a, b) => b.priority - a.priority),
-    ...crossEvents.filter((e) => !feedCodes.has(e.code)),
-  ];
+  // ★한 종목이 두 번 들어온다★ 피드는 같은 종목에 대해 종류가 다른 이벤트를 따로 준다
+  // (SK이노베이션이 new_agreement 로도, breakout 으로도 왔다). 그대로 두면 오프셋 1과 2가
+  // 같은 종목을 골라 세 편 중 두 편이 겹친다. 종목당 한 건만 남기고, 남길 때는 우선순위가
+  // 높은 쪽 — 피드 이벤트가 순위 교차보다 앞이므로 자연히 피드 쪽이 남는다.
+  const seen = new Set<string>();
+  const pool: FeedEvent[] = [];
+  for (const ev of [...[...feed.events].sort((a, b) => b.priority - a.priority), ...crossEvents]) {
+    if (!ev.code || seen.has(ev.code)) continue;
+    seen.add(ev.code);
+    pool.push(ev);
+  }
   if (!pool.length) await skipRun('지금은 발행할 후보가 없습니다.', `sessionState=${feed.sessionState}`);
 
   // ★중복은 채널에 물어본다★ 이 저장소는 발행 이력 파일을 두지 않는다("유튜브가 사실이다").
@@ -183,7 +189,12 @@ async function stepSpotScript(): Promise<Script> {
   const published = (name: string) =>
     recent.some((t) => t.startsWith(`${name},`) || (name.length >= 3 && t.includes(name)));
 
-  const candidates = pool;
+  const candidates = spreadBySector(pool);
+  // ★같은 시각에 여러 편을 만들 때 서로 다른 종목이 나와야 한다★ 중복 검사는 유튜브에
+  // 이미 올라간 영상만 본다. 세 편을 동시에 돌리면 셋 다 채널 상태가 같아서 똑같은 1순위를
+  // 고른다. 건너뛸 수를 밖에서 받아 n번째 후보부터 보게 한다(0, 1, 2로 돌리면 세 종목).
+  let skip = Math.max(0, Number(process.env.STOCK_SPOT_OFFSET ?? 0) || 0);
+  if (skip) console.log(`  · 앞의 후보 ${skip}건은 건너뜁니다(동시 발행용 오프셋)`);
   for (const ev of candidates) {
     // 시장 전체 이벤트(regime_shift)는 종목이 없어 종목 한 편으로 만들 수 없다.
     if (!ev.code) continue;
@@ -205,6 +216,13 @@ async function stepSpotScript(): Promise<Script> {
       console.log(`  · 건너뜀(재료 부족 ${built.scenes.length}씬): ${ev.name}`);
       continue;
     }
+    if (skip > 0) {
+      // ★재료까지 확인한 뒤에 건너뛴다★ 앞에서 세어 버리면 재료가 모자라 어차피 못 쓸
+      // 후보를 한 칸으로 쳐서, 오프셋 1과 2가 같은 종목을 고르는 일이 생긴다.
+      console.log(`  · 오프셋으로 건너뜀: ${ev.name}`);
+      skip--;
+      continue;
+    }
     const script = ScriptSchema.parse(built);
     await writeJson(SCRIPT_PATH, script);
     await writeJson(STOCK_VIEWS_PATH, built.views);
@@ -215,6 +233,29 @@ async function stepSpotScript(): Promise<Script> {
     return script as Script;
   }
   return skipRun('발행할 만한 후보가 없습니다(전부 최근 발행 또는 재료 부족).', `후보 ${candidates.length}건`);
+}
+
+/**
+ * 앞자리에 같은 업종이 몰리지 않게 순서를 편다.
+ *
+ * ★거시 하나가 목록을 물들인다★ 유가가 9% 오른 날은 정유화학이 상위권을 채운다. 우선순위
+ * 순으로 그냥 뽑으면 그날 발행하는 세 편이 S-Oil·SK이노베이션·에쓰케이케미칼이 되어,
+ * 보는 사람에게는 세 번 같은 이야기다. 이 채널이 하려는 것은 "오늘 제일 센 것 하나"가
+ * 아니라 "돌아가며 다루기"라, 바로 앞과 업종이 겹치면 뒤로 미룬다. 미룰 곳이 없으면
+ * (남은 후보가 전부 같은 업종이면) 그냥 우선순위대로 둔다 — 억지로 비우지는 않는다.
+ */
+function spreadBySector(pool: FeedEvent[]): FeedEvent[] {
+  const rest = [...pool];
+  const out: FeedEvent[] = [];
+  let prev: string | null = null;
+  while (rest.length) {
+    let i = rest.findIndex((e) => (e.sector ?? '') !== prev || !prev);
+    if (i === -1) i = 0;
+    const [ev] = rest.splice(i, 1);
+    out.push(ev);
+    prev = ev.sector ?? '';
+  }
+  return out;
 }
 
 /** 로그에 내부 엔진 id 가 그대로 찍히면 나중에 원인을 찾을 때 헷갈린다. */
