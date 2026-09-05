@@ -1,0 +1,193 @@
+name: 주식 수시 발행 (이벤트 기반)
+
+# ★데일리와 왜 따로 두는가★ 데일리(daily-publish.yml)는 "오늘 시장" 한 장을 하루 한 번
+# 내보낸다. 505종목을 분석해 놓고 하루 5종목만 쓰는 셈이라, 나머지는 그냥 버려진다.
+# 이 워크플로는 반대 방향이다 — 사이트가 "무엇이 바뀌었는가"를 이벤트로 알려 주면
+# (/api/feed) 그 종목 한 편을 만든다. 씬 구성도 재료도 달라서 같은 잡에 넣을 수 없다.
+#
+# ★바뀐 것이 없으면 아무것도 하지 않는다★ 이벤트가 0건인 것은 고장이 아니라 조용한
+# 시간대라는 뜻이다. 억지로 한 편 만들면 "아무 때나 할 수 있는 말"을 하게 되는데,
+# 종목을 다루는 채널에서 그건 제일 하면 안 되는 일이다.
+
+on:
+  schedule:
+    # ★크론 문자열이 곧 시장 구분이다★ 아래 STOCK_MARKET 이 github.event.schedule 을
+    # 글자 그대로 비교하므로, 여기를 고치면 그쪽도 같이 고쳐야 한다. 한 글자만 달라도
+    # 조용히 KR 로 떨어진다.
+    - cron: '0 2 * * 1-5'    # 11:00 KST — 한국장 오전
+    - cron: '0 5 * * 1-5'    # 14:00 KST — 한국장 오후
+    - cron: '0 10 * * 1-5'   # 19:00 KST — 한국장 마감 뒤(데일리 08:30 UTC 와 겹치지 않게)
+    - cron: '0 15 * * 1-5'   # 11:00 ET — 미국장 오전
+    - cron: '0 19 * * 1-5'   # 15:00 ET — 미국장 오후
+  workflow_dispatch:
+    inputs:
+      market:
+        description: '시장 (KR | US)'
+        required: false
+        default: 'KR'
+      privacy:
+        description: '공개 상태 (public | unlisted | private)'
+        required: false
+        default: ''
+      channel:
+        description: '업로드 채널 (default | ch2)'
+        required: false
+        default: 'ch2'
+      do_upload:
+        description: '유튜브 업로드 여부 (true | false)'
+        required: false
+        default: 'true'
+
+jobs:
+  # ★무거운 설치 전에 먼저 물어본다★ 후보가 없는 시간대가 대부분인데, 그때마다 npm ci
+  # 와 Remotion 브라우저까지 받고 나서 "할 일 없음"으로 끝내면 실행 시간이 아깝다.
+  # 이 잡은 curl 한 번이라 20초면 끝난다. (중복 발행 검사는 여기서 못 하므로 — 유튜브
+  # 자격증명이 필요하다 — 본 잡에서 다시 거른다. 여기서는 "0건인가"만 본다.)
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      go: ${{ steps.feed.outputs.go }}
+      market: ${{ steps.feed.outputs.market }}
+    steps:
+      - name: 피드 후보 확인
+        id: feed
+        env:
+          MARKET: ${{ github.event.inputs.market || (contains(fromJSON('["0 15 * * 1-5","0 19 * * 1-5"]'), github.event.schedule) && 'US') || 'KR' }}
+        run: |
+          echo "market=$MARKET" >> "$GITHUB_OUTPUT"
+          BODY=$(curl -sS --max-time 30 "https://stockontology.cc/api/feed?market=$MARKET&limit=20&cb=$(date +%s)")
+          N=$(echo "$BODY" | jq '[.events[]? | select(.code != null)] | length')
+          echo "── $MARKET 피드 ── 종목 이벤트 ${N}건 (sessionState=$(echo "$BODY" | jq -r .sessionState))"
+          echo "$BODY" | jq -r '.events[]? | "  \(.priority) \(.kind) \(.name) — \(.headlineKo)"'
+          if [ "$N" -gt 0 ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "go=0" >> "$GITHUB_OUTPUT"; fi
+          {
+            echo "### $MARKET 수시 발행 후보"
+            echo ""
+            echo "종목 이벤트 **${N}건**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: probe
+    if: needs.probe.outputs.go == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # 수시 발행은 주식 엔진 고정이다 — 이 워크플로에는 다른 스타일이 들어올 자리가 없다.
+      VIDEO_ENGINE: stock
+      STOCK_MODE: spot
+      STOCK_MARKET: ${{ needs.probe.outputs.market }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-4-8' }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID || secrets.ELEVENLABS_VOICE_ID }}
+      ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || secrets.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
+      YOUTUBE_CATEGORY_ID_CH2: ${{ vars.YOUTUBE_CATEGORY_ID_CH2 }}
+      YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
+      YOUTUBE_DESC_FOOTER_CH2: ${{ vars.YOUTUBE_DESC_FOOTER_CH2 }}
+      # ★데일리와 같은 이유로 공개다★ 비공개로 쌓아 두면 사람이 매번 손으로 공개로 바꿔야
+      # 하고, 하루라도 놓치면 그 영상은 아무도 못 본다. 대신 앞단에서 막는다 — 낡은 값,
+      # 재료 부족, 최근 발행한 종목이면 대본 단계가 skip 으로 끝난다.
+      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || (github.event_name == 'schedule' && 'public') || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
+      YOUTUBE_PRIVACY_STATUS_CH2: ${{ vars.YOUTUBE_PRIVACY_STATUS_CH2 }}
+      # 주식 영상은 2번 채널이다. vars 설정에 기대지 않고 여기서 못박는다 — 데일리에서
+      # 이 값이 비어 'default'(AI 강의 채널)로 떨어져 남의 채널에 올라간 적이 있다.
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || 'ch2' }}
+      SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'false' }}
+      CONTENT_LANGUAGE: ${{ vars.CONTENT_LANGUAGE || 'ko' }}
+      NARRATION_SPEED: ${{ vars.NARRATION_SPEED || '' }}
+      BGM_STYLE: ${{ vars.BGM_STYLE || '' }}
+      DO_UPLOAD: ${{ github.event.inputs.do_upload || 'true' }}
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: 한국어 폰트 & Chromium 의존성 설치
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fonts-nanum fonts-noto-cjk \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2
+          sudo fc-cache -f
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: Remotion 브라우저 준비
+        run: npx remotion browser ensure
+
+      - name: 대본 생성
+        id: script
+        run: npm run generate:script
+
+      # 후보가 전부 최근 발행이거나 재료가 모자라면 대본 단계가 skip=true 를 낸다.
+      # 실패가 아니라 정상적인 건너뛰기라 잡은 초록으로 끝난다.
+      - name: 나레이션 생성
+        if: steps.script.outputs.skip != 'true'
+        run: npm run generate:voice
+
+      - name: 렌더링
+        if: steps.script.outputs.skip != 'true'
+        run: npm run render
+
+      - name: 유튜브 업로드
+        if: steps.script.outputs.skip != 'true'
+        run: npm run upload
+
+      - name: 산출물 업로드(디버그용 아티팩트)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spot-output
+          path: |
+            out/video.mp4
+            out/thumbnail.jpg
+            out/script.json
+            out/manifest.json
+            out/stock-views.json
+            out/upload-result.json
+            out/usage.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: 업로드 결과 파싱
+        id: result
+        if: always()
+        run: |
+          if [ -f out/upload-result.json ]; then
+            echo "vid=$(jq -r .videoId out/upload-result.json)" >> "$GITHUB_OUTPUT"
+            echo "pv=$(jq -r .privacyStatus out/upload-result.json)" >> "$GITHUB_OUTPUT"
+            echo "has=1" >> "$GITHUB_OUTPUT"
+            {
+              echo "### 발행"
+              echo ""
+              echo "- $(jq -r .title out/upload-result.json 2>/dev/null || echo '')"
+              echo "- https://youtu.be/$(jq -r .videoId out/upload-result.json)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "has=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 리뷰용 결과 아티팩트
+        if: always() && steps.result.outputs.has == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: result__vid-${{ steps.result.outputs.vid }}__pv-${{ steps.result.outputs.pv }}
+          path: out/upload-result.json
+          if-no-files-found: ignore
+          retention-days: 7

@@ -120,7 +120,29 @@ bash scripts/setup-secrets.sh
 
 값은 로컬 `.env` 에서만 읽어 `gh` 가 암호화 전송하며 화면에 출력되지 않습니다.
 
-> 발행 시각은 `daily-publish.yml` 의 `cron: '0 22 * * *'` (UTC) 를 수정해 바꿉니다.
+> 발행 시각은 `daily-publish.yml` 의 `schedule.cron` (UTC) 을 수정해 바꿉니다.
+> 현재는 `'30 8 * * 1-5'`(17:30 KST, 한국장 마감 뒤)와 `'30 21 * * 1-5'`(06:30 KST, 미국장 마감 뒤) 두 줄입니다.
+
+### 주식 수시 발행 (이벤트 기반)
+
+`.github/workflows/stock-spot-publish.yml` 은 데일리와 **다른 축**으로 돕니다.
+
+- 데일리는 "오늘 시장" 한 장을 하루 한 번 내보냅니다. 505종목을 분석해도 영상에 쓰이는 건 5종목입니다.
+- 수시 발행은 사이트가 알려 주는 **변화**(`/api/feed`)를 받아, 그 종목 한 편을 만듭니다.
+  거래대금 3배가 어제도 3배였으면 이벤트가 아닙니다 — **값이 큰 것이 아니라 바뀐 것**입니다.
+
+평일 하루 5번(한국장 2 · 마감 뒤 1 · 미국장 2) 후보를 확인하고, 후보가 없으면 아무것도 하지 않습니다.
+이벤트가 0건인 것은 고장이 아니라 조용한 시간대라는 뜻입니다.
+
+| 단계 | 하는 일 |
+|---|---|
+| `probe` 잡 | `curl` 한 번으로 종목 이벤트 수만 셉니다(20초). 0건이면 본 잡을 아예 띄우지 않습니다. |
+| `publish` 잡 | 우선순위 높은 순으로 후보를 훑어, 최근 발행한 종목·재료가 모자란 종목을 건너뛰고 한 편을 만듭니다. |
+
+중복 발행은 **채널에 물어봅니다**(최근 영상 제목 50개). 이 저장소는 발행 이력 파일을 두지 않습니다 —
+파일은 워크플로가 다른 러너에서 돌거나 수동 실행이 섞이면 곧 사실과 어긋납니다.
+
+수동 실행: **Actions → 주식 수시 발행 (이벤트 기반) → Run workflow** (시장 KR/US, 공개 상태, 채널 선택).
 
 ## 6. 커스터마이징
 
@@ -146,7 +168,8 @@ src/
     Root.tsx / Video.tsx / theme.ts
     components/          Rough·Layout·Scenes·Captions
 scripts/authorize-youtube.mjs   refresh token 발급 도우미
-.github/workflows/daily-publish.yml
+.github/workflows/daily-publish.yml       매일 발행(주식 데일리 포함)
+.github/workflows/stock-spot-publish.yml  주식 수시 발행(이벤트 기반)
 public/audio/            (런타임에 나레이션 mp3 저장)
 out/                     (산출물: script.json, manifest.json, video.mp4)
 ```

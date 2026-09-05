@@ -41,10 +41,12 @@ import { fetchAsset, availableProviders, creditBlock, type StockAsset } from '..
 import { planShots, shotSeeds } from '../lib/footagePlan.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { printUsage } from '../lib/usage.js';
-import { uploadVideo, setThumbnail, setPrivacy } from '../lib/youtube.js';
+import { uploadVideo, setThumbnail, setPrivacy, listRecentVideoTitles } from '../lib/youtube.js';
 import { pickVisualThemeMode } from '../lib/visualTheme.js';
 import { fetchBrief, fetchSceneImage, freshnessProblem } from '../lib/stockBrief.js';
 import { buildStockScript } from '../lib/stockScript.js';
+import { fetchFeed, fetchBundle, feedProblem } from '../lib/stockFeed.js';
+import { buildSpotScript } from '../lib/spotScript.js';
 import { drawStockThumbnail } from '../lib/stockThumbnail.js';
 
 type Step = 'script' | 'voice' | 'render' | 'upload' | 'thumbnail' | 'rethumb' | 'setprivacy' | 'remixbgm';
@@ -108,11 +110,94 @@ async function writeJson(p: string, data: unknown): Promise<void> {
   await fs.writeFile(p, JSON.stringify(data, null, 2), 'utf8');
 }
 
+/** 발행하지 않고 조용히 끝낸다. 워크플로가 뒤 단계를 건너뛰게 표시한다. */
+async function skipRun(why: string, detail = ''): Promise<never> {
+  console.error(`⏭ 이번에는 발행하지 않습니다 — ${why}`);
+  if (detail) console.error(`   ${detail}`);
+  // ★실패로 끝내지 않는다★ 건너뛰는 것은 정상 동작이라, 빨간 X 로 남기면 진짜 고장과
+  // 구별이 안 되고 매번 알림이 울려 나중에는 아무도 안 본다.
+  if (process.env.GITHUB_OUTPUT) await fs.appendFile(process.env.GITHUB_OUTPUT, 'skip=true\n');
+  process.exit(0);
+  throw new Error('unreachable'); // process.exit 뒤라 실행되지 않는다 — 타입 검사용.
+}
+
+/**
+ * 1) 수시 발행 대본 — 이벤트 하나로 종목 한 편.
+ *
+ * ★데일리와 다른 점은 시작점이다★ 데일리는 "오늘 시장" 에서 출발해 종목으로 내려오고,
+ * 수시는 "지금 이 종목에 무슨 일이 일어났다" 에서 출발한다. 그래서 재료도 daily-brief 가
+ * 아니라 /api/feed 다 — 값이 큰 것이 아니라 바뀐 것을 준다.
+ *
+ * ★이벤트가 없는 것은 고장이 아니다★ 사이트가 직전 스냅샷과 비교해 변화만 내보내므로,
+ * 조용한 시간대에는 0건이 정상이다. 그런 때 억지로 한 편 만들면 "아무 때나 할 수 있는
+ * 말" 을 하게 되고, 그게 이 채널에서 제일 하면 안 되는 일이다.
+ */
+async function stepSpotScript(): Promise<Script> {
+  const market = (process.env.STOCK_MARKET ?? 'KR').toUpperCase() as 'KR' | 'US';
+  console.log(`▶ [1/4] 수시 발행 후보 조회 (${market})`);
+  const feed = await fetchFeed(market, { limit: 20 });
+
+  // 낡은 값으로 "지금 이렇습니다" 를 말하면 눈으로는 구별이 안 되는 거짓말이 된다.
+  const stale = feedProblem(feed);
+  if (stale) await skipRun(stale, `asOf=${new Date(feed.asOf).toISOString()} sessionState=${feed.sessionState}`);
+  if (!feed.events.length) await skipRun('지금은 새로 생긴 이벤트가 없습니다.', `sessionState=${feed.sessionState}`);
+
+  // ★중복은 채널에 물어본다★ 이 저장소는 발행 이력 파일을 두지 않는다("유튜브가 사실이다").
+  // 이력 파일은 워크플로가 다른 러너에서 돌거나 수동 실행이 섞이면 곧 사실과 어긋난다.
+  let recent: string[] = [];
+  try {
+    recent = await listRecentVideoTitles(50);
+  } catch (e) {
+    // 자격 증명이 없는 환경(미리보기 실행 등)에서는 중복 검사만 건너뛴다.
+    console.warn(`  · 최근 영상 목록을 못 읽어 중복 검사를 건너뜁니다 — ${(e as Error).message}`);
+  }
+  const published = (name: string) => recent.some((t) => t.includes(name));
+
+  const candidates = [...feed.events].sort((a, b) => b.priority - a.priority);
+  for (const ev of candidates) {
+    // 시장 전체 이벤트(regime_shift)는 종목이 없어 종목 한 편으로 만들 수 없다.
+    if (!ev.code) continue;
+    if (published(ev.name)) {
+      console.log(`  · 건너뜀(최근 발행): ${ev.name}`);
+      continue;
+    }
+    let bundle;
+    try {
+      bundle = await fetchBundle(ev.code);
+    } catch (e) {
+      console.warn(`  · 번들 실패(다음 후보로): ${ev.name} — ${(e as Error).message}`);
+      continue;
+    }
+    const built = buildSpotScript(ev, bundle, '');
+    // ★재료가 모자란 종목은 넘긴다★ 유니버스 밖 종목은 온톨로지·수급·화면이 통째로
+    // null 로 와서 씬이 서너 개밖에 안 나온다. 그걸로 만든 영상은 1분짜리 껍데기가 된다.
+    if (built.scenes.length < 6) {
+      console.log(`  · 건너뜀(재료 부족 ${built.scenes.length}씬): ${ev.name}`);
+      continue;
+    }
+    const script = ScriptSchema.parse(built);
+    await writeJson(SCRIPT_PATH, script);
+    await writeJson(STOCK_VIEWS_PATH, built.views);
+    console.log(`  · 후보 ${candidates.length}건 중 채택: ${ev.name} (${ev.kind}, 우선순위 ${ev.priority.toFixed(3)})`);
+    console.log(`  · ${humanizeForLog(ev.whyNowKo)}`);
+    console.log(`  · 씬 ${script.scenes.length}개 · 사이트 화면 ${Object.keys(built.views).length}장`);
+    console.log(`  · 제목: ${script.title}`);
+    return script as Script;
+  }
+  return skipRun('발행할 만한 후보가 없습니다(전부 최근 발행 또는 재료 부족).', `후보 ${candidates.length}건`);
+}
+
+/** 로그에 내부 엔진 id 가 그대로 찍히면 나중에 원인을 찾을 때 헷갈린다. */
+const humanizeForLog = (t: string) => t.replace(/\b(onto|quant|ta|fusion)\b/g, (m) => ({ onto: '온톨로지', quant: '수급·차트', ta: '차트 거장', fusion: '융합' })[m] ?? m);
+
 /** 1) 대본 생성 */
 async function stepScript(): Promise<Script> {
   // ★주식 데일리는 값과 말을 나눈다★ 숫자는 stockontology.cc 응답에서 그대로 옮기고,
   // "왜 그런가"만 Claude 가 쓴다(stockScript → stockNarrate). 모델이 쓴 문장에 화면에 없는
   // 숫자가 있으면 그 씬은 버려지고 조립본이 나간다 — 숫자가 곧 신뢰인 채널이라서다.
+  if (config.videoEngine === 'stock' && (process.env.STOCK_MODE ?? 'daily') === 'spot') {
+    return (await stepSpotScript()) as Script;
+  }
   if (config.videoEngine === 'stock') {
     const market = (process.env.STOCK_MARKET ?? 'KR').toUpperCase() as 'KR' | 'US';
     console.log(`▶ [1/4] 주식 브리프 조립 (${market})`);
@@ -517,7 +602,10 @@ async function makeThumbnail(): Promise<void> {
       // 곁가지가 비어 있으면(옛 대본) 종목 이름으로 채운다 — 빈 줄로 두면 아래가 휑하다.
       foot: meta.thumbnailFoot || names.slice(0, 3).join(' · '),
       badge: meta.thumbnailBadge || '다음 장',
-      dateLabel: `${now.getMonth() + 1}/${now.getDate()} 마감 기준`,
+      // ★장중 발행에 "마감 기준" 을 찍으면 거짓말이다★ 수시 발행은 장이 열려 있을 때도
+      // 나가는데, 그때 값은 몇 분 뒤면 달라진다. 배지에 이미 시점이 들어 있으므로 날짜
+      // 옆 문구는 그것을 따라간다.
+      dateLabel: `${now.getMonth() + 1}/${now.getDate()} ${meta.thumbnailBadge || '마감'} 기준`.replace(/기준 기준$/, '기준'),
       accent: meta.thumbnailAccent,
       outPath: THUMBNAIL_PATH,
     });
