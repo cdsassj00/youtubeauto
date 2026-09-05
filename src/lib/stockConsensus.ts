@@ -204,6 +204,46 @@ export function plainReason(c: ConsensusPick, max = 2, skipOnto = false): string
   return out.slice(0, max).join(' · ');
 }
 
+export interface SwingPick {
+  pick: Pick;
+  /** 며칠째 목록에 살아남았나. */
+  days: number;
+  /** 파생 제외 합의 엔진 수(0 이면 단독). */
+  agree: number;
+  engines: string[];
+}
+
+/**
+ * 스윙 관점 목록 — 며칠째 살아남은 종목만.
+ *
+ * ★매일 종목이 바뀌면 아무도 못 따라간다★ 직장인은 장중에 사고팔 수 없어서 며칠에서
+ * 몇 주를 들고 간다. 그런데 하루짜리 목록을 매일 새로 내밀면 어제 산 사람은 오늘
+ * 방송에서 자기 종목을 못 본다. 신빙성 이전에 쓸모의 문제다. 그래서 "오늘 처음 뜬 것"과
+ * "며칠째 버티는 것"을 갈라서, 뒤엣것을 앞에 세운다.
+ *
+ * ★daysInList 는 대표 목록에만 있다★ 엔진별 목록의 종목(합의로 올라온 종목 중 일부)은
+ * 며칠째인지 알 수가 없다. 모르는 것을 0 일이나 신규로 적으면 사실이 아니므로, 값이
+ * 있는 종목만 이 목록에 넣는다. 없는 종목은 합의 목록 쪽에서 따로 다룬다.
+ *
+ * 정렬은 (1) 합의 엔진 수, (2) 살아남은 날수. 여러 방식이 겹치면서 며칠째 유지되는
+ * 종목이 이 관점에서 가장 앞이다.
+ */
+export function swingPicks(brief: Brief, minDays = 2): SwingPick[] {
+  const agreed = new Map(agreedPicks(brief).map((c) => [c.code, c]));
+  return brief.picks
+    .filter((p) => typeof p.daysInList === 'number' && p.daysInList >= minDays)
+    .map((p) => {
+      const c = agreed.get(p.code);
+      return { pick: p, days: p.daysInList as number, agree: c?.independentCount ?? 0, engines: c ? engineNames(c) : [] };
+    })
+    .sort((a, b) => b.agree - a.agree || b.days - a.days);
+}
+
+/** 오늘 처음 들어온 종목 — 참고로만 둔다. */
+export function freshPicks(brief: Brief): Pick[] {
+  return brief.picks.filter((p) => p.isNew || p.daysInList === 1);
+}
+
 /** 대표 목록에만 있고 다른 엔진은 아무도 안 든 종목 — "온톨로지 단독"임을 밝혀야 하는 자리. */
 export function soloPicks(brief: Brief): Pick[] {
   const agreed = new Set(agreedPicks(brief).map((c) => c.code));
