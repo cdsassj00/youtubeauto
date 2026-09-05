@@ -25,7 +25,7 @@ export const AiVideo: React.FC<RenderManifest> = (manifest) => {
           <SceneStage durationInFrames={scene.durationInFrames} index={i}>
             <SceneVisual scene={scene} dur={scene.durationInFrames} />
           </SceneStage>
-          <Captions narration={scene.narration} durationInFrames={scene.durationInFrames} />
+          <Captions narration={scene.captionText ?? scene.narration} durationInFrames={scene.durationInFrames} />
           <Audio src={staticFile(scene.audioPath)} />
         </Sequence>
       ))}
