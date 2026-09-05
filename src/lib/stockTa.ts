@@ -45,8 +45,15 @@ export interface TaResult {
   trend?: unknown;
 }
 
-/** 부를 심볼 후보. 한국은 접미사를 알 수 없어 둘 다 시도하고, 가격으로 가린다. */
-function candidates(market: Market, code: string, ticker?: string | null): string[] {
+/**
+ * 부를 심볼 후보.
+ *
+ * ★사이트가 symbol 을 주기 시작했다★ picks·agreement 에 "253590.KQ" 처럼 정확한 값이
+ * 들어온다. 그것이 있으면 추측할 이유가 없다. 없을 때만 접미사를 둘 다 시도한다.
+ * 어느 쪽이든 아래의 가격 대조는 그대로 거친다 — 검증을 건너뛰지는 않는다.
+ */
+function candidates(market: Market, code: string, ticker?: string | null, symbol?: string | null): string[] {
+  if (symbol) return [symbol];
   if (market === 'US') return ticker ? [ticker] : [];
   return [`${code}.KS`, `${code}.KQ`];
 }
@@ -61,20 +68,21 @@ export async function fetchTaVerified(
   code: string,
   ticker: string | null | undefined,
   expectedPrice: number,
+  symbol?: string | null,
 ): Promise<TaResult | null> {
   if (!expectedPrice) return null;
-  for (const symbol of candidates(market, code, ticker)) {
+  for (const sym of candidates(market, code, ticker, symbol)) {
     try {
       // ★캐시를 우회한다★ scene·카드 SVG 는 5분 엣지 캐시라 같은 URL 을 다시 부르면
       // 갱신 전 값이 온다(사이트 쪽에서 알려 준 함정). JSON 도 같은 앞단을 지나므로 붙인다.
-      const res = await fetch(`${BASE}/api/ta?symbol=${encodeURIComponent(symbol)}&cb=${Date.now()}`);
+      const res = await fetch(`${BASE}/api/ta?symbol=${encodeURIComponent(sym)}&cb=${Date.now()}`);
       if (!res.ok) continue;
       const d = (await res.json()) as TaResult;
       const gap = Math.abs((d.price ?? 0) - expectedPrice) / expectedPrice;
-      if (Number.isFinite(gap) && gap <= PRICE_TOLERANCE) return { ...d, symbol };
-      console.warn(`  · ${symbol} 은 가격이 맞지 않아 버립니다 (응답 ${d.price} vs 브리프 ${expectedPrice})`);
+      if (Number.isFinite(gap) && gap <= PRICE_TOLERANCE) return { ...d, symbol: sym };
+      console.warn(`  · ${sym} 은 가격이 맞지 않아 버립니다 (응답 ${d.price} vs 브리프 ${expectedPrice})`);
     } catch (e) {
-      console.warn(`  · ${symbol} 조회 실패(무시):`, (e as Error).message);
+      console.warn(`  · ${sym} 조회 실패(무시):`, (e as Error).message);
     }
   }
   return null;

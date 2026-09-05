@@ -192,6 +192,14 @@ export const ScriptSchema = z.object({
   /** 썸네일 하단에 작게 까는 곁가지(엔진 이름·다른 종목). 큰 글씨를 방해하지 않는 선에서. */
   thumbnailFoot: z.string().optional().default(''),
   /**
+   * 오른쪽에 크게 박을 숫자와 그 이름 ("+6.3%" / "1차 목표").
+   *
+   * ★약속이 아니라 계산값이다★ 큰 숫자만 있으면 "이만큼 번다"로 읽힌다. 무엇의 숫자인지
+   * 라벨을 반드시 함께 두고, 판정이 매수가 아닌 날에는 수익률 대신 그 판정을 적는다.
+   */
+  thumbnailBigValue: z.string().optional().default(''),
+  thumbnailBigLabel: z.string().optional().default(''),
+  /**
    * 그날의 강조색(#rrggbb).
    *
    * ★매일 같은 색이면 목록에서 한 덩어리로 보인다★ 실제로 열 편이 전부 같은 남색이라

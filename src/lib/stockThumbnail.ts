@@ -59,19 +59,28 @@ const SERIES = 'AI가 추천하는 주식종목';
 export async function drawStockThumbnail(opts: {
   /** 제일 크게 박을 한 덩어리 — 종목 이름. 두 줄까지 나눠 쓴다. */
   headline: string;
-  /** 큰 글씨 아래 한 줄 — 왜 봐야 하는지 (예: "온톨로지·수급이 동시 지목"). */
+  /** 이름 아래 칩 한 줄 — 왜 봐야 하는지 (예: "AI 3개 중 2개가 찍었다"). */
   sub?: string;
-  /** 우상단 배지 (예: "9/5 장"). */
+  /** 우상단 배지 (예: "9/7 한국장"). */
   badge: string;
-  /** 하단에 작게 까는 곁가지. */
+  /**
+   * 오른쪽에 크게 박을 숫자와 그 이름 (예: "+6.3%" / "1차 목표").
+   *
+   * ★주식 썸네일에서 제일 먼저 보이는 것은 숫자다★ 글자만 있으면 읽어야 알 수 있는데,
+   * 목록을 훑는 사람은 읽지 않는다. 큰 숫자 하나가 있어야 눈이 멈춘다. 다만 이 숫자는
+   * 약속이 아니라 계산된 목표라서, 무엇의 숫자인지(label) 를 반드시 위에 붙인다.
+   */
+  bigValue?: string;
+  bigLabel?: string;
+  /** 하단에 까는 실제 가격 (예: "진입 192,388원 · 손절 187,236원"). */
   foot?: string;
-  /** 좌하단 (예: "9/4 마감 기준"). */
+  /** 좌하단 (예: "9/5 마감 기준"). */
   dateLabel: string;
   /** 그날의 강조색. 없으면 금색. */
   accent?: string;
   outPath: string;
 }): Promise<void> {
-  const { headline, sub = '', badge, foot = '', dateLabel, accent, outPath } = opts;
+  const { headline, sub = '', badge, bigValue = '', bigLabel = '', foot = '', dateLabel, accent, outPath } = opts;
   const ACC = /^#[0-9a-f]{6}$/i.test(accent ?? '') ? accent! : '#d9a441';
 
   // ★종목 이름이 길면 줄을 나눈다★ "롯데웰푸드·현대해상"을 한 줄에 우겨넣으면 글자가
@@ -79,15 +88,18 @@ export async function drawStockThumbnail(opts: {
   const parts = headline.split(/\s*[·,]\s*/).filter(Boolean);
   const lines: string[] = parts.length >= 2 ? [parts[0], parts.slice(1).join('·')] : [headline];
 
-  const MAXW = 1150;
+  // ★오른쪽 숫자 블록이 있으면 이름이 쓸 폭이 줄어든다★ 폭을 안 줄이면 이름이 숫자
+  // 위로 올라타 둘 다 못 읽는다.
+  const hasBig = Boolean(bigValue);
+  const MAXW = hasBig ? 690 : 1150;
   // 한 줄이면 큼직하게, 두 줄이면 조금 줄여 둘 다 같은 크기로 맞춘다.
-  const size = Math.min(...lines.map((l) => fitSize(l, MAXW, lines.length === 1 ? 210 : 150, 78)));
+  const size = Math.min(...lines.map((l) => fitSize(l, MAXW, lines.length === 1 ? (hasBig ? 160 : 210) : (hasBig ? 120 : 150), 62)));
   const lineH = Math.round(size * 1.12);
   // 큰 글씨 덩어리 — 위에는 시리즈 이름, 아래에는 근거 줄이 붙으므로 그 사이에 놓는다.
   const blockTop = 348 - ((lines.length - 1) * lineH) / 2;
 
   // 칩 안쪽 여백(좌우 28씩)을 뺀 폭에 맞춘다.
-  const subFit = sub ? fitText(sub, 1094, 60, 34) : { text: '', size: 0 };
+  const subFit = sub ? fitText(sub, hasBig ? 640 : 1094, hasBig ? 48 : 60, 30) : { text: '', size: 0 };
   const subText = subFit.text;
   const subSize = subFit.size;
   // 곁가지는 좌우 64 여백 안에서.
@@ -123,6 +135,20 @@ ${
   subText
     ? `<rect x="64" y="${blockTop + (lines.length - 1) * lineH + 52}" width="${Math.min(1150, subSize * widthUnits(subText) + 56)}" height="${subSize + 40}" rx="12" fill="${ACC}"/>
 <text x="92" y="${blockTop + (lines.length - 1) * lineH + 52 + subSize + 6}" font-family="${FONT}" font-size="${subSize}" font-weight="bold" fill="#0b1020">${esc(subText)}</text>`
+    : ''
+}
+
+${
+  hasBig
+    ? (() => {
+        // 숫자 폭에 맞춰 블록을 넓힌다 — "+6.3%" 와 "대기" 는 길이가 크게 다르다.
+        const vs = fitSize(bigValue, 380, 132, 64);
+        const w = Math.max(300, Math.min(440, vs * widthUnits(bigValue) + 80));
+        const x = 1216 - w;
+        return `<rect x="${x}" y="196" width="${w}" height="286" rx="20" fill="${ACC}"/>
+${bigLabel ? `<text x="${x + w / 2}" y="262" font-family="${FONT}" font-size="38" font-weight="bold" fill="#0b1020" text-anchor="middle" opacity=".8">${esc(bigLabel)}</text>` : ''}
+<text x="${x + w / 2}" y="${bigLabel ? 392 : 370}" font-family="${FONT}" font-size="${vs}" font-weight="bold" fill="#0b1020" text-anchor="middle">${esc(bigValue)}</text>`;
+      })()
     : ''
 }
 

@@ -56,6 +56,22 @@ function leagueScopeNote(b: Brief): string {
   return `다만 이 성적을 낸 목록과 오늘 종목을 고른 목록이 다를 수 있습니다.`;
 }
 
+/**
+ * 전략 13종이 몇 대 몇으로 갈렸는지 한 줄. 숫자 하나보다 이야기가 되는 재료다.
+ * 창시자 이름이 있는 전략은 그것도 준다 — "1978년에 만든 방식" 같은 말을 쓸 수 있게.
+ */
+function verdictSummary(ta: TaResult): string {
+  const st = ta.strategies ?? [];
+  if (!st.length) return '';
+  const buy = st.filter((x) => /buy/.test(x.verdict)).length;
+  const sell = st.filter((x) => /sell/.test(x.verdict)).length;
+  const named = st
+    .filter((x) => x.author && /buy/.test(x.verdict))
+    .slice(0, 2)
+    .map((x) => `${x.nameKo}(${x.author}): ${x.text}`);
+  return [`차트 전략 ${st.length}종 중 매수 ${buy} · 매도 ${sell} · 나머지 중립`, ...named].join('\n');
+}
+
 /** 시장에 맞는 금액 표기 — 원은 정수, 달러는 소수 둘째 자리. 화면·설명란용. */
 const money = (b: Brief, n: number) =>
   b.market === 'US' ? `$${n.toFixed(2)}` : `${Math.round(n).toLocaleString()}원`;
@@ -367,6 +383,8 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
   const ENGINES_SEC = 45;
   /** 합의 씬은 이 영상의 상품이라 길이를 넉넉히 준다. */
   const CONSENSUS_SEC = 40;
+  /** 매매 계획 씬 — 가격의 뜻을 풀어 말할 시간이 필요하다. */
+  const PLAN_SEC = 42;
 
   const mk = b.marketKo;
 
@@ -466,9 +484,21 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
         },
       },
       undefined,
-      top
-        .map((c) => `${c.name}(${c.sector ?? '미분류'}) — ${c.engines.filter((e) => !e.derived).map((e) => `${e.nameKo}: ${e.reason}`).join(' / ')}`)
-        .join('\n'),
+      // ★엔진이 "무엇을 보는 방식인지"까지 준다★ 이유 문장만 주면 모델이 그 문장을
+      // 고쳐 읽는 데서 끝난다. 온톨로지는 바깥 사정(거시)을, 수급·차트는 그런 사정을
+      // 모른 채 거래량과 가격만 본다는 것을 알아야 "서로 다른 눈이 만났다"는 이야기를 쓴다.
+      [
+        ...(b.engines ?? [])
+          .filter((e) => !e.derived && e.id !== 'fusion')
+          .map((e) => `[방식] ${e.nameKo} — ${e.tagKo ?? ''} ${e.descKo ?? ''}`.trim()),
+        ...top.map(
+          (c) =>
+            `${c.name}(${c.sector ?? '미분류'}) — ${c.engines
+              .filter((e) => !e.derived)
+              .map((e) => `${e.nameKo}: ${e.reason}`)
+              .join(' / ')}`,
+        ),
+      ].join('\n'),
       CONSENSUS_SEC,
     );
   }
@@ -527,6 +557,27 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
       },
       // 사이트가 그려 주는 전략 13종 화면을 배경으로 깐다.
       `strategies:${agreed[0].code}`,
+      /**
+       * ★플랜 씬에도 facts 를 준다★ 이 씬은 원래 값만 읽고 끝났다. 그런데 응답의 note
+       * 들이 이미 "왜 그 가격인지"를 설명하는 문장이다("지지선에 딱 붙이면 꼬리 한 번에
+       * 털립니다"). 그것을 재료로 주면 모델이 가격을 읽는 대신 그 자리의 뜻을 말한다.
+       * 전략 13종의 찬반 분포도 같이 준다 — 열세 중 아홉이 매수라는 사실이 숫자 하나보다
+       * 이야기가 된다.
+       */
+      [
+        `종목: ${agreed[0].name}`,
+        `판정: ${p.biasKo}${p.gradeKo ? ` · ${p.gradeKo}` : ''}`,
+        p.entry ? `진입 ${m(p.entry.low)}~${m(p.entry.high)} — ${p.entry.note ?? ''}` : '',
+        p.stop ? `손절 ${m(p.stop.price)} (${pct(p.stop.pct)}) — ${p.stop.note ?? ''}` : '',
+        ...(p.targets ?? []).slice(0, 2).map((t, i) => `목표${i + 1} ${m(t.price)} (${pct(t.pct)}) — ${t.note ?? ''}`),
+        typeof p.rr === 'number' ? `손익비 ${p.rr.toFixed(2)}` : '',
+        p.invalidation ? `계획이 깨지는 조건: ${p.invalidation}` : '',
+        verdictSummary(ta),
+        ...(p.checklist ?? []).map((c) => `점검: ${c.text} → ${c.pass ? '충족' : '미충족'}`),
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      PLAN_SEC,
     );
   }
 
@@ -1150,7 +1201,7 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
    */
   const leadPick = agreedPicks(b)[0];
   const ta = leadPick
-    ? await fetchTaVerified(b.market, leadPick.code, leadPick.ticker, priceOf(b, leadPick.code))
+    ? await fetchTaVerified(b.market, leadPick.code, leadPick.ticker, priceOf(b, leadPick.code), leadPick.symbol)
     : null;
   if (leadPick && !ta) console.warn(`  · ${leadPick.name} 매매 플랜을 확인하지 못해 그 씬은 넣지 않습니다.`);
 
@@ -1230,6 +1281,20 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
    * 사야 하는지는 말해 주지 않는다. 사이트가 지지·저항을 주기 시작했으니, 가격이 있는
    * 날은 그 숫자를 앞에 둔다. 없는 날은 원래대로 이유만 쓴다 — 없는 가격을 지어내지 않는다.
    */
+  /**
+   * 이 종목이 걸린 바깥 사정 한 덩어리 — "유가 +9.4%".
+   * 온톨로지 이유 문장의 화살표 앞이 원인이라 그 부분만 꺼낸다. 오른 것만 쓴다:
+   * "코스피 -4.82%" 를 크게 박으면 이 종목이 내렸다는 말로 읽힌다.
+   */
+  const driverFact = (() => {
+    if (!lead.length) return '';
+    const onto = lead[0].engines.find((e) => e.id === 'onto' && !e.derived);
+    if (!onto) return '';
+    const head = onto.reason.split('→')[0].replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+    const m = /^(.+?)\s*\+([\d.]+)%$/.exec(head);
+    return m ? `${m[1]} +${m[2]}%` : '';
+  })();
+
   const leadPrice = lead.length ? priceOf(b, lead[0].code) : 0;
   const leadLevels = lead.length ? levelsOf(b, lead[0].code) : null;
   const sup = nearSupport(leadLevels, leadPrice);
@@ -1240,7 +1305,7 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
       ? `52주 최고가까지 ${gap.toFixed(1)}%`
       : '';
   const whyLine = lead.length
-    ? [priceFact, plainReason(lead[0], priceFact ? 1 : 2)].filter(Boolean).join(' · ')
+    ? [priceFact, plainReason(lead[0], priceFact ? 1 : 2, Boolean(driverFact))].filter(Boolean).join(' · ')
     : '';
   const dayLabel = session2.withDay;
 
@@ -1316,6 +1381,17 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
       thumbnailHeadline: leadNames.join('·'),
       // 칩에는 후크를, 곁가지에는 근거 숫자를 — 둘 다 사람이 쓰는 말로.
       thumbnailSub: hitLine || `${top}에 순풍`,
+      /**
+       * 오른쪽 큰 블록 — 이야기의 출발점을 박는다.
+       *
+       * ★목표 수익률을 크게 쓰지 않는다★ "+6.3%" 를 제일 크게 박으면 그만큼 번다는
+       * 약속으로 읽힌다. 이 영상이 파는 것은 수익률이 아니라 "왜 이 종목인가" 이고,
+       * 그 이야기의 첫 문장은 언제나 바깥에서 무엇이 움직였는가다(유가가 9% 올랐다).
+       * 그 값이 없거나 음수라 한 덩어리로 말할 수 없는 날에는 블록을 아예 빼고
+       * 이름을 넓게 쓴다 — 빈칸을 억지로 채우지 않는다.
+       */
+      thumbnailBigValue: driverFact,
+      thumbnailBigLabel: driverFact ? '이게 움직였다' : '',
       // ★미국편은 하단에 회사 풀네임을 깐다★ 큰 글씨가 티커(MPC·VLO)라 그것만 보면
       // 무슨 회사인지 알 수 없다. 그 뒤에 근거를 붙인다.
       thumbnailFoot:
