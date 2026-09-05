@@ -29,6 +29,7 @@ const KIND_LABEL: Record<string, string> = {
   plan_downgrade: '조건이 나빠졌습니다',
   regime_shift: '국면이 바뀌었습니다',
   streak: '며칠째 남아 있습니다',
+  cross_profile: '여러 관점이 겹쳤습니다',
 };
 
 const CHARS_PER_SEC = 320 / 60;
@@ -87,7 +88,7 @@ function whyClosing(kind: string): string {
   if (kind === 'agreement_lost') {
     return '서로 보는 것이 다른 분석들입니다. 그중 하나가 손을 뗐다는 것은 근거 하나가 사라졌다는 뜻입니다.';
   }
-  if (kind === 'new_agreement') {
+  if (kind === 'new_agreement' || kind === 'cross_profile') {
     return '서로 보는 것이 다른 분석들이라, 같은 종목에서 만났다는 것 자체가 신호입니다.';
   }
   return '이 셋은 서로 다른 것을 봅니다. 어느 쪽이 이 종목을 들고 있는지가 판단의 재료입니다.';
@@ -410,7 +411,10 @@ export function buildSpotScript(ev: FeedEvent, b: Bundle, disclaimer = ''): Spot
   const kindKo = KIND_LABEL[ev.kind] ?? '지금 볼 이유';
   const head = humanize(ev.headlineKo).replace(/\s*$/, '');
   const kindStem = kindKo.replace(/(습니다|합니다)\.?$/, '');
-  const title = (head.includes(kindStem.slice(0, 4)) ? `${b.name}, ${head}` : `${b.name}, ${head} — ${kindKo}`).slice(0, 100);
+  // 이미 충분히 긴 headline 뒤에 딱지를 또 붙이면 제목이 두 문장이 된다.
+  // cross_profile 의 headline 은 우리가 쓴 것이라 언제나 스스로를 설명한다 — 딱지가 필요 없다.
+  const enough = ev.kind === 'cross_profile' || head.length >= 18 || head.includes(kindStem.slice(0, 4));
+  const title = (enough ? `${b.name}, ${head}` : `${b.name}, ${head} — ${kindKo}`).slice(0, 100);
 
   const lines = [
     humanize(ev.headlineKo),
