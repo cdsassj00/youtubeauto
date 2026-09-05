@@ -1551,6 +1551,8 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
           ? [lead.map((c) => c.name).join(' · '), whyLine].filter(Boolean).join('  |  ')
           : whyLine || names.slice(2, 5).join(' · '),
       thumbnailAccent: accentFor(lead[0]?.sector ?? b.picks[0]?.sector),
+      // 배경 곡선 — 매매 플랜을 받아온 그 종목의 실제 종가 60일.
+      thumbnailSpark: (ta?.chart?.close ?? []).slice(-60).filter((n) => Number.isFinite(n)),
       // 배지는 "언제·어느 장을 볼 종목인가". 한국편과 미국편이 같은 시리즈로 나란히
       // 걸리므로 시장을 안 적으면 목록에서 둘이 구분되지 않는다.
       thumbnailBadge: `${nextLabel} ${b.marketKo}장`,

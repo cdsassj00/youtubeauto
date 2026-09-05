@@ -200,6 +200,13 @@ export const ScriptSchema = z.object({
   thumbnailBigValue: z.string().optional().default(''),
   thumbnailBigLabel: z.string().optional().default(''),
   /**
+   * 썸네일 배경에 깔 실제 종가 곡선(최근 60거래일).
+   *
+   * ★장식이 아니라 그 종목의 실제 데이터다★ 그래서 영상 내용과 어긋날 일이 없다.
+   * 받아오지 못한 날에는 비워 두고 곡선 없이 그린다 — 아무 모양이나 그려 넣지 않는다.
+   */
+  thumbnailSpark: z.array(z.number()).max(120).optional(),
+  /**
    * 그날의 강조색(#rrggbb).
    *
    * ★매일 같은 색이면 목록에서 한 덩어리로 보인다★ 실제로 열 편이 전부 같은 남색이라

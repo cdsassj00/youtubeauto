@@ -75,11 +75,28 @@ type VideoMeta = {
   thumbnailAccent?: string;
   thumbnailBigValue?: string;
   thumbnailBigLabel?: string;
+  thumbnailSpark?: number[];
 };
 async function loadMeta(): Promise<VideoMeta> {
   if (isDeckEngine()) return (await readJson(DECK_META_PATH)) as VideoMeta;
   const s = ScriptSchema.parse(await readJson(SCRIPT_PATH));
-  return { title: s.title, description: s.description, tags: s.tags, topic: s.topic, thumbnailHeadline: s.thumbnailHeadline, thumbnailBadge: s.thumbnailBadge };
+  // ★필드를 하나씩 세지 말 것★ 여기서 골라 담는 구조라, 대본에 새 값을 추가해도 이 줄을
+  // 같이 고치지 않으면 그 값은 조용히 사라진다. 실제로 썸네일의 근거 칩·곡선·강조색이
+  // 전부 여기서 빠져 이름과 배지만 그려지고 있었다 — 오류도 경고도 없이 그림만 초라해진다.
+  return {
+    title: s.title,
+    description: s.description,
+    tags: s.tags,
+    topic: s.topic,
+    thumbnailHeadline: s.thumbnailHeadline,
+    thumbnailBadge: s.thumbnailBadge,
+    thumbnailSub: s.thumbnailSub,
+    thumbnailFoot: s.thumbnailFoot,
+    thumbnailAccent: s.thumbnailAccent,
+    thumbnailBigValue: s.thumbnailBigValue,
+    thumbnailBigLabel: s.thumbnailBigLabel,
+    thumbnailSpark: s.thumbnailSpark,
+  };
 }
 
 const TAIL_PAD_FRAMES = 18; // 각 씬 끝 여백(약 0.6초)
@@ -496,6 +513,7 @@ async function makeThumbnail(): Promise<void> {
       sub: meta.thumbnailSub,
       bigValue: meta.thumbnailBigValue,
       bigLabel: meta.thumbnailBigLabel,
+      spark: meta.thumbnailSpark,
       // 곁가지가 비어 있으면(옛 대본) 종목 이름으로 채운다 — 빈 줄로 두면 아래가 휑하다.
       foot: meta.thumbnailFoot || names.slice(0, 3).join(' · '),
       badge: meta.thumbnailBadge || '다음 장',

@@ -43,6 +43,8 @@ export interface TaResult {
   strategies?: Array<{ id: string; nameKo: string; author?: string; verdict: string; score: number; text: string }>;
   consensus?: { score?: number; verdict?: string; textKo?: string };
   trend?: unknown;
+  /** 일봉 시계열. close 를 썸네일 배경 곡선으로 쓴다. */
+  chart?: { close?: number[]; t?: number[] };
 }
 
 /**
