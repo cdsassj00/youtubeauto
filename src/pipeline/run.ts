@@ -73,6 +73,8 @@ type VideoMeta = {
   thumbnailSub?: string;
   thumbnailFoot?: string;
   thumbnailAccent?: string;
+  thumbnailBigValue?: string;
+  thumbnailBigLabel?: string;
 };
 async function loadMeta(): Promise<VideoMeta> {
   if (isDeckEngine()) return (await readJson(DECK_META_PATH)) as VideoMeta;
@@ -492,6 +494,8 @@ async function makeThumbnail(): Promise<void> {
     await drawStockThumbnail({
       headline: meta.thumbnailHeadline,
       sub: meta.thumbnailSub,
+      bigValue: meta.thumbnailBigValue,
+      bigLabel: meta.thumbnailBigLabel,
       // 곁가지가 비어 있으면(옛 대본) 종목 이름으로 채운다 — 빈 줄로 두면 아래가 휑하다.
       foot: meta.thumbnailFoot || names.slice(0, 3).join(' · '),
       badge: meta.thumbnailBadge || '다음 장',

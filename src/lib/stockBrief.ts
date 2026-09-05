@@ -69,6 +69,8 @@ export function gapToHigh(levels: Levels | null | undefined, price: number): num
 
 export interface Pick {
   code: string;
+  /** 야후 심볼("096770.KS" · "253590.KQ"). /api/ta 를 부를 때 이것을 쓴다. */
+  symbol?: string | null;
   ticker?: string | null;
   name: string;
   sector: string | null;
@@ -94,6 +96,7 @@ export interface Pick {
 /** 사이트가 계산해 주는 엔진 합의. 계산을 한 곳에서만 하려고 이 값을 그대로 쓴다. */
 export interface AgreementItem {
   code: string;
+  symbol?: string | null;
   ticker?: string | null;
   name: string;
   sector: string | null;

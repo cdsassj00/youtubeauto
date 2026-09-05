@@ -33,6 +33,8 @@ export interface ConsensusEngine {
 
 export interface ConsensusPick {
   code: string;
+  /** 야후 심볼("253590.KQ"). 사이트가 주므로 추측하지 않는다. */
+  symbol?: string | null;
   /** 미국 종목의 티커. 한국은 없다(code 가 숫자라 화면에 쓸 수 없다). */
   ticker?: string | null;
   name: string;
@@ -77,6 +79,7 @@ export function consensusPicks(brief: Brief): ConsensusPick[] {
       const p = priced.get(a.code);
       return {
         code: a.code,
+        symbol: a.symbol ?? p?.symbol ?? null,
         ticker: a.ticker ?? p?.ticker ?? null,
         name: a.name,
         sector: a.sector,
@@ -111,6 +114,7 @@ export function consensusPicks(brief: Brief): ConsensusPick[] {
       if (!hit) {
         hit = {
           code: p.code,
+          symbol: p.symbol,
           ticker: p.ticker,
           name: p.name,
           sector: p.sector,
@@ -174,15 +178,20 @@ export function engineNames(c: ConsensusPick): string[] {
  * 형식이 바뀌면 빈 문자열이 나오고 호출부가 알아서 곁가지를 생략한다 — 이상한 글자가
  * 썸네일에 박히는 것보다 아무것도 없는 편이 낫다.
  */
-export function plainReason(c: ConsensusPick, max = 2): string {
+export function plainReason(c: ConsensusPick, max = 2, skipOnto = false): string {
   const out: string[] = [];
   for (const e of c.engines) {
     if (e.derived) continue;
+    // 같은 사실을 썸네일에 두 번 쓰지 않는다 — 거시 원인을 큰 블록에 이미 박은 날은 뺀다.
+    if (skipOnto && e.id === 'onto') continue;
     const r = e.reason ?? '';
     if (e.id === 'onto') {
       // 화살표 앞이 원인이다. 괄호 안 약어(WTI)는 빼야 짧고 읽힌다.
       const cause = r.split('→')[0].replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
-      if (/[+-]?\d/.test(cause)) out.push(`${cause} 수혜`);
+      // ★오른 것만 "수혜"라고 쓴다★ "코스피 -4.82% 수혜" 는 말이 안 된다. 실제로는
+      // 지수가 빠질 때 오히려 강한 업종이라는 뜻인데(민감도가 양수), 그 이야기는 한
+      // 조각으로 줄일 수 없다. 줄여서 이상해지느니 이 조각은 버리고 차트 쪽 근거를 쓴다.
+      if (/\+[\d.]+%/.test(cause)) out.push(`${cause} 수혜`);
     } else if (e.id === 'quant') {
       const ma = /20일선\s*([+-][\d.]+%)/.exec(r);
       if (/정배열/.test(r)) out.push(ma ? `20일선 ${ma[1]} 정배열` : '차트 정배열');
