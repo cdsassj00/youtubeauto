@@ -79,10 +79,15 @@ jobs:
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      # 공개 상태: 리뷰 흐름은 웹앱이 unlisted 로 전달 → 확인 후 발행(public)으로 전환. 스케줄은 vars 기본값.
-      # 스케줄 발행은 비공개로 쌓는다 — 아무도 안 본 영상이 매일 공개로 나가는 것을 막는다.
-      # 공개 자동 발행으로 바꾸려면 여기 'private' 을 'public' 으로 고친다.
-      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || github.event.client_payload.opts.privacy || github.event.client_payload.privacy || (github.event_name == 'schedule' && 'private') || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
+      # 공개 상태: 리뷰 흐름은 웹앱이 unlisted 로 전달 → 확인 후 발행(public)으로 전환.
+      #
+      # ★스케줄 발행은 공개다★ 예전에는 비공개로 쌓아 두고 아침에 사람이 보고 공개로
+      # 바꿨는데, 그러면 매일 손이 가고 하루라도 놓치면 그날 영상은 아무도 못 본다.
+      # 자동 발행의 뜻이 없어진다. 대신 사람이 안 보고 나가는 만큼, 이상한 날에는 애초에
+      # 나가지 않도록 앞단에서 막는다 — 마감 전(sessionClosed=false)·낡은 시세·브리프 날짜
+      # 불일치면 대본 단계에서 skip 으로 끝난다(freshnessProblem).
+      # 다시 비공개로 쌓으려면 여기 'public' 을 'private' 으로 되돌린다.
+      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || github.event.client_payload.opts.privacy || github.event.client_payload.privacy || (github.event_name == 'schedule' && 'public') || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
       YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
       YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
       # ── 두 번째 채널(ch2) 자격증명 — TARGET_CHANNEL=ch2 일 때 사용. 새 채널 OAuth 후 아래 시크릿을 등록. ──
