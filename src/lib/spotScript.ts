@@ -149,7 +149,14 @@ export function buildSpotScenes(ev: FeedEvent, b: Bundle): PlannedScene[] {
       heading: `${b.name} — ${KIND_LABEL[ev.kind] ?? '지금 볼 이유'}`,
       // ★headlineKo 는 그 자체로 완성된 문장이다★ 앞에 "롯데웰푸드는" 을 붙이면
       // "롯데웰푸드는 겹쳤던 분석 중 하나가 손을 뗐습니다" 가 되어 주어가 둘이 된다.
-      narration: `오늘은 ${b.name}입니다. ${period(humanize(ev.headlineKo))} ${period(humanize(ev.whyNowKo))} 이 값은 ${period(stamp)}`,
+      // ★"오늘 마감하고 분석했습니다"가 아니다★ 이 채널은 종가를 기다렸다가 하루치를
+      // 몰아 내보내는 곳이 아니라, 조건이 맞는 종목이 나오면 그때 한 편씩 내보내는
+      // 곳이다. 도입부가 "오늘은 X입니다"로 시작하면 하루 한 번짜리 코너로 들리고,
+      // 그러면 같은 날 두 번째 영상이 이상해진다.
+      narration:
+        `지금 시점에서 볼 만한 종목 하나를 짚어 보겠습니다. ${attach(b.name, '은', '는')} ` +
+        `${period(humanize(ev.headlineKo))} ${period(humanize(ev.whyNowKo))} ` +
+        `며칠에서 몇 주를 보는 스윙 관점이고, 값 기준은 ${period(stamp)}`,
       visual: 'metric',
       engine: 'stock',
       stock: {
@@ -390,7 +397,8 @@ export function buildSpotScenes(ev: FeedEvent, b: Bundle): PlannedScene[] {
     // 장중에도 올린다 — 그러면 그렇게 말해야 한다.
     narration:
       `여기까지 ${attach(b.name, '이었습니다', '였습니다')}. 값은 전부 스톡온톨로지 닷 씨씨의 계산 결과이고, ` +
-      `이 값은 ${stamp}. 이 채널은 마감을 기다렸다가 올리지 않습니다 — 분석이 바뀌면 장중에도 그때그때 올립니다. ` +
+      `기준 시점은 ${stamp}. 이 채널은 마감을 기다렸다가 하루치를 몰아 올리지 않습니다. ` +
+      `조건이 맞는 종목이 나오면 장중이든 마감 뒤든 그때 한 편씩, 같은 종목을 반복하지 않고 돌아가며 다룹니다. ` +
       `특정 종목의 매수나 매도를 권유하는 것이 아니며, 투자 판단과 책임은 보는 분에게 있습니다.`,
     visual: 'outro',
     engine: 'stock',
@@ -453,6 +461,35 @@ export function buildSpotScript(ev: FeedEvent, b: Bundle, disclaimer = ''): Spot
     if (p.invalidation) lines.push(`   ${p.invalidation}`);
     lines.push('');
   }
+  // ★설명란 끝에 이 채널이 무엇을 하는 곳인지 적는다★ 처음 들어온 사람은 영상 하나만
+  // 보고 나간다. 값이 어디서 왔고 왜 믿을 만한지, 다음에 뭘 더 볼 수 있는지가 없으면
+  // 구독할 이유가 없다. 여기 적는 것은 전부 실제로 하고 있는 것들이다 — 하지 않는 것을
+  // 적으면 그 순간 이 채널의 유일한 자산이 사라진다.
+  lines.push(
+    '─────────────────────────────',
+    '',
+    '■ 이 채널이 하는 일',
+    '',
+    `   · 한국 350종목 + 미국 155종목을 서로 다른 다섯 관점으로 매일 훑습니다`,
+    `     (차트 중심 · 수급 중심 · 수급+차트 · 돌파 · 역추세)`,
+    `   · 관점이 겹치는 종목만 다룹니다. 순위 1위라서가 아니라, 보는 기준이 다른`,
+    `     분석들이 같은 이름에 모였을 때가 드물기 때문입니다.`,
+    `   · 차트 판정은 이름과 창시자가 있는 규칙 13종을 각각 돌린 결과입니다.`,
+    `     MACD(Gerald Appel, 1979) · RSI(J. Welles Wilder, 1978) · 일목균형표 ·`,
+    `     스테이지 분석(Stan Weinstein) · 터틀 · 볼린저밴드 …`,
+    `   · 진입·손절·목표·손익비를 숫자로 밝히고, "이 계획이 틀렸다고 인정할 조건"까지`,
+    `     같이 말합니다. 손익비가 1 아래면 1 아래라고 말합니다.`,
+    `   · 계산 과정 전체가 사이트에 그대로 공개돼 있습니다. 영상에 나온 화면이 곧 그 사이트 화면입니다.`,
+    `   · 마감을 기다렸다가 하루치를 몰아 올리지 않습니다. 조건이 맞는 종목이 나오면`,
+    `     장중이든 마감 뒤든 그때 한 편씩, 같은 종목을 반복하지 않고 돌아가며 다룹니다.`,
+    `   · 광고·협찬·유료방 없습니다. 특정 종목을 밀어 줄 이유가 없습니다.`,
+    '',
+    '   종목 이야기를 "느낌"이 아니라 숫자와 규칙으로 듣고 싶으셨다면,',
+    '   구독해 두시면 후회 안 하실 겁니다. 다음 종목도 같은 방식으로 나갑니다.',
+    '',
+    `   ▸ 계산 근거 전체 : https://stockontology.cc`,
+    '',
+  );
   lines.push('─'.repeat(20), b.disclaimerKo ?? disclaimer);
 
   return {
@@ -461,7 +498,9 @@ export function buildSpotScript(ev: FeedEvent, b: Bundle, disclaimer = ''): Spot
     tags: ['주식온톨로지', '종목분석', b.name, b.sector ?? '주식', mk === 'KR' ? '코스피' : '미국주식', 'AI투자'].slice(0, 15),
     topic: `${b.name} ${ev.kind}`,
     thumbnailHeadline: mk === 'US' && /\d/.test(b.name) ? b.symbol.replace(/\..*$/, '') : b.name,
-    thumbnailSub: humanize(ev.headlineKo).slice(0, 26),
+    // ★글자 수로 자르면 말이 잘린다★ 26자로 끊으니 "지목했습니다"가 "지목했습니"가 됐다.
+    // 폭에 맞춰 글자 크기를 줄이는 일은 그리는 쪽(fitText)이 이미 한다.
+    thumbnailSub: humanize(ev.headlineKo),
     // ★썸네일에 판정만 박으면 등급이 나쁜 날에도 "매수 검토 가능" 만 보인다★ 그림에는
     // 다툼의 여지가 없는 값을 쓴다 — 지금 값과 규칙 몇 개가 매수라고 했는지.
     thumbnailFoot: [
