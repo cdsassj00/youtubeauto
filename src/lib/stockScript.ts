@@ -11,12 +11,12 @@
  * (illustrated 엔진으로 전체화면 표시)과 손그림·목록·도식을 번갈아 놓는다.
  */
 import type { Brief } from './stockBrief.js';
-import { nearSupport, nearResistance, gapToHigh } from './stockBrief.js';
+import { nearSupport, nearResistance, gapToHigh, scoringReady } from './stockBrief.js';
 import { fetchTaVerified, type TaResult } from './stockTa.js';
 import { speakNumbers, ordinal, speakLatinAcronyms } from './koreanNumber.js';
 import type { Scene } from '../schema.js';
 import { narrateStock } from './stockNarrate.js';
-import { agreedPicks, engineNames, independentEngineCount, plainReason, type ConsensusPick } from './stockConsensus.js';
+import { agreedPicks, engineNames, independentEngineCount, plainReason, swingPicks, freshPicks, type ConsensusPick } from './stockConsensus.js';
 
 /** 요일까지 붙이면 "언제"가 손에 잡힌다 — "9/7"보다 "9/7 월요일"이 훨씬 구체적이다. */
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
@@ -70,6 +70,18 @@ function verdictSummary(ta: TaResult): string {
     .slice(0, 2)
     .map((x) => `${x.nameKo}(${x.author}): ${x.text}`);
   return [`차트 전략 ${st.length}종 중 매수 ${buy} · 매도 ${sell} · 나머지 중립`, ...named].join('\n');
+}
+
+/**
+ * 나레이션에서 부를 종목 이름.
+ *
+ * ★회사명에 든 숫자를 수사로 읽는다★ "Phillips 66" 이 "필립스 육십육" 으로 나갔다.
+ * 숫자 변환기는 문장 안의 모든 숫자를 바꾸는데, 고유명사 안의 숫자까지 구별하지 못한다.
+ * 이런 이름은 티커로 부르는 편이 정확하고 짧다(PSX). 숫자가 없는 이름은 그대로 둔다 —
+ * "마라톤 페트롤리엄" 을 굳이 티커로 바꿀 이유는 없다.
+ */
+function spokenName(b: Brief, name: string, ticker?: string | null): string {
+  return /\d/.test(name) && ticker ? ticker : name;
 }
 
 /** 시장에 맞는 금액 표기 — 원은 정수, 달러는 소수 둘째 자리. 화면·설명란용. */
@@ -210,7 +222,7 @@ export interface PlannedScene {
 const KEEP_ORDER = [
   // ★plan 을 앞에 둔다★ "무엇을" 다음으로 궁금한 것은 "얼마에"다. 진입·손절이 빠지면
   // 종목 이름만 부르고 끝나는 영상이 된다.
-  'consensus', 'plan', 'pick1', 'causal1', 'pick2', 'agree', 'causal2', 'engines', 'principle', 'pick3', 'causal3',
+  'consensus', 'swing', 'plan', 'pick1', 'causal1', 'pick2', 'agree', 'causal2', 'engines', 'principle', 'pick3', 'causal3',
   'open', 'prev', 'league', 'regime', 'pick4', 'causal4', 'sector', 'narrative', 'delta', 'pick5',
 ];
 
@@ -385,6 +397,8 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
   const CONSENSUS_SEC = 40;
   /** 매매 계획 씬 — 가격의 뜻을 풀어 말할 시간이 필요하다. */
   const PLAN_SEC = 42;
+  /** 스윙 씬 — 며칠째인지와 그게 왜 중요한지. */
+  const SWING_SEC = 32;
 
   const mk = b.marketKo;
 
@@ -397,7 +411,9 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
   const nextSession = date ? session.label : '';
   const agreed = agreedPicks(b);
   const engineTotal = independentEngineCount(b);
-  const topNames = (agreed.length ? agreed.slice(0, 3).map((c) => c.name) : b.picks.slice(0, 3).map((p) => p.name));
+  const topNames = agreed.length
+    ? agreed.slice(0, 3).map((c) => spokenName(b, c.name, c.ticker))
+    : b.picks.slice(0, 3).map((p) => spokenName(b, p.name, p.ticker));
 
   /**
    * ── 0. 후크 — "다음 장에 볼 종목"과 그 근거를 첫 10초에 다 말한다 ──────────
@@ -461,7 +477,7 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
                 .map((e) => attach(e, '과', '와'))
                 .concat(attach(es[es.length - 1], '이', '가'))
                 .join(' ');
-              return `${attach(c.name, '은', '는')} ${joined}`;
+              return `${attach(spokenName(b, c.name, c.ticker), '은', '는')} ${joined}`;
             })
             .join(', ')} 함께 들었습니다. ` +
           `보는 눈이 다른데 같은 종목에서 만났다는 뜻입니다.`,
@@ -519,7 +535,7 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
     const t1 = p.targets?.[0];
     const say = (n: number) => moneySpoken(b, n);
     const parts: string[] = [
-      `${attach(agreed[0].name, '은', '는')} 지금 어떤 자리일까요.`,
+      `${attach(spokenName(b, agreed[0].name, agreed[0].ticker), '은', '는')} 지금 어떤 자리일까요.`,
       `차트 분석의 판정은 "${p.biasKo}"입니다.`,
     ];
     if (p.entry) parts.push(`진입은 ${say(p.entry.low)}에서 ${say(p.entry.high)} 사이를 봅니다.`);
@@ -581,6 +597,60 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
     );
   }
 
+  // ── 0-3. 며칠째 살아남은 종목 — 스윙으로 보는 사람을 위한 자리 ──────────
+  //
+  // ★매일 종목이 바뀌면 아무도 못 따라간다★ 직장인은 장중에 사고팔 수 없어 며칠에서
+  // 몇 주를 들고 간다. 그런데 하루짜리 목록을 매일 새로 내밀면 어제 산 사람은 오늘
+  // 방송에서 자기 종목을 못 본다. 신빙성 이전에 쓸모의 문제라, "오늘 처음 뜬 것"과
+  // "며칠째 버티는 것"을 갈라 뒤엣것을 따로 세운다.
+  const swingList = swingPicks(b);
+  if (swingList.length) {
+    const topSwing = swingList.slice(0, 4);
+    add(
+      {
+        id: 'swing',
+        heading: '며칠째 목록을 지키는 종목',
+        narration:
+          `이 목록은 매일 통째로 바뀌지 않습니다. ` +
+          topSwing.map((sp) => `${attach(spokenName(b, sp.pick.name, sp.pick.ticker), '은', '는')} ${sp.days}일째입니다.`).join(' ') +
+          ` 하루 만에 사라지는 이름과, 며칠을 버티는 이름은 다릅니다. 며칠 단위로 들고 보는 분이라면 뒤엣것을 보셔야 합니다.`,
+        bullets: topSwing.map((sp) => `${sp.pick.name} — ${sp.days}일째${sp.agree >= 2 ? ` · 방식 ${sp.agree}개 합의` : ''}`),
+        visual: 'bullets',
+        engine: 'stock',
+        stock: {
+          kind: 'prevTable',
+          big: `${topSwing[0].days}일`,
+          caption: `${topSwing[0].pick.name} — 가장 오래 남아 있는 종목`,
+          cards: [],
+          rows: topSwing.map((sp) => ({
+            name: sp.pick.name,
+            from: `${sp.days}일째`,
+            to: sp.agree >= 2 ? `방식 ${sp.agree}개 합의` : '단독',
+            pct: sp.pick.changePct,
+            note: '',
+          })),
+          groups: [],
+        },
+      },
+      undefined,
+      [
+        ...topSwing.map(
+          (sp) =>
+            `${sp.pick.name}(${sp.pick.sector ?? '미분류'}) — ${sp.days}일째 목록 유지 · ` +
+            (sp.agree >= 2 ? `방식 ${sp.agree}개 합의(${sp.engines.join(' · ')})` : '온톨로지 단독') +
+            ` · ${(sp.pick.reasons ?? [])[0] ?? ''}`,
+        ),
+        ...(freshPicks(b).length ? [`오늘 새로 들어온 종목: ${freshPicks(b).map((p) => p.name).join(', ')}`] : []),
+        topSwing[0].pick.horizonDays
+          ? `이 방식의 백테스트 평균 보유일 ${topSwing[0].pick.horizonDays}일 — 종목별 예측이 아니라 방식의 실측값`
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      SWING_SEC,
+    );
+  }
+
   // ── 0-1. 사이트가 이렇게 생겼다 — 말이 아니라 화면으로 보여준다 ──────────
   // ★overview 화면이 이 채널의 설명 전부다★ 거시 다섯 → 섹터 넷 → 종목 여섯이 선으로
   // 이어져 있고 주소까지 박혀 있다. 이걸 앞에 깔지 않으면 뒤에 나오는 점수와 도식이
@@ -610,7 +680,8 @@ export function buildStockScenes(b: Brief, date?: string, ta?: TaResult | null):
    * 하지도 않은 말을 했다고 하는 셈이 된다. 주체를 사이트로 정확히 적는다.
    */
   const addPrevBlock = () => {
-    if (!prev || !prev.picks.length) return;
+    // 시세가 갱신되지 않은 날(주말 등)에는 채점하지 않는다. 아래 scoringReady 주석 참고.
+    if (!prev || !prev.picks.length || !scoringReady(prev)) return;
     const hit = hitCount;
     add({
       id: 'open',
@@ -1317,50 +1388,131 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
         : `${dayLabel} ${b.marketKo}장 — ${leadNames.join('·')} | ${top}에 순풍`
   ).slice(0, 100);
 
+  /**
+   * 설명란의 종목 파트.
+   *
+   * ★유튜브 설명란은 접혀 있다★ 처음 세 줄만 보이고 나머지는 "더보기"를 눌러야 나온다.
+   * 그래서 제일 중요한 것을 맨 위에 짧은 줄로 둔다. 그리고 휴대폰에서는 한 줄이 길면
+   * 제멋대로 접히므로, 한 줄에 한 가지만 적고 들여쓰기로 묶는다.
+   *
+   * ★스윙을 앞에, 신규를 뒤에★ 매일 종목이 바뀌면 어제 산 사람이 오늘 방송에서 자기
+   * 종목을 못 본다. 며칠째 버티는 종목을 앞에 세우고, 오늘 처음 뜬 것은 참고로 뒤에 둔다.
+   */
+  const swing = swingPicks(b);
+  const fresh = freshPicks(b);
+  const sectorOf = (p: { sector: string | null }) => p.sector ?? '미분류';
+
+  /** 한 종목을 여러 줄로 — 한 줄에 한 가지만. */
+  const pickBlock = (name: string, priceLabel: string, sector: string, extra: string[]): string[] => [
+    `▪ ${name}  ${priceLabel}`,
+    `   업종 ${sector}`,
+    ...extra.map((x) => `   ${x}`),
+    '',
+  ];
+
   const lines: string[] = [];
   lines.push(
-    `${nextLabel} 장에서 눈여겨볼 ${b.marketKo} 종목입니다. ${md} 마감 시세로 계산했습니다.`,
+    // 접히기 전 세 줄에 결론을 담는다.
+    `${nextLabel} ${b.marketKo}장에서 눈여겨볼 종목입니다.`,
+    swing.length
+      ? `며칠째 목록을 지키고 있는 종목 ${swing.length}개를 먼저 정리했습니다.`
+      : `오늘은 며칠째 유지되는 종목이 없어 새로 들어온 종목만 있습니다.`,
+    `${md} 마감 시세 기준 · 전체 계산 근거 https://stockontology.cc`,
     '',
-    `▸ 계산 결과 전체·근거·전 종목 점수 : https://stockontology.cc`,
+    '─────────────────────────────',
     '',
   );
-  if (lead.length) {
-    lines.push(`■ 서로 다른 방식이 동시에 고른 종목 (겹친 순서)`);
-    for (const c of agreedTop.slice(0, 5)) {
-      lines.push(`${c.name} (${c.sector ?? '미분류'}) — ${engineNames(c).join(' + ')} · ${c.priceLabel}`);
-      for (const e of c.engines.filter((x) => !x.derived)) lines.push(`   · ${e.nameKo}: ${e.reason}`);
-      // 지지·저항은 있는 날만. 없으면 줄을 통째로 생략한다 — 빈 값을 0 원으로 읽으면 최악이다.
-      // ★현재가에서 먼 지지·저항은 적지 않는다★ 계산으로는 맞아도 며칠 단위로 보는
-      // 이 영상에서는 닿을 수 없는 가격이라, 적어 두면 사라는 가격으로 읽힌다.
-      const lv = levelsOf(b, c.code);
-      const px = priceOf(b, c.code);
-      if (lv) {
-        const s = nearSupport(lv, px);
-        const r = nearResistance(lv, px);
-        if (s) lines.push(`   · 지지 ${money(b, s.price)} (${s.touches}번 지지 · 최근 ${s.lastTouchDate})`);
-        if (r) lines.push(`   · 저항 ${money(b, r.price)} (${r.touches}번 저항 · 최근 ${r.lastTouchDate})`);
-        if (s && lv.levelNote) lines.push(`   · ${lv.levelNote}`);
-        const g = gapToHigh(lv, px);
-        if (!s && !r && g !== null && g <= 10) lines.push(`   · 52주 최고가 ${money(b, lv.week52!.high)}까지 ${g.toFixed(1)}%`);
-      }
-      const hz = b.picks.find((p) => p.code === c.code);
-      if (hz?.horizonDays) lines.push(`   · 이 방식의 백테스트 평균 보유 ${hz.horizonDays}일 (예측이 아니라 실측값입니다)`);
+
+  if (swing.length) {
+    lines.push(`■ 스윙 관점 — 며칠째 살아남은 종목`, '');
+    for (const sp of swing) {
+      const p = sp.pick;
+      const extra: string[] = [`${sp.days}일째 목록 유지`];
+      if (sp.agree >= 2) extra.push(`서로 다른 방식 ${sp.agree}개가 함께 지목 (${sp.engines.join(' · ')})`);
+      else extra.push('이 종목은 온톨로지 단독 판단입니다');
+      const first = (p.reasons ?? [])[0];
+      if (first) extra.push(`근거 ${first}`);
+      const lv = p.levels;
+      const sup = nearSupport(lv, p.price);
+      const res = nearResistance(lv, p.price);
+      if (sup) extra.push(`가까운 지지 ${money(b, sup.price)} (${sup.touches}번 지지)`);
+      if (res) extra.push(`가까운 저항 ${money(b, res.price)} (${res.touches}번 저항)`);
+      if (p.horizonDays) extra.push(`이 방식의 백테스트 평균 보유 ${p.horizonDays}일 · 예측이 아니라 실측값`);
+      lines.push(...pickBlock(p.name, p.priceLabel, sectorOf(p), extra));
     }
-    lines.push('', `※ 융합 엔진은 온톨로지·수급 결과를 재조합한 것이라 겹친 수에서 뺐습니다.`, '');
-  } else {
-    lines.push(`■ 오늘은 서로 다른 방식이 함께 고른 종목이 없습니다.`, '');
   }
+
+  if (lead.length) {
+    lines.push('─────────────────────────────', '', `■ 오늘 여러 방식이 함께 고른 종목`, '');
+    const swingCodes = new Set(swing.map((sp) => sp.pick.code));
+    for (const c of agreedTop.filter((x) => !swingCodes.has(x.code)).slice(0, 5)) {
+      const px = priceOf(b, c.code);
+      const extra: string[] = [`방식 ${c.independentCount}개 합의 (${engineNames(c).join(' · ')})`];
+      for (const e of c.engines.filter((x) => !x.derived)) extra.push(`${e.nameKo} — ${e.reason}`);
+      const lv = levelsOf(b, c.code);
+      const sup = nearSupport(lv, px);
+      const res = nearResistance(lv, px);
+      if (sup) extra.push(`가까운 지지 ${money(b, sup.price)} (${sup.touches}번 지지)`);
+      if (res) extra.push(`가까운 저항 ${money(b, res.price)} (${res.touches}번 저항)`);
+      const g = gapToHigh(lv, px);
+      if (!sup && !res && g !== null && g <= 10) extra.push(`52주 최고가까지 ${g.toFixed(1)}%`);
+      lines.push(...pickBlock(c.name, c.priceLabel || money(b, px), sectorOf(c), extra));
+    }
+    lines.push(`※ 융합 엔진은 온톨로지·수급 결과를 재조합한 것이라 합의 수에서 뺐습니다.`, '');
+  }
+
+  // 매매 계획은 확인된 종목 하나만. 없으면 이 블록 자체가 빠진다.
+  if (ta?.plan) {
+    const pl = ta.plan;
+    // ★ta.name 은 야후 이름이라 영문이다("DB INSURANCE"). 화면·설명란은 한국어 이름을 쓴다.
+    const planName = agreedTop.find((c) => c.code === leadPick?.code)?.name ?? ta.name;
+    lines.push('─────────────────────────────', '', `■ 매매 계획 — ${planName}`, '');
+    lines.push(`   판정 ${pl.biasKo}${pl.gradeKo ? ` · ${pl.gradeKo}` : ''}`);
+    if (pl.entry) lines.push(`   진입 ${money(b, pl.entry.low)} ~ ${money(b, pl.entry.high)}`);
+    if (pl.stop) lines.push(`   손절 ${money(b, pl.stop.price)} (${pct(pl.stop.pct)})`);
+    (pl.targets ?? []).slice(0, 2).forEach((t, i) => lines.push(`   목표${i + 1} ${money(b, t.price)} (${pct(t.pct)})`));
+    if (typeof pl.rr === 'number') lines.push(`   손익비 ${pl.rr.toFixed(2)}`);
+    if (pl.invalidation) lines.push(`   ${pl.invalidation}`);
+    lines.push('');
+  }
+
+  if (fresh.length) {
+    lines.push('─────────────────────────────', '', `■ 오늘 새로 들어온 종목 (참고)`, '');
+    for (const p of fresh) {
+      lines.push(`▪ ${p.name}  ${p.priceLabel}  ·  ${sectorOf(p)}`);
+      const first = (p.reasons ?? [])[0];
+      if (first) lines.push(`   ${first}`);
+    }
+    lines.push('', `※ 오늘 처음 들어온 종목입니다. 며칠 더 지켜보는 편이 낫습니다.`, '');
+  }
+
+  /**
+   * 어제 추천 채점.
+   *
+   * ★갱신이 안 된 날은 채점하지 않는다★ 다섯 종목의 기준가와 비교가가 하나도 빠짐없이
+   * 같으면(주말 등) 그건 성적이 아니라 아직 값이 안 바뀐 것이다. 그대로 적으면
+   * "5종목 중 0개 상승" 이 되어 전부 틀린 것처럼 읽힌다.
+   */
   if (prev && prev.picks.length) {
-    lines.push(`어제 뽑은 ${prev.picks.length}종목 중 ${hit}개가 올랐습니다. 평균 ${pct(prev.avgChangePct)}.`, '');
+    lines.push('─────────────────────────────', '');
+    if (scoringReady(prev)) {
+      lines.push(`■ 어제 추천, 오늘 결과 — 적중 ${hit}/${prev.picks.length} · 평균 ${pct(prev.avgChangePct)}`, '');
+      for (const p of prev.picks) {
+        lines.push(`▪ ${p.name}  ${p.recPrice.toLocaleString()} → ${p.nowPrice.toLocaleString()}  ${pct(p.changePct)}`);
+      }
+      lines.push('', `※ ${prev.basisNote}`, '');
+    } else {
+      lines.push(`■ 어제 추천 채점`, '', `   아직 새 시세가 반영되지 않아 채점을 건너뜁니다.`, `   (직전 거래일 종가끼리 비교되어 전 종목이 0% 로 나옵니다)`, '');
+    }
   }
-  if (prev && prev.picks.length) {
-    lines.push(`■ 어제 추천, 오늘 결과 (적중 ${hit}/${prev.picks.length} · 평균 ${pct(prev.avgChangePct)})`);
-    for (const p of prev.picks) lines.push(`${p.name}  ${p.recPrice.toLocaleString()} → ${p.nowPrice.toLocaleString()}  ${pct(p.changePct)}`);
-    lines.push(`※ ${prev.basisNote}`, '');
+  // ★"오늘의 추천" 목록은 뺐다★ 위 스윙·합의 블록이 같은 종목을 이미 근거까지 붙여
+  // 정리한다. 같은 이름을 점수만 바꿔 한 번 더 나열하면 설명란만 길어지고, 어느 쪽을
+  // 봐야 하는지 헷갈린다.
+  if (b.dropped?.length) {
+    lines.push('─────────────────────────────', '', '■ 오늘 목록에서 빠진 종목', '');
+    for (const d of b.dropped) lines.push(`▪ ${d.name} — ${d.reason}`);
+    lines.push('');
   }
-  lines.push('■ 오늘의 추천');
-  b.picks.forEach((p, i) => lines.push(`${i + 1}. ${p.name} (${p.sector ?? '미분류'}) ${p.score.toFixed(2)} — ${(p.reasons ?? [])[0] ?? p.reason}`));
-  if (b.dropped?.length) lines.push('', '■ 오늘 빠진 종목', b.dropped.map((d) => `${d.name} — ${d.reason}`).join('\n'));
   lines.push('', '■ 오늘 작동한 인과', ...b.causal.slice(0, 4).map((c) => `· ${c}`));
   if (b.league?.strategies?.length) {
     lines.push('', '■ 네 엔진의 성적', ...b.league.strategies.map((s) => `${s.nameKo}(${s.tagKo}) ${pct(s.pnlPct)}`));

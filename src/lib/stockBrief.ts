@@ -227,6 +227,22 @@ async function fetchUniverse(url: string): Promise<number | undefined> {
   }
 }
 
+/**
+ * 어제 추천을 채점할 수 있는 상태인가.
+ *
+ * ★전부 0% 면 채점이 아니라 갱신이 안 된 것이다★ 2026-09-05(토) 응답에서 어제(금)
+ * 추천 5종목의 기준가와 비교가가 하나도 빠짐없이 같았다. 주말이라 금요일 종가끼리
+ * 비교한 것이라 당연한 결과인데, 이걸 그대로 읽으면 "어제 뽑은 5종목 중 0개가
+ * 올랐습니다" 가 되어 전부 틀린 것처럼 들린다. 다섯 종목이 소수점까지 똑같이 안
+ * 움직이는 일은 장이 열렸다면 사실상 없다.
+ *
+ * 그래서 전부 정확히 0 이면 채점을 건너뛴다 — 없는 성적을 나쁜 성적으로 말하지 않는다.
+ */
+export function scoringReady(prev: Brief['previous']): boolean {
+  if (!prev?.picks?.length) return false;
+  return prev.picks.some((p) => p.changePct !== 0);
+}
+
 /** 오늘 날짜(KST). 사이트의 date 가 KST 기준이라 UTC 로 비교하면 새벽 회차가 하루 어긋난다. */
 export function todayKst(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
