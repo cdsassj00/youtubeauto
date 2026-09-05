@@ -37,6 +37,24 @@ function priceOf(b: Brief, code: string): number {
   return all.find((p) => p.code === code)?.price ?? 0;
 }
 
+/**
+ * 리그 성적의 범위를 밝히는 한 문장.
+ *
+ * ★두 모집단을 비교해서 말을 정한다★ 한국은 종목을 고르는 순위표가 350 인데 성적은
+ * 120(코스피200)으로만 돌려서, 오늘 뽑힌 코스닥 종목은 그 성적으로 검증된 적이 없다.
+ * 반면 미국은 둘 다 155 로 같아서 "목록 밖에서도 뽑힌다"고 하면 그 자체가 거짓말이 된다.
+ * 경고는 많이 붙일수록 안전한 것이 아니라, 틀린 경고는 그냥 틀린 말이다.
+ */
+function leagueScopeNote(b: Brief): string {
+  const lg = b.leagueUniverse;
+  const rk = b.rankUniverse;
+  if (lg && rk && rk > lg) {
+    return `다만 이 성적은 ${lg}종목짜리 목록으로만 돌린 결과입니다. 종목을 고르는 목록은 ${rk}종목으로 더 넓어서, 오늘 뽑힌 종목 가운데는 이 성적으로 검증한 적이 없는 것도 있습니다.`;
+  }
+  if (lg) return `이 성적은 종목을 고르는 목록과 같은 ${lg}종목으로 돌린 결과입니다.`;
+  return `다만 이 성적을 낸 목록과 오늘 종목을 고른 목록이 다를 수 있습니다.`;
+}
+
 /** 시장에 맞는 금액 표기 — 원은 정수, 달러는 소수 둘째 자리. */
 const money = (b: Brief, n: number) =>
   b.market === 'US' ? `$${n.toFixed(2)}` : `${Math.round(n).toLocaleString()}원`;
@@ -973,11 +991,16 @@ export function buildStockScenes(b: Brief, date?: string): PlannedScene[] {
       {
         id: 'league',
         heading: '네 방식이 같은 조건으로 싸운다',
+        // ★성적의 범위를 반드시 밝힌다★ 종목을 뽑는 순위표는 505종목으로 넓어졌는데
+        // 이 성적은 그보다 좁은 목록(한국 120 = 코스피200, 미국 155)으로만 돌린 것이다.
+        // 두 숫자를 나란히 놓고 범위를 말하지 않으면, 방금 소개한 코스닥 종목까지 이
+        // 성적으로 검증된 것처럼 들린다 — 하지 않은 검증을 했다고 말하는 셈이다.
         narration:
           `그럼 어느 방식이 실제로 벌고 있을까요. ` +
           s.map((x) => `${attach(x.nameKo, '은', '는')} ${pct(x.pnlPct)}.`).join(' ') +
           ` 네 방식 모두 같은 원금에 같은 매매 규칙으로 돌고, 다른 것은 무엇을 살까 하나뿐입니다. ` +
-          `그래서 이 비교는 공정합니다. 지는 방식도 그대로 공개합니다.`,
+          `그래서 방식끼리의 비교는 공정합니다. 지는 방식도 그대로 공개합니다. ` +
+          leagueScopeNote(b),
         visual: 'image',
         engine: 'stock',
         stock: {
@@ -1187,6 +1210,8 @@ export async function buildStockScript(b: Brief, date: string, disclaimer: strin
   lines.push('', '■ 오늘 작동한 인과', ...b.causal.slice(0, 4).map((c) => `· ${c}`));
   if (b.league?.strategies?.length) {
     lines.push('', '■ 네 엔진의 성적', ...b.league.strategies.map((s) => `${s.nameKo}(${s.tagKo}) ${pct(s.pnlPct)}`));
+    // 성적의 모집단과 종목을 고르는 모집단이 다르다는 것을 설명란에도 남긴다.
+    lines.push(`※ ${leagueScopeNote(b)}`);
   }
   lines.push('', '■ 기준', `${b.basisNote ?? b.basis} · 데이터 시각 ${new Date(b.dataAsOf).toISOString()}`, '', '─'.repeat(20), disclaimer);
 

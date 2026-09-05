@@ -149,6 +149,27 @@ export interface Brief {
   dataSessionDate?: string;
   /** 이 시세가 마감 확정값인가. false 면 발행하지 않는다. */
   sessionClosed?: boolean;
+  /**
+   * 리그 성적을 낸 모집단 크기(KR 120 = 코스피200, US 155).
+   *
+   * ★순위표 모집단과 다르다★ 종목을 뽑는 순위표는 505종목(한국 350 · 미국 155)으로
+   * 넓어졌는데, 리그·모의매매 성적은 여전히 좁은 목록으로만 돌린다. 검증 없이 넓힌
+   * 종목을 매매 후보로 쓰지 않으려는 사이트 쪽의 의도적 분리다.
+   *
+   * 영상이 이 둘을 나란히 놓으면 "이 방식이 +9.7% 벌었다"는 성적이 오늘 뽑힌 코스닥
+   * 종목까지 검증한 것처럼 들린다. 하지 않은 검증을 했다고 말하는 셈이라, 리그 성적을
+   * 말하는 자리에서는 반드시 이 숫자를 함께 밝힌다.
+   */
+  leagueUniverse?: number;
+  /**
+   * 종목을 고르는 순위표의 모집단 크기(2026-09 기준 KR 350 · US 155).
+   *
+   * ★리그 모집단과 같을 수도 있다★ 미국은 둘 다 155 로 같아서, 그날 "성적을 낸 목록
+   * 밖에서도 뽑힌다"고 말하면 사실이 아니다. 한국만 350 대 120 으로 벌어져 있다.
+   * 그래서 단서를 달지 말지는 이 두 숫자를 비교해서 정한다 — 안전해 보인다고 아무 데나
+   * 붙이는 경고도 결국 틀린 말이다.
+   */
+  rankUniverse?: number;
   league?: { currency: string; strategies: Array<{ nameKo: string; tagKo: string; live: boolean; pnlPct: number; equity: number }> };
   /** 시세가 마지막으로 갱신된 시각. */
   dataAsOf: number;
@@ -181,7 +202,26 @@ export async function fetchBrief(market: Market): Promise<{ date: string; brief:
   const data = (await getJson(`${BASE}/api/daily-brief?market=${market}`)) as DailyBrief;
   const brief = data.briefs?.[0];
   if (!brief) throw new Error(`daily-brief 응답에 ${market} 블록이 없습니다.`);
+  [brief.leagueUniverse, brief.rankUniverse] = await Promise.all([
+    fetchUniverse(`${BASE}/api/lab/overview?market=${market}`),
+    fetchUniverse(`${BASE}/api/quant/rank?market=${market}&limit=1`),
+  ]);
   return { date: data.date, brief, disclaimer: data.disclaimer };
+}
+
+/**
+ * 리그 성적의 모집단 크기. 실패하면 undefined 를 돌려주고 영상은 숫자 없이 말한다.
+ *
+ * ★이것 때문에 발행이 멈추면 안 된다★ 있으면 더 정확해지는 곁가지 정보지 영상의 재료가
+ * 아니다. 그래서 여기서만 예외를 삼킨다 — 다른 호출은 실패하면 그대로 터뜨린다.
+ */
+async function fetchUniverse(url: string): Promise<number | undefined> {
+  try {
+    const d = (await getJson(url)) as { universe?: number };
+    return typeof d.universe === 'number' ? d.universe : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** 오늘 날짜(KST). 사이트의 date 가 KST 기준이라 UTC 로 비교하면 새벽 회차가 하루 어긋난다. */
