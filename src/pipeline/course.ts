@@ -10,10 +10,14 @@
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { OUT_DIR, THUMBNAIL_PATH, config } from '../config.js';
+import { OUT_DIR, THUMBNAIL_PATH, config,
+  PRESENTER_IMAGE_PATH,
+} from '../config.js';
 import { downloadDriveFile } from '../lib/drive.js';
 import { generateCourseMeta } from '../lib/courseMeta.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
+import { pickFrames } from '../lib/courseFrames.js';
+import { drawCourseThumbnail } from '../lib/courseThumbnail.js';
 import { groupAccent, type StripSpec } from '../lib/seriesStrip.js';
 import { uploadVideo, uploadCaption, ensurePlaylist, addToPlaylist, updateVideoMeta, setThumbnail, listPublishedOrders, apiErrorDetail } from '../lib/youtube.js';
 import { nextCourseModule } from '../lib/courseManifest.js';
@@ -135,6 +139,7 @@ async function main(): Promise<void> {
     thumbnailHook: hook,
     seriesStrip: strip,
     thumbnailBadge: meta.thumbnailBadge,
+    thumbnailBadge2: meta.thumbnailBadge2 ?? '',
     srtCues: parsed.cues.length,
     durationSec: Math.round(parsed.durationSec),
   };
@@ -174,15 +179,49 @@ async function main(): Promise<void> {
   console.log(`  · ${(bytes / 1024 / 1024).toFixed(1)}MB`);
 
   console.log('▶ [4/5] 썸네일 생성');
-  const madeThumb = await generateThumbnail({
-    title: fullTitle,
-    topic: `${courseName} — ${topic}`,
-    // 큰 글씨는 이 회차만의 문구, 시리즈 표식은 코드가 얹는 왼쪽 아래 띠가 맡는다(위 설명 참고).
-    headline,
-    seriesStrip: strip,
-    outPath: THUMBNAIL_PATH,
-  });
-  console.log(madeThumb ? '  · 완료' : '  · 건너뜀(OPENAI_API_KEY 없음)');
+  // ★배경을 그 강의의 실제 화면으로★ 지금까지는 gpt-image 가 인물과 클립아트(자물쇠·
+  // 로켓·퍼즐)를 그렸다. 같은 분야에서 잘 되는 채널들(조코딩·노마드코더·코딩애플)을
+  // 실제로 훑어보니 클립아트를 쓰는 곳이 하나도 없었다 — 자물쇠는 보안 영상에도 배포
+  // 영상에도 그릴 수 있어서 "무엇을 배우는 영상인지"를 하나도 못 알려준다. 영상 안에
+  // 이미 엑셀 시트·코드·설정 화면이 다 있으므로 그것을 배경으로 쓴다. 그림 생성이
+  // 사라져 장당 비용도 0 이 된다.
+  const thumbStyle = env('COURSE_THUMB_STYLE', 'screen').toLowerCase();
+  let madeThumb = false;
+  if (thumbStyle === 'screen' || thumbStyle === 'bare') {
+    try {
+      const frames = await pickFrames(videoPath, path.join(OUT_DIR, 'frames'), 10);
+      const best = frames[0];
+      console.log(`  · 배경 화면: ${Math.round(best.atSec)}초 지점 (${best.detail})`);
+      await drawCourseThumbnail({
+        framePath: best.file,
+        headline,
+        badge: metaOut.thumbnailBadge2,
+        strip: hook,
+        // 얼굴이 있으면 클릭률이 오른다는 것이 여러 자료의 공통된 이야기다. bare 는
+        // 화면만으로 가는 대조군이라 인물을 넣지 않는다.
+        presenterPath: thumbStyle === 'screen' ? PRESENTER_IMAGE_PATH : undefined,
+        accent: groupAccent(moduleLabel, order),
+        layout: thumbStyle,
+        outPath: THUMBNAIL_PATH,
+      });
+      madeThumb = true;
+      console.log('  · 완료(코드 생성 · 비용 0)');
+    } catch (e) {
+      // ★한 장 실패로 그날 발행을 버리지 않는다★ 그림이 없으면 유튜브가 영상에서
+      // 자동으로 한 장 고른다 — 우리가 고른 것보다는 못하지만 발행은 나간다.
+      console.warn(`  · 화면 썸네일 실패(그림 없이 올립니다): ${(e as Error).message}`);
+    }
+  } else {
+    madeThumb = await generateThumbnail({
+      title: fullTitle,
+      topic: `${courseName} — ${topic}`,
+      // 큰 글씨는 이 회차만의 문구, 시리즈 표식은 코드가 얹는 왼쪽 아래 띠가 맡는다(위 설명 참고).
+      headline,
+      seriesStrip: strip,
+      outPath: THUMBNAIL_PATH,
+    });
+    console.log(madeThumb ? '  · 완료' : '  · 건너뜀(OPENAI_API_KEY 없음)');
+  }
 
   console.log('▶ [5/5] 유튜브 업로드');
   // 공개 예정인 영상만 예약한다 — 미등록·비공개로 올리는 것은 예약할 이유가 없다.
