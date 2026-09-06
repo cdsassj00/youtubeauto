@@ -330,6 +330,52 @@ export async function listPublishedOrders(seriesTitle: string, seriesCode = ''):
 }
 
 /**
+ * 회차 번호 → 유튜브 영상. listPublishedOrders 가 번호만 돌려주는 것과 달리 영상 자체를 준다.
+ *
+ * ★썸네일을 갈아끼우려면 어느 영상인지 알아야 한다★ 회차 표식은 사람에게 안 보이는 태그
+ * (cdsa-ac-14)로 박혀 있어서, 그 태그를 읽으면 "14회차는 이 영상"을 알 수 있다. 저장소에
+ * 발행 이력을 두지 않는 이 저장소의 원칙("유튜브가 사실이다")을 그대로 따른다.
+ */
+export async function listPublishedEpisodes(
+  seriesCode: string,
+): Promise<Array<{ order: number; videoId: string; title: string; publishedAt: string }>> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  const ch = await youtube.channels.list({ part: ['contentDetails'], mine: true });
+  const uploads = ch.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploads) throw new Error('채널의 업로드 재생목록을 찾지 못했습니다.');
+
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await youtube.playlistItems.list({ part: ['contentDetails'], playlistId: uploads, maxResults: 50, pageToken });
+    for (const it of res.data.items ?? []) if (it.contentDetails?.videoId) ids.push(it.contentDetails.videoId);
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+
+  const tagRe = new RegExp(`^${seriesCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(\\d+)$`, 'i');
+  const out: Array<{ order: number; videoId: string; title: string; publishedAt: string }> = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const res = await youtube.videos.list({ part: ['snippet'], id: ids.slice(i, i + 50) });
+    for (const v of res.data.items ?? []) {
+      for (const tag of v.snippet?.tags ?? []) {
+        const m = tagRe.exec(tag.trim());
+        if (m && v.id) {
+          out.push({
+            order: Number(m[1]),
+            videoId: v.id,
+            title: v.snippet?.title ?? '',
+            publishedAt: v.snippet?.publishedAt ?? '',
+          });
+          break;
+        }
+      }
+    }
+  }
+  return out.sort((a, b) => b.order - a.order);
+}
+
+/**
  * 최근 올린 영상의 제목을 새 것부터 n 개.
  *
  * ★중복 발행을 막는 근거를 따로 저장하지 않는다★ 수시 발행은 같은 종목을 며칠 연속

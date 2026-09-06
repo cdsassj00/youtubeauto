@@ -1,0 +1,74 @@
+name: 강의 썸네일 후보 만들기 (A/B용)
+
+# ★영상은 건드리지 않는다★ 이미 올라간 회차의 썸네일 후보만 그려서 아티팩트로 낸다.
+# 조회수·링크·댓글이 그대로 남아야 하므로 재업로드도, 썸네일 교체도 하지 않는다.
+# 사람이 받아서 유튜브 스튜디오의 "테스트 및 비교"에 올린다 — 썸네일 A/B 는 데이터
+# API 로 만들 수 없고 스튜디오에서만 걸 수 있다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: '최근 몇 편을 뽑을지'
+        required: false
+        default: '10'
+      orders:
+        description: '특정 회차만 (쉼표로, 예: 14,22,31). 비우면 최근 것부터'
+        required: false
+        default: ''
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-4-8' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      # 강의 시리즈는 기본 채널이다. 여기서 못박아 둔다 — 비어 있으면 다른 채널을 읽는다.
+      TARGET_CHANNEL: default
+      COURSE_NAME: ${{ vars.COURSE_NAME || 'AI챔피언 강사양성과정' }}
+      SERIES_TITLE: ${{ vars.SERIES_TITLE || 'AI챔피언 강사양성과정' }}
+      COURSE_CODE: ${{ vars.COURSE_CODE || 'cdsa-ac' }}
+      COURSE_HOOK: ${{ vars.COURSE_HOOK || '돈 주고도 못 듣는 강의' }}
+      AB_LIMIT: ${{ github.event.inputs.limit || '10' }}
+      AB_ORDERS: ${{ github.event.inputs.orders || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - name: 한국어 폰트 설치
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-nanum fonts-noto-cjk
+          sudo fc-cache -f
+      - name: 의존성 설치
+        run: npm ci
+      - name: 후보 생성
+        run: npx tsx src/pipeline/courseThumbAb.ts
+      - name: 요약
+        if: always()
+        run: |
+          if [ -f out/ab/index.json ]; then
+            {
+              echo "## 만든 후보"
+              echo ""
+              echo "| 회차 | 영상 | 새 문구 | 배지 |"
+              echo "|---|---|---|---|"
+              jq -r '.[] | "| \(.order) | https://youtu.be/\(.videoId) | \(.headline | gsub("\n"; " / ")) | \(.badge) |"' out/ab/index.json
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: 후보 아티팩트
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: course-thumb-candidates
+          path: |
+            out/ab/*.jpg
+            out/ab/index.json
+          if-no-files-found: ignore
+          retention-days: 14
