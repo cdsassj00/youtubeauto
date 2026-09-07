@@ -1,9 +1,16 @@
 name: 강의 썸네일 후보 만들기 (A/B용)
 
-# ★영상은 건드리지 않는다★ 이미 올라간 회차의 썸네일 후보만 그려서 아티팩트로 낸다.
-# 조회수·링크·댓글이 그대로 남아야 하므로 재업로드도, 썸네일 교체도 하지 않는다.
-# 사람이 받아서 유튜브 스튜디오의 "테스트 및 비교"에 올린다 — 썸네일 A/B 는 데이터
-# API 로 만들 수 없고 스튜디오에서만 걸 수 있다.
+# ★영상 자체는 건드리지 않는다★ 재업로드가 아니라 그림만 갈아끼우므로 조회수·링크·
+# 댓글이 그대로 남는다.
+#
+# ★A/B 를 손 안 대고 돌리는 방법★ 유튜브 스튜디오의 "테스트 및 비교"는 한 영상에 여러
+# 장을 걸어 같은 조건에서 겨루게 해 주지만 데이터 API 로는 만들 수 없다. 대신 apply=split
+# 으로 열 편을 반으로 갈라 홀수 회차에 B(화면+인물), 짝수 회차에 C(화면만)를 건다.
+# 편마다 내용이 달라 정밀도는 떨어지지만, 지금 필요한 것은 "화면 배경이 통하나 /
+# 인물이 필요한가" 라는 큰 방향이라 이것으로 충분하다.
+#
+# ★만든 그림은 브랜치에도 올린다★ 아티팩트는 zip 이라 눈으로 보려면 받아서 풀어야 한다.
+# 브랜치에 두면 깃허브에서 바로 보이고, 나중에 무엇을 걸었는지 되짚을 수 있다.
 
 on:
   workflow_dispatch:
@@ -16,11 +23,17 @@ on:
         description: '특정 회차만 (쉼표로, 예: 14,22,31). 비우면 최근 것부터'
         required: false
         default: ''
+      apply:
+        description: '채널에 실제로 걸기 — none(만들기만) | split(홀수 B·짝수 C) | B | C'
+        required: false
+        default: 'none'
 
 jobs:
   make:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: write
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-4-8' }}
@@ -35,6 +48,7 @@ jobs:
       COURSE_HOOK: ${{ vars.COURSE_HOOK || '돈 주고도 못 듣는 강의' }}
       AB_LIMIT: ${{ github.event.inputs.limit || '10' }}
       AB_ORDERS: ${{ github.event.inputs.orders || '' }}
+      AB_APPLY: ${{ github.event.inputs.apply || 'none' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,11 +71,25 @@ jobs:
             {
               echo "## 만든 후보"
               echo ""
-              echo "| 회차 | 영상 | 새 문구 | 배지 |"
-              echo "|---|---|---|---|"
-              jq -r '.[] | "| \(.order) | https://youtu.be/\(.videoId) | \(.headline | gsub("\n"; " / ")) | \(.badge) |"' out/ab/index.json
+              echo "| 회차 | 영상 | 새 문구 | 배지 | 채널 반영 |"
+              echo "|---|---|---|---|---|"
+              jq -r '.[] | "| \(.order) | https://youtu.be/\(.videoId) | \(.headline | gsub("\n"; " / ")) | \(.badge) | \(.applied) |"' out/ab/index.json
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      # ★눈으로 볼 수 있는 자리에 둔다★ 아티팩트만 두면 zip 을 받아 풀어야 보인다.
+      # 전용 브랜치에 한 커밋으로 덮어써서 저장소가 회차마다 불어나지 않게 한다.
+      - name: 후보 그림을 브랜치에 올리기
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out/ab
+          publish_branch: thumb-candidates
+          force_orphan: true
+          enable_jekyll: true
+          commit_message: '강의 썸네일 후보 (apply=${{ github.event.inputs.apply || ''none'' }})'
+
       - name: 후보 아티팩트
         if: always()
         uses: actions/upload-artifact@v4
