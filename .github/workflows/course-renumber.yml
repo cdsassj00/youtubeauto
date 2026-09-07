@@ -1,0 +1,43 @@
+name: 강의 회차 번호 붙이기 (이미 올라간 영상)
+
+# ★댓글로 들어온 요청이다★ "연속성 있는 강의를 파트별로 끊어 올리는 것 같은데 순서를
+# 알 수 있게 번호를 넣어 달라." 앞으로 올라갈 편은 파이프라인이 붙이지만, 그분이 지금
+# 보고 있는 것은 이미 올라간 영상들이라 그쪽도 고쳐야 실제로 반영된 것이다.
+#
+# 영상은 건드리지 않는다 — 제목 끝에 [14/43] 을 붙이고 설명 둘째 줄에 순서를 적을 뿐이라
+# 조회수·링크·댓글이 그대로 남는다. 대본을 다시 만들지 않으므로 모델도 부르지 않는다.
+#
+# ★기본이 예행 모드다★ 열몇 편의 제목을 한 번에 바꾸는 작업이라, 무엇이 어떻게 바뀌는지
+# 먼저 보고 결정한다. 실제 반영은 dry_run=false 로 한 번 더 돌린다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '예행 모드 (true=보기만 / false=실제 반영)'
+        required: false
+        default: 'true'
+
+jobs:
+  renumber:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      # 강의 시리즈는 기본 채널이다. 비워 두면 다른 채널을 읽는다.
+      TARGET_CHANNEL: default
+      SERIES_TITLE: ${{ vars.SERIES_TITLE || 'AI챔피언 강사양성과정' }}
+      COURSE_CODE: ${{ vars.COURSE_CODE || 'cdsa-ac' }}
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - name: 의존성 설치
+        run: npm ci
+      - name: 번호 붙이기
+        run: npx tsx src/pipeline/courseRenumber.ts

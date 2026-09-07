@@ -20,7 +20,7 @@ import { pickFrames } from '../lib/courseFrames.js';
 import { drawCourseThumbnail } from '../lib/courseThumbnail.js';
 import { groupAccent, type StripSpec } from '../lib/seriesStrip.js';
 import { uploadVideo, uploadCaption, ensurePlaylist, addToPlaylist, updateVideoMeta, setThumbnail, listPublishedOrders, apiErrorDetail } from '../lib/youtube.js';
-import { nextCourseModule } from '../lib/courseManifest.js';
+import { courseTotal, nextCourseModule } from '../lib/courseManifest.js';
 import { nextKstTimeUtc } from '../lib/publishTime.js';
 import { printUsage } from '../lib/usage.js';
 
@@ -83,6 +83,20 @@ async function main(): Promise<void> {
   // 강좌"로 보여서, 검색으로 들어온 사람이 그냥 지나친다. 조각조각 나뉜 강의에는 치명적이다.
   // 회차 번호가 필요한 시리즈면 COURSE_NUMBERED=true 로 되돌린다.
   const numbered = env('COURSE_NUMBERED', 'false').toLowerCase() === 'true';
+  /**
+   * 회차 번호를 어디에 붙일지. suffix(기본) | prefix | none.
+   *
+   * ★시청자가 순서를 못 찾고 있었다★ 댓글로 "연속성 있는 강의를 파트별로 끊어 올리는
+   * 것 같은데 순서를 알 수 있게 번호를 넣어 달라"는 요청이 왔다. 실제로 번호가 어디에도
+   * 없었다 — 제목에도, 썸네일에도, 설명 첫 줄에도.
+   *
+   * ★그렇다고 제목 앞에 붙이면 안 된다★ "AI챔피언 강사양성과정 [14] …" 로 시작하면
+   * 검색 결과에서 앞부분이 전부 시리즈명이라 무슨 내용인지 안 보이고, "1편부터 봐야
+   * 하는 강좌" 로 읽혀 검색으로 들어온 사람이 그냥 지나친다. 뒤에 "[14/43]" 으로 붙이면
+   * 제목은 내용으로 시작하면서 순서도 알 수 있다 — 둘 다 된다.
+   */
+  const numberStyle = env('COURSE_NUMBER_STYLE', numbered ? 'prefix' : 'suffix').toLowerCase();
+  const total = await courseTotal();
 
   if (!srtFileId) throw new Error('DRIVE_SRT_ID 가 필요합니다.');
   if (!dryRun && !videoFileId) throw new Error('DRIVE_VIDEO_ID 가 필요합니다.');
@@ -105,11 +119,15 @@ async function main(): Promise<void> {
     seriesTitle,
     order,
   });
-  // 제목은 이 영상 하나로 서야 한다(numbered 를 켜면 옛 방식대로 시리즈명·회차가 앞에 붙는다).
-  const prefix = numbered ? (order ? `${seriesTitle} [${order}] ` : `${seriesTitle} `) : '';
-  const fullTitle = `${prefix}${meta.title}`.slice(0, 100);
+  // 제목은 이 영상 하나로 서야 한다(prefix 를 고르면 옛 방식대로 시리즈명·회차가 앞에 붙는다).
+  const prefix = numberStyle === 'prefix' ? (order ? `${seriesTitle} [${order}] ` : `${seriesTitle} `) : '';
+  const suffix = numberStyle === 'suffix' && order ? ` [${order}${total ? `/${total}` : ''}]` : '';
+  // 100자 상한은 번호를 뗀 뒤에 자른다 — 안 그러면 번호가 잘려 나가 순서를 알 수 없게 된다.
+  const fullTitle = `${prefix}${meta.title}`.slice(0, 100 - suffix.length) + suffix;
   // 설명 맨 위에 후킹 한 줄을 얹는다 — 검색 결과와 추천 카드에서 앞부분만 보이기 때문이다.
-  const description = `${hook} · ${hookSub}\n\n${body}`;
+  // 그 바로 아래에 순서를 적는다. 제목의 [14/43] 만으로는 재생목록이 있는지 모른다.
+  const orderLine = order ? `${seriesTitle} ${order}${total ? `/${total}` : ''}번째 편입니다. 전체 순서는 재생목록에서 볼 수 있습니다.\n` : '';
+  const description = `${hook} · ${hookSub}\n${orderLine}\n${body}`;
 
   // ★썸네일에서 큰 글씨와 시리즈 표식의 역할★
   //
@@ -124,7 +142,10 @@ async function main(): Promise<void> {
   //    똑같아서 눈이 하나의 표식으로 학습한다. 색은 일차별로 나눠 목록에 구획을 만든다.
   // 띠에서도 번호를 뺀다 — 구석의 "14" 도 순서를 강요하는 신호다. 문구만 남기면 시리즈
   // 표식 구실은 그대로 하면서 "몇 번째부터 봐야 하나" 하는 부담은 사라진다.
-  const strip: StripSpec = { label: hook, order: numbered ? order : 0, accent: groupAccent(moduleLabel, order) };
+  // ★띠에도 번호를 되살린다★ 예전에 뺀 이유는 "몇 번째부터 봐야 하나" 하는 부담을
+  // 주지 않으려는 것이었는데, 실제로는 순서를 못 찾겠다는 요청이 왔다. 부담보다 길잡이가
+  // 없는 쪽이 더 큰 문제다.
+  const strip: StripSpec = { label: hook, order: numberStyle === 'none' ? 0 : order, accent: groupAccent(moduleLabel, order) };
   const headline = headlineOverride || meta.thumbnailHeadline;
   // 시청자에게 안 보이는 진행 표식. 이게 없으면 다음 회차를 고를 수 없다.
   const tags = order ? [...meta.tags, `${seriesCode}-${order}`] : meta.tags;

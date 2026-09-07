@@ -76,3 +76,16 @@ export async function nextCourseModule(publishedOrders: Set<number>): Promise<Ne
   }
   return { kind: 'done' };
 }
+
+/**
+ * 시리즈 전체 편수. 제목의 "[14/43]" 뒷자리에 쓴다.
+ *
+ * ★"14편" 보다 "14/43" 이 낫다★ 지금 어디쯤인지와 얼마나 남았는지를 한 번에 알려 준다.
+ * expectedTotal 을 적어 두지 않았으면 목록에 있는 것 중 가장 큰 번호로 대신한다.
+ */
+export async function courseTotal(): Promise<number> {
+  const raw = JSON.parse(await fs.readFile(MANIFEST_PATH, 'utf8')) as { expectedTotal?: number };
+  if (Number.isInteger(raw.expectedTotal)) return raw.expectedTotal as number;
+  const modules = await loadCourseManifest();
+  return modules.length ? Math.max(...modules.map((m) => m.order)) : 0;
+}
