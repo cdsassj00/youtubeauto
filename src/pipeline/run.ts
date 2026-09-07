@@ -177,7 +177,9 @@ async function stepSpotScript(): Promise<Script> {
   // 이력 파일은 워크플로가 다른 러너에서 돌거나 수동 실행이 섞이면 곧 사실과 어긋난다.
   let recent: string[] = [];
   try {
-    recent = await listRecentVideoTitles(50);
+    // ★발행이 잦아진 만큼 창을 넓힌다★ 50개면 하루 10편 낼 때 닷새치라, 같은 종목이
+    // 일주일에 두 번 나올 수 있다. 200개면 2~3주치가 되어 그만큼 종목이 돌아간다.
+    recent = await listRecentVideoTitles(200);
   } catch (e) {
     // 자격 증명이 없는 환경(미리보기 실행 등)에서는 중복 검사만 건너뛴다.
     console.warn(`  · 최근 영상 목록을 못 읽어 중복 검사를 건너뜁니다 — ${(e as Error).message}`);
@@ -778,11 +780,29 @@ async function stepUpload(): Promise<void> {
     return;
   }
   const meta = await loadMeta();
-  const videoId = await uploadVideo({
-    videoPath: VIDEO_PATH,
-    script: meta,
-    thumbnailPath: THUMBNAIL_PATH,
-  });
+  let videoId: string;
+  try {
+    videoId = await uploadVideo({
+      videoPath: VIDEO_PATH,
+      script: meta,
+      thumbnailPath: THUMBNAIL_PATH,
+    });
+  } catch (e) {
+    // ★하루 업로드 수에는 천장이 있다★ YouTube Data API 는 업로드 한 번에 1,600 쿼터를
+    // 쓰고 기본 한도가 하루 10,000 이라, 프로젝트 하나로는 하루 여섯 편쯤이 끝이다.
+    // 수시 발행 슬롯을 늘리면 그 천장을 넘는 날이 생기는데, 그때 잡을 빨간 X 로 끝내면
+    // 매일 알림이 울리고 진짜 고장과 구별이 안 된다. 천장에 닿은 것은 고장이 아니므로
+    // 조용히 끝낸다 — 영상은 이미 만들어져 아티팩트에 남고, 다음 슬롯에서 다시 나간다.
+    const msg = (e as Error).message ?? '';
+    if (/quota/i.test(msg)) {
+      console.error('⏭ 오늘 업로드 한도를 다 썼습니다 — 이번 편은 올리지 않고 끝냅니다.');
+      console.error(`   ${msg.split('\n')[0]}`);
+      console.error('   한도를 늘리려면 Google Cloud 콘솔에서 YouTube Data API 쿼터 증설을 신청해야 합니다.');
+      if (process.env.GITHUB_OUTPUT) await fs.appendFile(process.env.GITHUB_OUTPUT, 'quota=true\n');
+      return;
+    }
+    throw e;
+  }
   const privacy = config.youtubePrivacyStatus;
   console.log(`  · 업로드 완료: https://youtu.be/${videoId} (${privacy})`);
   // "업로드 전 리뷰" 흐름용 결과 기록 — 웹앱이 videoId/공개상태로 미리보기·발행을 제어.
