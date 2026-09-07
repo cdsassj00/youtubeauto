@@ -18,8 +18,10 @@ import { courseTotal } from '../lib/courseManifest.js';
 
 const env = (k: string, d = '') => process.env[k]?.trim() || d;
 
-/** 제목 끝에 이미 [N] 또는 [N/M] 이 붙어 있는가. */
-const hasNumber = (title: string) => /\[\d+(\/\d+)?\]\s*$/.test(title.trim());
+/** 제목 앞에 이미 "…[N]" 또는 "…[N/M]" 이 붙어 있는가. */
+const hasPrefix = (title: string) => /^[^\[\]]{0,30}\[\d+(\/\d+)?\]\s/.test(title.trim());
+/** 뒤에 붙은 옛 표기 — 앞으로 옮기면서 떼어 낸다. */
+const trailing = /\s*\[\d+(\/\d+)?\]\s*$/;
 
 export async function runCourseRenumber(): Promise<void> {
   const seriesCode = env('COURSE_CODE', 'cdsa-ac');
@@ -47,7 +49,7 @@ export async function runCourseRenumber(): Promise<void> {
     const mark = `[${ep.order}${total ? `/${total}` : ''}]`;
     const orderLine = `${seriesTitle} ${ep.order}${total ? `/${total}` : ''}번째 편입니다. 전체 순서는 재생목록에서 볼 수 있습니다.`;
 
-    const needTitle = !hasNumber(curTitle);
+    const needTitle = !hasPrefix(curTitle);
     const needDesc = !curDesc.includes(orderLine);
     if (!needTitle && !needDesc) {
       console.log(`  · [${ep.order}] 이미 번호가 있습니다 — 건너뜁니다`);
@@ -55,7 +57,10 @@ export async function runCourseRenumber(): Promise<void> {
     }
 
     // 제목 100자 상한. 번호가 잘리면 붙이는 의미가 없으므로 본문 쪽을 줄인다.
-    const nextTitle = needTitle ? `${curTitle.slice(0, 100 - mark.length - 1)} ${mark}` : curTitle;
+    // 뒤에 붙은 옛 표기가 있으면 떼고 앞으로 옮긴다 — 앞뒤에 두 번 달리면 안 된다.
+    const head = `${seriesTitle}${mark} `;
+    const body = curTitle.replace(trailing, '').trim();
+    const nextTitle = needTitle ? head + body.slice(0, Math.max(0, 100 - head.length)) : curTitle;
     // 설명은 첫 줄(후킹) 바로 아래에 끼운다 — 맨 위로 올리면 후킹이 밀린다.
     const lines = curDesc.split('\n');
     const nextDesc = needDesc ? [lines[0] ?? '', orderLine, ...lines.slice(1)].join('\n') : curDesc;

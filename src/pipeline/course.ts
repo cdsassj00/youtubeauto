@@ -79,23 +79,20 @@ async function main(): Promise<void> {
   // 자막을 읽고 모델이 회차마다 새로 뽑는다. 40편이 같은 문구가 되면 안 되므로 이 값은
   // 회차별로 넘기는 일회용이지 시리즈 공통 설정이 아니다(시리즈 공통 문구는 COURSE_HOOK 이다).
   const headlineOverride = env('COURSE_HEADLINE');
-  // ★기본은 낱개 영상이다★ 제목 맨 앞에 "시리즈명 [14]" 가 붙으면 "1편부터 봐야 하는
-  // 강좌"로 보여서, 검색으로 들어온 사람이 그냥 지나친다. 조각조각 나뉜 강의에는 치명적이다.
-  // 회차 번호가 필요한 시리즈면 COURSE_NUMBERED=true 로 되돌린다.
-  const numbered = env('COURSE_NUMBERED', 'false').toLowerCase() === 'true';
   /**
-   * 회차 번호를 어디에 붙일지. suffix(기본) | prefix | none.
+   * 회차 번호를 어디에 붙일지. prefix(기본) | suffix | none.
    *
    * ★시청자가 순서를 못 찾고 있었다★ 댓글로 "연속성 있는 강의를 파트별로 끊어 올리는
    * 것 같은데 순서를 알 수 있게 번호를 넣어 달라"는 요청이 왔다. 실제로 번호가 어디에도
    * 없었다 — 제목에도, 썸네일에도, 설명 첫 줄에도.
    *
-   * ★그렇다고 제목 앞에 붙이면 안 된다★ "AI챔피언 강사양성과정 [14] …" 로 시작하면
-   * 검색 결과에서 앞부분이 전부 시리즈명이라 무슨 내용인지 안 보이고, "1편부터 봐야
-   * 하는 강좌" 로 읽혀 검색으로 들어온 사람이 그냥 지나친다. 뒤에 "[14/43]" 으로 붙이면
-   * 제목은 내용으로 시작하면서 순서도 알 수 있다 — 둘 다 된다.
+   * ★맨 앞에 둔다★ 처음엔 뒤에 붙였다 — 제목이 내용으로 시작해야 검색에서 유리하다고
+   * 봤기 때문이다. 그런데 목록에서 여러 편이 세로로 늘어설 때 번호가 같은 자리에 있어야
+   * 눈이 순서를 따라간다. 끝에 붙이면 제목 길이가 편마다 달라 번호 위치가 들쭉날쭉하고,
+   * 모바일에서는 제목이 잘려 번호가 아예 안 보이는 편도 생긴다. 순서를 알려 달라는
+   * 요청에 대한 답으로는 앞이 맞다.
    */
-  const numberStyle = env('COURSE_NUMBER_STYLE', numbered ? 'prefix' : 'suffix').toLowerCase();
+  const numberStyle = env('COURSE_NUMBER_STYLE', 'prefix').toLowerCase();
   const total = await courseTotal();
 
   if (!srtFileId) throw new Error('DRIVE_SRT_ID 가 필요합니다.');
@@ -119,11 +116,13 @@ async function main(): Promise<void> {
     seriesTitle,
     order,
   });
-  // 제목은 이 영상 하나로 서야 한다(prefix 를 고르면 옛 방식대로 시리즈명·회차가 앞에 붙는다).
-  const prefix = numberStyle === 'prefix' ? (order ? `${seriesTitle} [${order}] ` : `${seriesTitle} `) : '';
+  // ★번호는 제목 맨 앞이다★ 목록에서 여러 편이 세로로 늘어설 때 번호가 같은 자리에
+  // 있어야 눈이 순서를 따라간다. 끝에 붙이면 제목 길이가 편마다 달라 번호가 들쭉날쭉한
+  // 위치에 서고, 모바일에서는 제목이 잘려 아예 안 보이는 편도 생긴다.
+  const prefix = numberStyle === 'prefix' && order ? `${seriesTitle}[${order}${total ? `/${total}` : ''}] ` : '';
   const suffix = numberStyle === 'suffix' && order ? ` [${order}${total ? `/${total}` : ''}]` : '';
   // 100자 상한은 번호를 뗀 뒤에 자른다 — 안 그러면 번호가 잘려 나가 순서를 알 수 없게 된다.
-  const fullTitle = `${prefix}${meta.title}`.slice(0, 100 - suffix.length) + suffix;
+  const fullTitle = (prefix + meta.title).slice(0, 100 - suffix.length) + suffix;
   // 설명 맨 위에 후킹 한 줄을 얹는다 — 검색 결과와 추천 카드에서 앞부분만 보이기 때문이다.
   // 그 바로 아래에 순서를 적는다. 제목의 [14/43] 만으로는 재생목록이 있는지 모른다.
   const orderLine = order ? `${seriesTitle} ${order}${total ? `/${total}` : ''}번째 편입니다. 전체 순서는 재생목록에서 볼 수 있습니다.\n` : '';
@@ -140,8 +139,6 @@ async function main(): Promise<void> {
   //  · 큰 글씨 = 이 회차만의 문구. 무엇을 눌러야 할지를 정하는 건 이쪽이다.
   //  · 시리즈 표식 = 왼쪽 아래 고정 띠(회차 번호 + 공통 문구). 자리·모양·색이 매 편
   //    똑같아서 눈이 하나의 표식으로 학습한다. 색은 일차별로 나눠 목록에 구획을 만든다.
-  // 띠에서도 번호를 뺀다 — 구석의 "14" 도 순서를 강요하는 신호다. 문구만 남기면 시리즈
-  // 표식 구실은 그대로 하면서 "몇 번째부터 봐야 하나" 하는 부담은 사라진다.
   // ★띠에도 번호를 되살린다★ 예전에 뺀 이유는 "몇 번째부터 봐야 하나" 하는 부담을
   // 주지 않으려는 것이었는데, 실제로는 순서를 못 찾겠다는 요청이 왔다. 부담보다 길잡이가
   // 없는 쪽이 더 큰 문제다.
