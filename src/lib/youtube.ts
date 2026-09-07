@@ -389,10 +389,21 @@ export async function listRecentVideoTitles(max = 30): Promise<string[]> {
   const ch = await youtube.channels.list({ part: ['contentDetails'], mine: true });
   const uploads = ch.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
   if (!uploads) return [];
-  const res = await youtube.playlistItems.list({
-    part: ['snippet'],
-    playlistId: uploads,
-    maxResults: Math.min(50, max),
-  });
-  return (res.data.items ?? []).map((it) => it.snippet?.title ?? '').filter(Boolean);
+  // ★한 번에 50개까지만 온다★ 발행이 잦아지면 50개는 며칠치밖에 안 되고, 그만큼 같은
+  // 종목이 다시 나오기 쉬워진다. 필요한 만큼 페이지를 넘겨 받는다.
+  const titles: string[] = [];
+  let pageToken: string | undefined;
+  while (titles.length < max) {
+    const res = await youtube.playlistItems.list({
+      part: ['snippet'],
+      playlistId: uploads,
+      maxResults: Math.min(50, max - titles.length),
+      pageToken,
+    });
+    for (const it of res.data.items ?? []) if (it.snippet?.title) titles.push(it.snippet.title);
+    pageToken = res.data.nextPageToken ?? undefined;
+    if (!pageToken) break;
+  }
+  return titles;
 }
+

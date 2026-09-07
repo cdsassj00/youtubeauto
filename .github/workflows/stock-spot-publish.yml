@@ -14,11 +14,21 @@ on:
     # ★크론 문자열이 곧 시장 구분이다★ 아래 STOCK_MARKET 이 github.event.schedule 을
     # 글자 그대로 비교하므로, 여기를 고치면 그쪽도 같이 고쳐야 한다. 한 글자만 달라도
     # 조용히 KR 로 떨어진다.
-    - cron: '0 2 * * 1-5'    # 11:00 KST — 한국장 오전
-    - cron: '0 5 * * 1-5'    # 14:00 KST — 한국장 오후
-    - cron: '0 10 * * 1-5'   # 19:00 KST — 한국장 마감 뒤(데일리 08:30 UTC 와 겹치지 않게)
-    - cron: '0 15 * * 1-5'   # 11:00 ET — 미국장 오전
-    - cron: '0 19 * * 1-5'   # 15:00 ET — 미국장 오후
+    # ── 한국장 (09:00~15:30 KST = 00:00~06:30 UTC) ──
+    - cron: '0 0 * * 1-5'    # 09:00 KST — 개장
+    - cron: '0 1 * * 1-5'    # 10:00 KST
+    - cron: '0 2 * * 1-5'    # 11:00 KST
+    - cron: '0 3 * * 1-5'    # 12:00 KST
+    - cron: '0 5 * * 1-5'    # 14:00 KST
+    - cron: '0 6 * * 1-5'    # 15:00 KST — 마감 직전
+    - cron: '0 10 * * 1-5'   # 19:00 KST — 마감 뒤(데일리 08:30 UTC 와 겹치지 않게)
+    - cron: '0 12 * * 1-5'   # 21:00 KST — 저녁
+    # ── 미국장 (09:30~16:00 ET = 13:30~20:00 UTC, 서머타임 기준) ──
+    - cron: '30 13 * * 1-5'  # 09:30 ET — 개장
+    - cron: '0 15 * * 1-5'   # 11:00 ET
+    - cron: '0 17 * * 1-5'   # 13:00 ET
+    - cron: '0 19 * * 1-5'   # 15:00 ET
+    - cron: '30 20 * * 1-5'  # 16:30 ET — 마감 직후
   workflow_dispatch:
     inputs:
       market:
@@ -57,7 +67,9 @@ jobs:
       - name: 피드 후보 확인
         id: feed
         env:
-          MARKET: ${{ github.event.inputs.market || (contains(fromJSON('["0 15 * * 1-5","0 19 * * 1-5"]'), github.event.schedule) && 'US') || 'KR' }}
+          # ★이 목록은 위 schedule 의 미국장 크론과 글자까지 같아야 한다★ 한 글자만 달라도
+          # 그 시각은 조용히 한국장으로 떨어져, 미국 장중에 한국 종가 이야기가 나간다.
+          MARKET: ${{ github.event.inputs.market || (contains(fromJSON('["30 13 * * 1-5","0 15 * * 1-5","0 17 * * 1-5","0 19 * * 1-5","30 20 * * 1-5"]'), github.event.schedule) && 'US') || 'KR' }}
         run: |
           echo "market=$MARKET" >> "$GITHUB_OUTPUT"
           BODY=$(curl -sS --max-time 30 "https://stockontology.cc/api/feed?market=$MARKET&limit=20&cb=$(date +%s)")
