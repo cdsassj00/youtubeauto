@@ -4,9 +4,9 @@
  * 자동 생성 파이프라인(run.ts)과 완전히 다른 흐름이다. 여기서는 영상을 만들지 않는다 —
  * 이미 완성된 영상과 자막을 드라이브에서 받아, 자막을 읽고 메타데이터를 만들어 올린다.
  *
- * ★폴더 목록은 여기서 읽지 않는다★ 드라이브 목록 조회는 인증이 필요한데 러너에는 그
- * 자격이 없다. 대신 "무엇을 올릴지"는 호출하는 쪽(Claude 세션)이 정해 파일 ID 로 넘긴다.
- * 러너는 공개 링크로 내려받기만 하면 되므로 자격증명이 하나도 늘지 않는다.
+ * ★폴더가 곧 목록이다★ 예전에는 드라이브 목록 조회에 인증이 필요해 순서를 저장소 안
+ * 파일에 손으로 적어 두었다. 지금은 공개 폴더를 임베드 화면으로 읽으므로(driveFolder.ts)
+ * 파일만 넣으면 된다. 내려받기도 공개 링크라 자격증명은 여전히 하나도 필요 없다.
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -39,6 +39,7 @@ async function main(): Promise<void> {
   // 순번이 가장 빠른 것을 스스로 고른다. 하루 한 편 크론이 이 모드로 돈다.
   let videoFileId = env('DRIVE_VIDEO_ID');
   let srtFileId = env('DRIVE_SRT_ID');
+  let descFileId = env('DRIVE_DESC_ID');
   let moduleLabel = env('MODULE_LABEL');
   let topic = env('COURSE_TOPIC');
   let order = Number(env('COURSE_ORDER', '0')) || 0;
@@ -61,6 +62,7 @@ async function main(): Promise<void> {
       return;
     }
     ({ driveVideoId: videoFileId, driveSrtId: srtFileId, moduleLabel, topic, order } = next.module);
+    descFileId = next.module.driveDescId ?? '';
     console.log(`  · 이번 차례: [${order}] ${moduleLabel} — ${topic}`);
   }
   // ★썸네일 공통 후킹 문구★ 회차마다 바뀌지 않는다 — 37편이 한 시리즈로 보이게 하는 장치이자,
@@ -116,17 +118,51 @@ async function main(): Promise<void> {
     seriesTitle,
     order,
   });
+  /**
+   * 사람이 써 둔 업로드 설명(<이름>_업로드설명.txt)이 있으면 그것을 그대로 쓴다.
+   *
+   * ★사람이 쓴 것을 모델이 다시 쓸 이유가 없다★ 이 파일에는 제목 한 줄, 요약, 실제
+   * 시각이 박힌 목차, 강사 표기, 해시태그가 이미 들어 있다. 목차 시각은 영상을 보고
+   * 적은 것이라 자막에서 추정한 것보다 정확하다.
+   *
+   * ★제목에 번호를 또 붙이지 않는다★ 첫 줄이 "[01/09] … | 관리자 AI 리더십" 처럼 이미
+   * 번호와 시리즈명을 달고 있다. 그 위에 우리 접두어를 얹으면 번호가 두 번 붙는다.
+   */
+  let authored: { title: string; description: string; tags: string[] } | null = null;
+  if (descFileId) {
+    try {
+      const descPath = path.join(OUT_DIR, 'course-desc.txt');
+      await downloadDriveFile(descFileId, descPath, 10);
+      // BOM 은 첫 글자로 남아 제목 맨 앞에 보이지 않는 문자를 끼워 넣는다.
+      const raw = (await fs.readFile(descPath, 'utf8')).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+      const lines = raw.split('\n');
+      const titleIdx = lines.findIndex((l) => l.trim());
+      const title = (lines[titleIdx] ?? '').trim();
+      const rest = lines.slice(titleIdx + 1).join('\n').trim();
+      if (title && rest) {
+        const tags = [...new Set([...rest.matchAll(/#([^\s#]+)/g)].map((m) => m[1]))].slice(0, 12);
+        authored = { title: title.slice(0, 100), description: rest, tags };
+        console.log(`  · 업로드 설명 파일을 씁니다 (${raw.length}자, 태그 ${tags.length}개)`);
+      } else {
+        console.warn('  ⚠ 설명 파일이 비어 제목·설명을 자막에서 만듭니다.');
+      }
+    } catch (e) {
+      // 설명 파일 하나 때문에 그날 발행을 버리지 않는다 — 없으면 지금까지처럼 만든다.
+      console.warn(`  ⚠ 설명 파일을 못 읽어 자막에서 만듭니다 — ${(e as Error).message}`);
+    }
+  }
+
   // ★번호는 제목 맨 앞이다★ 목록에서 여러 편이 세로로 늘어설 때 번호가 같은 자리에
   // 있어야 눈이 순서를 따라간다. 끝에 붙이면 제목 길이가 편마다 달라 번호가 들쭉날쭉한
   // 위치에 서고, 모바일에서는 제목이 잘려 아예 안 보이는 편도 생긴다.
   const prefix = numberStyle === 'prefix' && order ? `${seriesTitle}[${order}${total ? `/${total}` : ''}] ` : '';
   const suffix = numberStyle === 'suffix' && order ? ` [${order}${total ? `/${total}` : ''}]` : '';
   // 100자 상한은 번호를 뗀 뒤에 자른다 — 안 그러면 번호가 잘려 나가 순서를 알 수 없게 된다.
-  const fullTitle = (prefix + meta.title).slice(0, 100 - suffix.length) + suffix;
+  const fullTitle = authored ? authored.title : (prefix + meta.title).slice(0, 100 - suffix.length) + suffix;
   // 설명 맨 위에 후킹 한 줄을 얹는다 — 검색 결과와 추천 카드에서 앞부분만 보이기 때문이다.
   // 그 바로 아래에 순서를 적는다. 제목의 [14/43] 만으로는 재생목록이 있는지 모른다.
   const orderLine = order ? `${seriesTitle} ${order}${total ? `/${total}` : ''}번째 편입니다. 전체 순서는 재생목록에서 볼 수 있습니다.\n` : '';
-  const description = `${hook} · ${hookSub}\n${orderLine}\n${body}`;
+  const description = authored ? authored.description : `${hook} · ${hookSub}\n${orderLine}\n${body}`;
 
   // ★썸네일에서 큰 글씨와 시리즈 표식의 역할★
   //
@@ -145,7 +181,9 @@ async function main(): Promise<void> {
   const strip: StripSpec = { label: hook, order: numberStyle === 'none' ? 0 : order, accent: groupAccent(moduleLabel, order) };
   const headline = headlineOverride || meta.thumbnailHeadline;
   // 시청자에게 안 보이는 진행 표식. 이게 없으면 다음 회차를 고를 수 없다.
-  const tags = order ? [...meta.tags, `${seriesCode}-${order}`] : meta.tags;
+  // 진행 표식은 어느 쪽이든 붙인다 — 이게 없으면 다음 회차를 고를 수 없다.
+  const baseTags = authored ? authored.tags : meta.tags;
+  const tags = order ? [...baseTags, `${seriesCode}-${order}`] : baseTags;
 
   const metaOut = {
     moduleLabel,

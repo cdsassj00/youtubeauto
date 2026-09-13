@@ -71,6 +71,15 @@ export interface CoursePair extends CourseFile {
   srtId: string;
   videoName: string;
   srtName: string;
+  /**
+   * 사람이 써 둔 업로드 설명(<이름>_업로드설명.txt). 있으면 제목·설명을 이것으로 쓴다.
+   *
+   * ★사람이 쓴 것이 낫다★ 이 파일에는 제목 한 줄, 요약, 실제 시각이 박힌 목차, 강사
+   * 표기, 해시태그가 이미 들어 있다. 자막을 읽어 모델이 다시 쓰면 목차 시각을 새로
+   * 추정하게 되는데, 사람이 영상을 보고 적은 시각을 이길 이유가 없다.
+   */
+  descId?: string;
+  descName?: string;
 }
 
 /**
@@ -80,12 +89,20 @@ export interface CoursePair extends CourseFile {
 export function pairCourseFiles(entries: DriveEntry[]): { pairs: CoursePair[]; skipped: string[] } {
   const videos = new Map<string, DriveEntry & { info: CourseFile }>();
   const subs = new Map<string, DriveEntry>();
+  const descs = new Map<string, DriveEntry>();
   const skipped: string[] = [];
 
   for (const e of entries) {
     const lower = e.title.toLowerCase();
     const isVideo = /\.(mp4|mov|m4v)$/.test(lower);
     const isSrt = /\.srt$/.test(lower);
+    // ★설명 파일은 이름이 "<영상이름>_업로드설명.txt" 다★ 순번 규칙을 태우기 전에
+    // 꼬리표를 떼어 내야 영상과 같은 열쇠(stem)가 나온다.
+    const descStem = /_업로드설명\.txt$/i.test(e.title) ? e.title.replace(/_업로드설명\.txt$/i, '') : '';
+    if (descStem) {
+      descs.set(descStem, e);
+      continue;
+    }
     if (!isVideo && !isSrt) continue;
     const info = parseCourseFileName(e.title);
     if (!info) {
@@ -103,7 +120,8 @@ export function pairCourseFiles(entries: DriveEntry[]): { pairs: CoursePair[]; s
       skipped.push(`${v.title} — 같은 이름의 .srt 가 없습니다`);
       continue;
     }
-    pairs.push({ ...v.info, videoId: v.id, srtId: s.id, videoName: v.title, srtName: s.title });
+    const d = descs.get(stem);
+    pairs.push({ ...v.info, videoId: v.id, srtId: s.id, videoName: v.title, srtName: s.title, descId: d?.id, descName: d?.title });
   }
   for (const [stem, s] of subs) {
     if (!videos.has(stem)) skipped.push(`${s.title} — 같은 이름의 영상이 없습니다`);
