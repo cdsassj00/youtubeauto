@@ -21,6 +21,8 @@ export interface CourseModule {
   topic: string;
   driveVideoId: string;
   driveSrtId: string;
+  /** 사람이 써 둔 업로드 설명 파일. 있으면 제목·설명을 이것으로 쓴다. */
+  driveDescId?: string;
 }
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +64,7 @@ async function loadFromFolder(folderId: string): Promise<CourseModule[] | null> 
       topic: p.topic,
       driveVideoId: p.videoId,
       driveSrtId: p.srtId,
+      driveDescId: p.descId,
     }));
   } catch (e) {
     console.warn(`  ⚠ 드라이브 폴더를 못 읽어 저장된 목록으로 진행합니다 — ${(e as Error).message}`);
