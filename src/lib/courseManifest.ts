@@ -43,6 +43,18 @@ async function loadFromFolder(folderId: string): Promise<CourseModule[] | null> 
     const { pairs, skipped } = pairCourseFiles(entries);
     for (const s of skipped) console.warn(`  ⚠ ${s}`);
     if (!pairs.length) return null;
+    // ★같은 번호가 둘이면 쓰지 않는다★ 서로 다른 시리즈를 한 폴더에 넣으면 순번이 겹친다
+    // (강사양성과정 1~9 와 새 시리즈 01~09 처럼). 저장된 목록 쪽은 중복을 막고 있었는데
+    // 폴더를 직접 읽는 이 경로에는 검사가 없어서, 둘 중 먼저 걸린 것만 올라가고 나머지는
+    // 영영 차례가 오지 않는다 — 조용히 사라지는 종류라 눈치채기 어렵다.
+    const dup = new Map<number, string[]>();
+    for (const p of pairs) dup.set(p.order, [...(dup.get(p.order) ?? []), p.videoName]);
+    const clashes = [...dup].filter(([, names]) => names.length > 1);
+    if (clashes.length) {
+      for (const [order, names] of clashes) console.error(`  ✗ ${order}번이 ${names.length}개입니다: ${names.join(' / ')}`);
+      console.error('  → 순번이 겹칩니다. 시리즈가 섞였는지 확인하세요. 저장된 목록으로 진행합니다.');
+      return null;
+    }
     console.log(`  · 드라이브 폴더에서 ${pairs.length}편을 읽었습니다 (파일 ${entries.length}개)`);
     return pairs.map((p) => ({
       order: p.order,
