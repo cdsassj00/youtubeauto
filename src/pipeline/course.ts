@@ -10,6 +10,7 @@
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { OUT_DIR, THUMBNAIL_PATH, config,
   PRESENTER_IMAGE_PATH,
 } from '../config.js';
@@ -26,7 +27,8 @@ import { printUsage } from '../lib/usage.js';
 
 const env = (k: string, fallback = '') => (process.env[k] ?? '').trim() || fallback;
 
-async function main(): Promise<void> {
+/** 한 편 올린다. 'ok' 면 계속 돌려도 되고, 'stop' 이면 더 올릴 것이 없다는 뜻이다. */
+export async function publishOne(): Promise<'ok' | 'stop'> {
   const courseName = env('COURSE_NAME', 'AI챔피언 강사양성과정');
   // 제목 앞에 붙는 시리즈명과 회차. 회차는 드라이브 파일명 순번을 그대로 받는다.
   const seriesTitle = env('SERIES_TITLE', courseName);
@@ -54,12 +56,12 @@ async function main(): Promise<void> {
     if (next.kind === 'waiting') {
       console.log(`  · [${next.order}]번 차례인데 아직 드라이브에 없습니다. 순서를 지키려고 오늘은 건너뜁니다.`);
       printUsage();
-      return;
+      return 'stop';
     }
     if (next.kind === 'done') {
       console.log('  · 올릴 회차가 없습니다 — 시리즈를 다 발행했습니다.');
       printUsage();
-      return;
+      return 'stop';
     }
     ({ driveVideoId: videoFileId, driveSrtId: srtFileId, moduleLabel, topic, order } = next.module);
     descFileId = next.module.driveDescId ?? '';
@@ -211,7 +213,7 @@ async function main(): Promise<void> {
   if (dryRun) {
     console.log('▶ 예행 모드 — 여기서 멈춥니다. 실제 업로드는 DRY_RUN=false 로 다시 실행하세요.');
     printUsage();
-    return;
+    return 'stop';
   }
 
   if (updateVideoId) {
@@ -227,7 +229,7 @@ async function main(): Promise<void> {
     if (ok) await setThumbnail(updateVideoId, THUMBNAIL_PATH);
     console.log(`\n✅ 교체 완료: https://youtu.be/${updateVideoId}`);
     printUsage();
-    return;
+    return 'stop';
   }
 
   console.log('▶ [3/5] 영상 내려받기');
@@ -320,9 +322,48 @@ async function main(): Promise<void> {
   );
   console.log(`\n✅ 업로드 완료: https://youtu.be/${videoId}`);
   printUsage();
+  return 'ok';
 }
 
-main().catch((e) => {
-  console.error('\n❌ 실패:', (e as Error).message);
-  process.exit(1);
-});
+/**
+ * 한 번 실행에 여러 편을 올린다.
+ *
+ * ★쿼터가 진짜 상한이다★ 업로드 한 번에 1,600 단위가 나가고 썸네일·재생목록까지
+ * 합치면 편당 1,700 쯤이다. 하루 한도가 10,000 이니 다섯 편이 안전선이고 여섯 편째에서
+ * 막힌다. 그러니 "한 번에 다 올려" 는 애초에 안 되는 요청이고, 몇 편까지 되는지를
+ * 코드가 알고 멈춰 주는 편이 낫다.
+ *
+ * ★막히는 것은 고장이 아니다★ 한도에 닿으면 빨간 X 대신 몇 편 올렸는지 적고 끝낸다.
+ * 남은 편은 다음 날(태평양시 자정, 한국 시간 오후 4~5시 초기화) 차례가 온다.
+ */
+async function main(): Promise<void> {
+  const count = Math.max(1, Number(env('COURSE_COUNT', '1')) || 1);
+  let done = 0;
+  for (let i = 0; i < count; i++) {
+    if (count > 1) console.log(`\n════════ ${i + 1}/${count}편째 ════════`);
+    try {
+      const r = await publishOne();
+      if (r === 'stop') break;
+      done++;
+    } catch (e) {
+      const msg = (e as Error).message ?? '';
+      if (/quota/i.test(msg)) {
+        console.error(`\n⏭ 오늘 업로드 한도를 다 썼습니다 — ${done}편까지 올렸습니다.`);
+        console.error(`   ${msg.split('\n')[0]}`);
+        console.error('   한도는 태평양시 자정(한국 시간 오후 4~5시)에 초기화됩니다. 남은 편은 그 뒤에 올라갑니다.');
+        break;
+      }
+      throw e;
+    }
+  }
+  if (count > 1) console.log(`\n──── 이번 실행: ${done}편 업로드 ────`);
+}
+
+// ★직접 실행할 때만 돈다★ courseBatch 가 publishOne 을 가져다 쓰는데, 불러오는 것만으로
+// main 이 돌면 시리즈 하나가 제멋대로 한 편 올라간다.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => {
+    console.error('\n❌ 실패:', (e as Error).message);
+    process.exit(1);
+  });
+}

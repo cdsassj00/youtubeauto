@@ -1,10 +1,16 @@
-name: 강의 시리즈 매일 한 편
+name: 강의 시리즈 매일 발행
 
-# 드라이브에 올려둔 강의를 순번대로 하루에 한 편씩 올린다.
+# 드라이브에 올려둔 강의를 순번대로 올린다. 시리즈가 여럿이면 앞에 적은 것부터 비운다
+# (assets/course/series.json 의 순서가 곧 우선순위다).
 #
-# ★무엇을 올릴지 스스로 정한다★ assets/course/manifest.json 의 순번 목록과, 유튜브 채널에
-# 이미 올라간 회차를 대조해 "아직 안 올라간 것 중 가장 빠른 순번"을 집는다. 진행 상태를
-# 저장소에 적어 두지 않으므로 두 곳이 어긋날 일이 없다 — 유튜브가 사실이다.
+# ★무엇을 올릴지 스스로 정한다★ 드라이브 폴더를 직접 읽어 만든 순번 목록과, 유튜브
+# 채널에 이미 올라간 회차를 대조해 "아직 안 올라간 것 중 가장 빠른 순번"을 집는다.
+# 진행 상태를 저장소에 적어 두지 않으므로 두 곳이 어긋날 일이 없다 — 유튜브가 사실이다.
+#
+# ★한 번에 몇 편까지 올릴지는 쿼터가 정한다★ 업로드 한 번에 1,600 단위가 나가고 썸네일·
+# 재생목록까지 합치면 편당 1,700 쯤인데 하루 한도가 10,000 이다. budget 을 4 로 두면
+# 강의가 6,800 쯤 쓰고 3,200 이 남아 그날 주식 영상 두 편이 나간다(같은 프로젝트를 쓰면
+# 한도를 나눠 쓴다). 한도에 닿으면 빨간 X 대신 몇 편 올렸는지 적고 끝낸다.
 #
 # ★올릴 게 없으면 조용히 끝난다★ 목록을 다 쓰면 아무것도 안 하고 성공으로 끝낸다.
 # 실패로 처리하면 매일 빨간 알림이 오는데, 남은 파일이 없는 것은 고장이 아니다.
@@ -25,6 +31,14 @@ on:
         description: '공개 상태 (public | unlisted | private)'
         required: false
         default: 'public'
+      budget:
+        description: '이번 실행에 올릴 편수 (비우면 series.json 의 budget)'
+        required: false
+        default: ''
+      only:
+        description: '한 시리즈만 (cdsa-leader | cdsa-ac). 비우면 순서대로 전부'
+        required: false
+        default: ''
 
 # 두 개가 겹쳐 돌면 같은 회차를 두 번 올릴 수 있다. 하나씩만 돌린다.
 concurrency:
@@ -53,6 +67,8 @@ jobs:
       # 사람이 직접 찍고 편집한 강의라 합성 미디어 표시 대상이 아니다.
       SYNTHETIC_MEDIA_DISCLOSURE: 'false'
       THUMBNAIL_STYLE: ${{ vars.COURSE_THUMBNAIL_STYLE || 'impact' }}
+      # ★아래 시리즈 설정값은 기본값일 뿐이다★ 실제로는 assets/course/series.json 의
+      # 시리즈마다 courseBatch 가 갈아 끼운다. 시리즈를 추가·수정하려면 그 파일을 고친다.
       COURSE_NAME: ${{ vars.COURSE_NAME || 'AI챔피언 강사양성과정' }}
       SERIES_TITLE: ${{ vars.COURSE_SERIES_TITLE || 'AI챔피언 강사양성과정' }}
       COURSE_HOOK: ${{ vars.COURSE_HOOK || '돈 주고도 못 듣는 강의' }}
@@ -79,8 +95,11 @@ jobs:
       - name: 한글 폰트 설치
         run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
 
-      - name: 오늘 한 편 올리기
-        run: npx tsx src/pipeline/course.ts
+      - name: 오늘치 올리기
+        run: npx tsx src/pipeline/courseBatch.ts
+        env:
+          COURSE_BUDGET: ${{ github.event.inputs.budget || vars.COURSE_BUDGET || '' }}
+          COURSE_ONLY: ${{ github.event.inputs.only || '' }}
 
       - name: 결과 요약
         if: always()

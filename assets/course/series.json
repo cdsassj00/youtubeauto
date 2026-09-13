@@ -1,0 +1,26 @@
+{
+  "note": "한 번 실행에 올릴 시리즈를 순서대로 적는다. 앞에 있는 것부터 올리고, 그 시리즈가 끝나면 다음으로 넘어간다. 업로드 쿼터가 진짜 상한이라 budget 으로 한 번에 올릴 편수를 묶는다.",
+  "budget": 4,
+  "series": [
+    {
+      "name": "관리자 AI 리더십",
+      "folderId": "1Yka3ee6QPq0GYVtlkvQEQk7qrdIKz9Ml",
+      "code": "cdsa-leader",
+      "courseName": "관리자 AI 리더십",
+      "seriesTitle": "관리자 AI 리더십",
+      "playlistTitle": "관리자 AI 리더십",
+      "numberStyle": "none",
+      "hook": "리더를 위한 AI 강의"
+    },
+    {
+      "name": "AI챔피언 강사양성과정",
+      "folderId": "1nPH5MxAvYn0EgUcbOWp3IyH65o0i0X9C",
+      "code": "cdsa-ac",
+      "courseName": "AI챔피언 강사양성과정",
+      "seriesTitle": "AI챔피언 강사양성과정",
+      "playlistTitle": "AI챔피언 강사양성과정",
+      "numberStyle": "prefix",
+      "hook": "돈 주고도 못 듣는 강의"
+    }
+  ]
+}
