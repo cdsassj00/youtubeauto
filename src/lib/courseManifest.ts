@@ -11,6 +11,8 @@
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { listPublicFolder } from './driveFolder.js';
+import { pairCourseFiles } from './courseFiles.js';
 import { fileURLToPath } from 'node:url';
 
 export interface CourseModule {
@@ -23,6 +25,48 @@ export interface CourseModule {
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MANIFEST_PATH = path.resolve(HERE, '../../assets/course/manifest.json');
+
+/**
+ * 드라이브 폴더를 직접 읽어 목록을 만든다. 실패하면 null 을 돌려주고 파일 목록으로 떨어진다.
+ *
+ * ★목록 파일을 손으로 고치는 구조가 사고를 냈다★ 파일을 폴더에 넣어도 이 목록을 같이
+ * 갱신하지 않으면 그 회차는 없는 것이 되고, 순서대로 올리는 규칙 때문에 그 지점에서
+ * 시리즈 전체가 멈춘다 — 실제로 28번이 빠진 채 나흘 동안 아무것도 안 올라갔다.
+ * 이제 폴더가 곧 목록이다. 파일만 넣으면 된다.
+ *
+ * ★그래도 파일 목록은 남긴다★ 드라이브가 화면 구조를 바꾸거나 폴더 공개가 풀리면
+ * 읽지 못하는데, 그날 발행이 통째로 멈추는 것보다 마지막으로 알던 목록으로 도는 편이 낫다.
+ */
+async function loadFromFolder(folderId: string): Promise<CourseModule[] | null> {
+  try {
+    const entries = await listPublicFolder(folderId);
+    const { pairs, skipped } = pairCourseFiles(entries);
+    for (const s of skipped) console.warn(`  ⚠ ${s}`);
+    if (!pairs.length) return null;
+    console.log(`  · 드라이브 폴더에서 ${pairs.length}편을 읽었습니다 (파일 ${entries.length}개)`);
+    return pairs.map((p) => ({
+      order: p.order,
+      moduleLabel: p.moduleLabel,
+      topic: p.topic,
+      driveVideoId: p.videoId,
+      driveSrtId: p.srtId,
+    }));
+  } catch (e) {
+    console.warn(`  ⚠ 드라이브 폴더를 못 읽어 저장된 목록으로 진행합니다 — ${(e as Error).message}`);
+    return null;
+  }
+}
+
+/** 폴더를 먼저 읽고, 안 되면 저장된 목록. COURSE_FOLDER_SYNC=false 면 저장된 목록만 쓴다. */
+export async function loadCourseModules(): Promise<CourseModule[]> {
+  const raw = JSON.parse(await fs.readFile(MANIFEST_PATH, 'utf8')) as { folderId?: string };
+  const folderId = process.env.COURSE_FOLDER_ID?.trim() || raw.folderId;
+  if (folderId && (process.env.COURSE_FOLDER_SYNC ?? 'true').toLowerCase() !== 'false') {
+    const live = await loadFromFolder(folderId);
+    if (live) return live.sort((a, b) => a.order - b.order);
+  }
+  return loadCourseManifest();
+}
 
 export async function loadCourseManifest(): Promise<CourseModule[]> {
   const raw = await fs.readFile(MANIFEST_PATH, 'utf8');
@@ -64,9 +108,11 @@ export type NextPick =
  */
 export async function nextCourseModule(publishedOrders: Set<number>): Promise<NextPick> {
   const raw = JSON.parse(await fs.readFile(MANIFEST_PATH, 'utf8')) as { expectedTotal?: number; skipOrders?: number[] };
-  const modules = await loadCourseManifest();
+  const modules = await loadCourseModules();
   const skip = new Set(raw.skipOrders ?? []);
-  const total = Number.isInteger(raw.expectedTotal) ? (raw.expectedTotal as number) : Math.max(...modules.map((m) => m.order));
+  // ★전체 편수는 실제로 읽은 목록에서 센다★ 저장된 expectedTotal 을 쓰면 폴더에 새 파일을
+  // 넣어도 그 숫자를 넘는 회차는 영영 차례가 오지 않는다.
+  const total = modules.length ? Math.max(...modules.map((m) => m.order)) : 0;
 
   for (let n = 1; n <= total; n++) {
     if (publishedOrders.has(n) || skip.has(n)) continue;
@@ -84,8 +130,6 @@ export async function nextCourseModule(publishedOrders: Set<number>): Promise<Ne
  * expectedTotal 을 적어 두지 않았으면 목록에 있는 것 중 가장 큰 번호로 대신한다.
  */
 export async function courseTotal(): Promise<number> {
-  const raw = JSON.parse(await fs.readFile(MANIFEST_PATH, 'utf8')) as { expectedTotal?: number };
-  if (Number.isInteger(raw.expectedTotal)) return raw.expectedTotal as number;
-  const modules = await loadCourseManifest();
+  const modules = await loadCourseModules();
   return modules.length ? Math.max(...modules.map((m) => m.order)) : 0;
 }

@@ -13,7 +13,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { OUT_DIR, PRESENTER_IMAGE_PATH } from '../config.js';
 import { downloadDriveFile } from '../lib/drive.js';
-import { loadCourseManifest } from '../lib/courseManifest.js';
+import { loadCourseModules } from '../lib/courseManifest.js';
 import { listPublishedEpisodes, setThumbnail } from '../lib/youtube.js';
 import { generateCourseMeta } from '../lib/courseMeta.js';
 import { pickFrames } from '../lib/courseFrames.js';
@@ -83,7 +83,7 @@ export async function runCourseThumbAb(): Promise<void> {
 
   console.log('▶ 올라간 회차 목록 읽기');
   const episodes = await listPublishedEpisodes(seriesCode);
-  const modules = await loadCourseManifest();
+  const modules = await loadCourseModules();
   const targets = (only.length ? episodes.filter((e) => only.includes(e.order)) : episodes).slice(0, limit);
   console.log(`  · 대상 ${targets.length}편: ${targets.map((t) => t.order).join(', ')}`);
 
