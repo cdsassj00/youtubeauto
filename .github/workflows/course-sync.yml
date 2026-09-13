@@ -1,0 +1,58 @@
+name: 강의 폴더 목록 확인
+
+# 드라이브 폴더를 읽어 발행 순서를 확인한다. 데일리(course-daily)는 이제 실행할 때마다
+# 폴더를 직접 읽으므로 이 워크플로를 돌리지 않아도 새 파일이 자동으로 잡힌다.
+#
+# 이 워크플로는 두 가지에 쓴다.
+#   · 파일을 넣은 뒤 제대로 잡혔는지 눈으로 확인 (빠진 번호·짝 없는 파일을 짚어 준다)
+#   · 드라이브를 못 읽는 날을 대비해 저장된 목록(assets/course/manifest.json)을 갱신
+#
+# ★기본이 예행 모드다★ 무엇이 달라지는지 먼저 보고, 필요하면 dry_run=false 로 저장한다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '예행 모드 (true=보기만 / false=목록 파일까지 갱신)'
+        required: false
+        default: 'true'
+      folder_id:
+        description: '드라이브 폴더 ID (비우면 지금 설정된 폴더)'
+        required: false
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+      COURSE_FOLDER_ID: ${{ github.event.inputs.folder_id || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - name: 의존성 설치
+        run: npm ci
+      - name: 폴더 읽고 목록 맞추기
+        run: npx tsx src/pipeline/courseSync.ts 2>&1 | tee out-sync.log
+      - name: 요약
+        if: always()
+        run: |
+          {
+            echo '## 드라이브 폴더 확인'
+            echo ''
+            echo '```'
+            sed -n '/폴더 읽기/,$p' out-sync.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: 목록 파일 갱신 커밋
+        if: github.event.inputs.dry_run == 'false'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: 강의 발행 순서 목록을 드라이브 폴더에 맞춤'
+          file_pattern: assets/course/manifest.json
