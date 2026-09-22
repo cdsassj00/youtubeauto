@@ -27,6 +27,19 @@ import { printUsage } from '../lib/usage.js';
 
 const env = (k: string, fallback = '') => (process.env[k] ?? '').trim() || fallback;
 
+/**
+ * 이번 프로세스에서 올린 회차. 시리즈 표식별로 따로 센다.
+ *
+ * ★유튜브는 방금 올린 영상을 곧바로 목록에 넣어 주지 않는다★ 어디까지 올렸는지는 채널에
+ * 물어서 정하는데(유튜브가 사실이다), 업로드 직후 몇 초 안에 다시 물으면 방금 올린 것이
+ * 아직 안 보인다. 하루 한 편일 때는 24시간 뒤에 묻기 때문에 드러나지 않았다.
+ *
+ * 한 번에 여러 편 올리도록 바꾸자마자 29~40번이 전부 두 번씩 올라갔다 — 40번을 올리고
+ * 몇 초 뒤 "이미 올라간 회차: …, 39" 라는 답을 받아 40번을 또 집었다. 채널 응답만으로는
+ * 이 창을 못 메우므로, 이 프로세스가 방금 올린 것은 따로 기억해 둔다.
+ */
+const justPublished = new Map<string, Set<number>>();
+
 /** 한 편 올린다. 'ok' 면 계속 돌려도 되고, 'stop' 이면 더 올릴 것이 없다는 뜻이다. */
 export async function publishOne(): Promise<'ok' | 'stop'> {
   const courseName = env('COURSE_NAME', 'AI챔피언 강사양성과정');
@@ -49,6 +62,11 @@ export async function publishOne(): Promise<'ok' | 'stop'> {
   if (env('COURSE_AUTO', 'false').toLowerCase() === 'true') {
     console.log('▶ [0] 다음 회차 고르기 (자동)');
     const published = await listPublishedOrders(seriesTitle, seriesCode);
+    const mine = justPublished.get(seriesCode);
+    if (mine?.size) {
+      for (const n of mine) published.add(n);
+      console.log(`  · 이번 실행에서 올린 회차(유튜브 목록에는 아직 안 보임): ${[...mine].sort((a, b) => a - b).join(', ')}`);
+    }
     console.log(`  · 이미 올라간 회차: ${[...published].sort((a, b) => a - b).join(', ') || '없음'}`);
     const next = await nextCourseModule(published);
     // ★올릴 게 없으면 조용히 끝낸다★ 실패로 처리하면 매일 빨간 알림이 온다.
@@ -321,6 +339,13 @@ export async function publishOne(): Promise<'ok' | 'stop'> {
     'utf8',
   );
   console.log(`\n✅ 업로드 완료: https://youtu.be/${videoId}`);
+  // ★여기서 기억해 두지 않으면 다음 편이 같은 회차를 또 올린다★ 유튜브 목록에 뜨기까지
+  // 시차가 있어서, 바로 다음에 물어보면 방금 올린 것이 안 보인다.
+  if (order) {
+    const set = justPublished.get(seriesCode) ?? new Set<number>();
+    set.add(order);
+    justPublished.set(seriesCode, set);
+  }
   printUsage();
   return 'ok';
 }
