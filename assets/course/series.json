@@ -21,6 +21,16 @@
       "playlistTitle": "AI챔피언 강사양성과정",
       "numberStyle": "prefix",
       "hook": "돈 주고도 못 듣는 강의"
+    },
+    {
+      "name": "AI 에이전트 업무자동화",
+      "folderId": "1xqcJ402lsCBpxhqOL2vrZgtGKYqLLVgg",
+      "code": "cdsa-agent",
+      "courseName": "AI 에이전트 업무자동화",
+      "seriesTitle": "AI 에이전트 업무자동화",
+      "playlistTitle": "AI 에이전트 업무자동화",
+      "numberStyle": "prefix",
+      "hook": "공공기관 AI 실무 강의"
     }
   ]
 }
