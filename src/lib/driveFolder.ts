@@ -23,7 +23,25 @@ import type { DriveEntry } from './courseFiles.js';
  */
 const ENTRY = /\/file\/d\/([A-Za-z0-9_-]{20,})\/view.*?flip-entry-title">([^<]+)</gs;
 
-export async function listPublicFolder(folderId: string): Promise<DriveEntry[]> {
+/**
+ * 폴더 주소나 ID 문자열에서 폴더 ID만 뽑는다.
+ *
+ * ★사람은 링크를 붙여 넣는다★ "1Yka3ee…" 를 따로 떼어 오라고 하면 한 번 더 손이 가고,
+ * 붙여 넣은 주소를 그대로 ID 로 쓰면 embeddedfolderview 가 빈 목록을 돌려준다 —
+ * 그러면 "폴더에 파일이 없다"로 읽혀 원인을 찾는 데 한참 걸린다.
+ */
+export function driveFolderId(input: string): string {
+  const s = input.trim();
+  const m =
+    /\/folders\/([A-Za-z0-9_-]{20,})/.exec(s) ||
+    /[?&]id=([A-Za-z0-9_-]{20,})/.exec(s) ||
+    /^([A-Za-z0-9_-]{20,})$/.exec(s);
+  if (!m) throw new Error(`드라이브 폴더 ID 를 찾을 수 없습니다: ${s.slice(0, 80)}`);
+  return m[1];
+}
+
+export async function listPublicFolder(folderIdOrUrl: string): Promise<DriveEntry[]> {
+  const folderId = driveFolderId(folderIdOrUrl);
   const url = `https://drive.google.com/embeddedfolderview?id=${encodeURIComponent(folderId)}#list`;
   const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; youtubeauto/1.0)' } });
   if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
