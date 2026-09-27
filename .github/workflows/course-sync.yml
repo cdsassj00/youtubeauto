@@ -17,7 +17,7 @@ on:
         required: false
         default: 'true'
       folder_id:
-        description: '드라이브 폴더 ID (비우면 지금 설정된 폴더)'
+        description: '드라이브 폴더 주소 또는 ID (비우면 지금 설정된 폴더). 링크를 그대로 붙여넣어도 됩니다'
         required: false
         default: ''
 
