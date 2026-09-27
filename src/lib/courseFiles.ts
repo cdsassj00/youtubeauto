@@ -52,7 +52,12 @@ export function parseCourseFileName(fileName: string): CourseFile | null {
   if (!Number.isFinite(order)) return null;
 
   // 남은 부분에서 "1일차 / 2일차오전 …" 과 "M01" 을 떼어내면 나머지가 주제다.
-  const m = /^(\d+일차(?:오전|오후)?)[_\s-]+(M\d+)[_\s-]+(.+)$/.exec(rest);
+  //
+  // ★기관 이름이 앞에 붙은 것도 받는다★ 실제 폴더에는 환경부_1일차_M04_… 처럼 발주
+  // 기관이 앞에 오는 것이 있었다. 그러면 "1일차" 로 시작하지 않아 모듈 라벨을 못 떼고,
+  // 라벨은 빈칸이 되고 기관 이름이 주제 안으로 섞여 들어가 썸네일 배지와 색 묶음이
+  // 같이 망가진다. 발주 기관 이름은 공개 영상 제목에 넣을 것도 아니라 떼어 낸다.
+  const m = /^(?:[^_\s-]+[_\s-]+)?(\d+일차(?:오전|오후)?)[_\s-]+(M\d+)[_\s-]+(.+)$/.exec(rest);
   if (m) {
     const day = m[1].replace(/(오전|오후)/, ' $1');
     return { order, stem, moduleLabel: `${day} ${m[2]}`, topic: m[3].replace(/_/g, ' ').trim() };
