@@ -50,3 +50,27 @@ test('일차·모듈 형식이 아니어도 순번이 있으면 버리지 않는
   assert.equal(f?.moduleLabel, '');
   assert.equal(f?.topic, '직원의 AI 시도를 조직 혁신으로 연결하는 리더십');
 });
+
+/**
+ * 발행 전 중복 확인의 닮음 척도. 사람이 보고 판단할 목록을 뽑는 도구라, 불용어 몇 개를
+ * 고치면 결과가 조용히 달라진다. 실제로 마주친 세 가지 경우를 박아 둔다.
+ */
+import { similarity } from '../src/lib/courseOverlap.js';
+
+test('같은 강의는 글자가 달라도 닮음이 높다', () => {
+  const s = similarity(
+    'Git과 GitHub로 AI 코드를 클라우드에 저장하기',
+    'AI 에이전트 업무자동화[16/27] Git과 GitHub로 AI 코드를 클라우드에 저장하기',
+  );
+  assert.ok(s >= 0.8, `닮음 ${s}`);
+});
+
+test('주제만 같고 다른 녹화는 중간쯤 — 판정하지 않고 사람에게 넘긴다', () => {
+  const s = similarity('생성형 AI와 LLM은 어떻게 학습하고 답을 만들까', 'LLM은 어떻게 답을 만드는가');
+  assert.ok(s > 0.4 && s < 1, `닮음 ${s}`);
+});
+
+test('무관한 강의는 낮다 — 목록이 전부 걸리면 쓸모가 없다', () => {
+  const s = similarity('Supabase에 API 키를 숨겨 AI 기능 연결하기', '리더가 AI를 알아야 하는 이유와 ChatGPT 업무 활용');
+  assert.ok(s < 0.3, `닮음 ${s}`);
+});
