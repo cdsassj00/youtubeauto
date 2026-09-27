@@ -131,7 +131,8 @@ export async function generateCourseMeta(
     '★이 영상은 이미 완성돼 있다★ 너는 대본을 쓰는 것이 아니라, 이미 녹화된 강의의 자막을 읽고 그 내용을 정확히 옮기는 일을 한다.',
     '자막에 없는 내용을 절대 지어내지 마라. 강사가 하지 않은 말, 다루지 않은 도구·개념·수치를 넣으면 안 된다.',
     '★후킹은 하되 거짓말은 하지 마라★ 이 강의는 실제로 유료 강사양성과정이다. 그 사실 자체가 이미 가장 센 후킹이므로 "충격", "99%가 모르는" 같은 없는 말을 지어낼 이유가 없다. 강의에 없는 내용을 있다고 하거나 과장된 효과를 약속하는 것만 금지다 — 세게 말하는 것 자체는 괜찮다.',
-    '★발주 기관 이름을 절대 쓰지 마라★ 자막에 특정 기관·부처·기업 이름이 나오더라도 제목·설명·태그·썸네일 문구에는 옮기지 마라. 필요하면 "공공기관", "기관", "공무원" 처럼 일반적인 말로 바꿔 써라. 이 영상들은 특정 발주처를 드러내지 않고 공개된다.',
+    '★발주 기관 이름을 절대 쓰지 마라★ 자막에 특정 기관·부처·기업 이름이 나오더라도 제목·설명·태그·썸네일 문구에는 옮기지 마라.',
+    '★대체어도 쓰지 마라★ "공공기관", "기관", "공무원", "부처", "지자체" 같은 말로 갈아 끼우지 말고, 그런 말이 아예 없어도 통하도록 문장을 다시 써라. 발주처를 감추는 것만이 목적이 아니다 — 같은 내용이 회사원에게도 그대로 쓸모 있는데 제목에 "공공기관"이 박히면 그 사람은 자기 얘기로 읽지 않는다. "기관 문서를 정확하게 활용하는 법" 은 "내 문서에서 정확한 답을 뽑는 법" 으로 쓴다.',
     '시청자는 한국어 사용자이고, 이 영상을 찾는 사람은 "이 강의에서 무엇을 배우는지"를 알고 싶어 한다.',
   ].join(' ');
 
@@ -213,26 +214,50 @@ export async function generateCourseMeta(
  * ★프롬프트로만 막지 않는다★ "쓰지 마라"는 지시는 대개 지켜지지만 가끔 새고, 새면
  * 40편 중 어느 하나에서 조용히 새기 때문에 사람이 눈치채기 어렵다. 지시(위 system)와
  * 사후 검사를 둘 다 둔다 — 나가는 글자를 실제로 확인하는 쪽이 최후 방어선이다.
+ *
+ * ★"공공기관"으로 바꾸지 않는다★ 처음에는 기관 이름을 "공공기관"으로 갈아 끼웠는데, 그러면
+ * 발주처는 감춰지지만 대상이 좁아진다 — 같은 내용이 회사원에게도 그대로 쓸모 있는데
+ * 제목에 "공공기관"이 박히면 그 사람은 자기 얘기로 읽지 않는다. 그래서 대체어를 넣지 않고
+ * 통째로 뺀다.
+ *
+ * ★뒤에 붙은 조사까지 떼어 낸다★ "환경부의 문서" 에서 이름만 빼면 "의 문서" 가 남는다.
+ * 채널 앞면에 박히는 글자라 어색한 조사 하나가 그대로 보인다.
  */
+const PARTICLE = '(?:에서는|에서도|에서의|으로는|에게는|이라는|라는|에서|에게|으로|부터|까지|처럼|이나|나마|의|은|는|이|가|을|를|에|로|와|과|도|만)?';
+
 export function redactClient<T extends CourseMeta>(meta: T): T {
   const terms = (process.env.COURSE_REDACT ?? '환경부').split(',').map((s) => s.trim()).filter(Boolean);
   if (!terms.length) return meta;
-  const as = (process.env.COURSE_REDACT_AS ?? '공공기관').trim();
-  const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+  // 빈 값이 기본이다 — 대체어를 넣지 않고 뺀다. 굳이 갈아 끼우려면 COURSE_REDACT_AS 로 준다.
+  const as = (process.env.COURSE_REDACT_AS ?? '').trim();
+  const body = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const re = new RegExp(`(?:${body})${as ? '' : PARTICLE}`, 'g');
 
   let hits = 0;
-  const scrub = (s: string) => s.replace(re, () => { hits += 1; return as; });
+  const scrub = (s: string) =>
+    s
+      .replace(re, () => {
+        hits += 1;
+        return as;
+      })
+      // 빼고 나면 공백이 겹치거나 문장 앞뒤에 남는다.
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\s+([,.·)\]])/g, '$1')
+      .replace(/([(\[])\s+/g, '$1')
+      .trim();
   const out = {
     ...meta,
     title: scrub(meta.title),
     summary: scrub(meta.summary),
-    keyPoints: meta.keyPoints.map(scrub),
-    tags: meta.tags.map(scrub),
+    // ★빈 것은 버린다★ 태그가 기관 이름 하나뿐이면 지운 뒤 빈 문자열이 남는데, 그대로
+    // 실어 보내면 빈 태그가 하나 붙는다.
+    keyPoints: meta.keyPoints.map(scrub).filter(Boolean),
+    tags: meta.tags.map(scrub).filter(Boolean),
     chapters: meta.chapters.map((c) => ({ ...c, label: scrub(c.label) })),
     thumbnailHeadline: scrub(meta.thumbnailHeadline),
     thumbnailBadge: scrub(meta.thumbnailBadge),
     thumbnailBadge2: scrub(meta.thumbnailBadge2 ?? ''),
   };
-  if (hits) console.warn(`  · 기관 이름을 제목·설명에서 ${hits}곳 가렸습니다 (${terms.join(', ')} → ${as})`);
+  if (hits) console.warn(`  · 기관 이름을 제목·설명에서 ${hits}곳 ${as ? `"${as}" 로 바꿨습니다` : '뺐습니다'} (${terms.join(', ')})`);
   return out as T;
 }
