@@ -1,0 +1,64 @@
+name: 강의 재생목록 순서 맞추기
+
+# ★재생목록이 순서를 알려 주는 자리다★ 시리즈를 번갈아 올리면 채널 앞면의 순서는 뒤섞인다.
+# 앞으로 올라갈 편은 회차 번호를 자리 번호로 써서 제 자리에 꽂히지만, 이미 올라간 편들은
+# 올린 순서대로 쌓여 있거나 아예 재생목록에 없을 수 있다. 그쪽을 맞춘다.
+#
+# ★영상은 건드리지 않는다★ 제목·설명·조회수·링크·댓글이 그대로 남는다. 재생목록 항목만
+# 넣고 옮긴다.
+#
+# ★쿼터가 실제로 든다★ 넣기·옮기기가 각 50 단위다. 43편을 한 번에 정리하면 2,150 이라
+# 그날 발행 몫을 밀어낸다. budget 으로 한 번에 손대는 수를 묶어 두었고, 남으면 다음에
+# 이어서 한다(두 번 돌려도 이미 맞는 것은 건너뛴다).
+#
+# ★기본이 예행 모드다★ 무엇이 어디로 가는지 먼저 보고 결정한다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '예행 모드 (true=보기만 / false=실제 반영)'
+        required: false
+        default: 'true'
+      series:
+        description: '시리즈 표식 (cdsa-agent | cdsa-ac | cdsa-leader). 비우면 전부'
+        required: false
+        default: ''
+      budget:
+        description: '이번에 손댈 항목 수 — 하나에 50 쿼터. 40이면 2,000'
+        required: false
+        default: '40'
+
+jobs:
+  playlist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      # 강의 시리즈는 기본 채널이다. 비워 두면 다른 채널을 읽는다.
+      TARGET_CHANNEL: default
+      COURSE_ONLY: ${{ github.event.inputs.series || '' }}
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+      PLAYLIST_BUDGET: ${{ github.event.inputs.budget || '40' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - name: 의존성 설치
+        run: npm ci
+      - name: 재생목록 정리
+        run: npx tsx src/pipeline/coursePlaylist.ts 2>&1 | tee out-playlist.log
+      - name: 요약
+        if: always()
+        run: |
+          {
+            echo '## 재생목록 순서 맞추기'
+            echo ''
+            echo '```'
+            cat out-playlist.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

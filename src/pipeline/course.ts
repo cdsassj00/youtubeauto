@@ -226,6 +226,9 @@ export async function publishOne(): Promise<'ok' | 'stop'> {
   console.log(`길이: ${Math.round(parsed.durationSec / 60)}분 · 자막 ${parsed.cues.length}줄`);
   console.log(`태그: ${meta.tags.join(', ')}`);
   console.log(`썸네일: 큰 글씨 "${headline}"${headlineOverride ? " (지정)" : ""} / 시리즈 띠 [${String(order).padStart(2, '0')}] ${hook} (${strip.accent})`);
+  // ★왜 이 문구가 나왔는지를 남긴다★ 조회수가 안 나올 때 "문구를 어디서 뽑았나"를 되짚을
+  // 데가 없으면 프롬프트를 감으로 고치게 된다. 발행물에는 안 나가고 로그에만 남는다.
+  if (meta.hookSource) console.log(`  · 뽑은 대목: ${meta.hookSource}`);
   console.log(`\n${description}\n────────────────────────────────────\n`);
 
   if (dryRun) {
@@ -328,7 +331,9 @@ export async function publishOne(): Promise<'ok' | 'stop'> {
       description: `${courseName} 모듈 강의`,
       privacyStatus: config.youtubePrivacyStatus === 'private' ? 'unlisted' : (config.youtubePrivacyStatus as 'public' | 'unlisted'),
     });
-    await addToPlaylist(playlistId, videoId);
+    // ★회차 번호를 그대로 자리 번호로 쓴다★ 그냥 넣으면 올린 순서대로 쌓이는데, 시리즈를
+    // 번갈아 올리거나 한 편을 나중에 다시 올리면 재생목록 순서가 회차 순서와 어긋난다.
+    await addToPlaylist(playlistId, videoId, order ? order - 1 : undefined);
   } catch (e) {
     console.warn('  · 재생목록 처리 실패(무시):', apiErrorDetail(e));
   }
