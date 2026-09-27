@@ -227,14 +227,76 @@ export function apiErrorDetail(e: unknown): string {
 }
 
 /** 영상을 재생목록 맨 뒤에 넣는다. 이미 들어 있으면 중복으로 또 들어가므로 호출부가 관리한다. */
-export async function addToPlaylist(playlistId: string, videoId: string): Promise<void> {
+/**
+ * 재생목록에 넣는다. position 을 주면 그 자리에 꽂는다(0부터).
+ *
+ * ★자리를 지정하지 않으면 올린 순서대로 쌓인다★ 시리즈를 번갈아 올리거나 한 편을 나중에
+ * 다시 올리면 재생목록 순서가 회차 순서와 어긋난다. 재생목록은 "순서를 알 수 있게 해
+ * 달라"는 요청에 답하는 자리이므로, 회차 번호를 그대로 자리 번호로 쓴다. 목록 길이보다
+ * 큰 값은 유튜브가 맨 뒤로 맞춰 주므로 중간이 비어 있어도 괜찮다.
+ */
+export async function addToPlaylist(playlistId: string, videoId: string, position?: number): Promise<void> {
   const auth = createOAuthClient();
   const youtube = google.youtube({ version: 'v3', auth });
   await youtube.playlistItems.insert({
     part: ['snippet'],
-    requestBody: { snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } } },
+    requestBody: {
+      snippet: {
+        playlistId,
+        resourceId: { kind: 'youtube#video', videoId },
+        ...(position !== undefined && position >= 0 ? { position } : {}),
+      },
+    },
   });
-  console.log('  · 재생목록에 추가 완료');
+  console.log(`  · 재생목록에 추가 완료${position !== undefined ? ` (${position + 1}번째 자리)` : ''}`);
+}
+
+/** 재생목록에 지금 무엇이 몇 번째로 들어 있는지. */
+export async function listPlaylistItems(
+  playlistId: string,
+): Promise<Array<{ itemId: string; videoId: string; position: number }>> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  const out: Array<{ itemId: string; videoId: string; position: number }> = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await youtube.playlistItems.list({
+      part: ['snippet', 'contentDetails'],
+      playlistId,
+      maxResults: 50,
+      pageToken,
+    });
+    for (const it of res.data.items ?? []) {
+      const videoId = it.contentDetails?.videoId;
+      if (it.id && videoId) out.push({ itemId: it.id, videoId, position: it.snippet?.position ?? 0 });
+    }
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return out.sort((a, b) => a.position - b.position);
+}
+
+/** 이미 들어 있는 항목을 다른 자리로 옮긴다. */
+export async function movePlaylistItem(params: {
+  itemId: string;
+  playlistId: string;
+  videoId: string;
+  position: number;
+}): Promise<void> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  // ★update 는 snippet 을 통째로 갈아끼운다★ playlistId 와 resourceId 를 함께 싣지 않으면
+  // 요청이 거부된다.
+  await youtube.playlistItems.update({
+    part: ['snippet'],
+    requestBody: {
+      id: params.itemId,
+      snippet: {
+        playlistId: params.playlistId,
+        resourceId: { kind: 'youtube#video', videoId: params.videoId },
+        position: params.position,
+      },
+    },
+  });
 }
 
 /**
