@@ -20,6 +20,7 @@ import { generateThumbnail } from '../lib/thumbnail.js';
 import { pickFrames } from '../lib/courseFrames.js';
 import { drawCourseThumbnail } from '../lib/courseThumbnail.js';
 import { groupAccent, type StripSpec } from '../lib/seriesStrip.js';
+import { thumbVariant } from '../lib/thumbVariant.js';
 import { uploadVideo, uploadCaption, ensurePlaylist, addToPlaylist, updateVideoMeta, setThumbnail, listPublishedOrders, apiErrorDetail } from '../lib/youtube.js';
 import { courseTotal, nextCourseModule } from '../lib/courseManifest.js';
 import { nextKstTimeUtc } from '../lib/publishTime.js';
@@ -264,13 +265,20 @@ export async function publishOne(): Promise<'ok' | 'stop'> {
   // 영상에도 그릴 수 있어서 "무엇을 배우는 영상인지"를 하나도 못 알려준다. 영상 안에
   // 이미 엑셀 시트·코드·설정 화면이 다 있으므로 그것을 배경으로 쓴다. 그림 생성이
   // 사라져 장당 비용도 0 이 된다.
-  const thumbStyle = env('COURSE_THUMB_STYLE', 'screen').toLowerCase();
+  const thumbStyle = env('COURSE_THUMB_STYLE', 'auto').toLowerCase();
   let madeThumb = false;
-  if (thumbStyle === 'screen' || thumbStyle === 'bare') {
+  if (['auto', 'screen', 'bare', 'band', 'boxed'].includes(thumbStyle)) {
     try {
       const frames = await pickFrames(videoPath, path.join(OUT_DIR, 'frames'), 10);
-      const best = frames[0];
+      // ★같은 틀이 스물일곱 번 반복되면 목록에서 한 덩어리로 뭉친다★ 판·색·배경 자르는
+      // 자리를 회차에 따라 돌린다. COURSE_THUMB_STYLE 을 screen/bare 로 못박아 두면
+      // 그것만 쓴다(대조군을 돌릴 때 필요하다).
+      const v = thumbVariant(order);
+      const layout = thumbStyle === 'auto' ? v.layout : (thumbStyle as typeof v.layout);
+      // 늘 1등 프레임만 쓰면 슬라이드 강의에서는 배경이 서로 닮는다.
+      const best = frames[Math.min(v.frameRank, frames.length - 1)] ?? frames[0];
       console.log(`  · 배경 화면: ${Math.round(best.atSec)}초 지점 (${best.detail})`);
+      console.log(`  · 판: ${layout} · 색 ${v.accent} · 크롭 ${v.cropVariant}`);
       await drawCourseThumbnail({
         framePath: best.file,
         headline,
@@ -278,9 +286,10 @@ export async function publishOne(): Promise<'ok' | 'stop'> {
         strip: hook,
         // 얼굴이 있으면 클릭률이 오른다는 것이 여러 자료의 공통된 이야기다. bare 는
         // 화면만으로 가는 대조군이라 인물을 넣지 않는다.
-        presenterPath: thumbStyle === 'screen' ? PRESENTER_IMAGE_PATH : undefined,
-        accent: groupAccent(moduleLabel, order),
-        layout: thumbStyle,
+        presenterPath: layout === 'bare' ? undefined : PRESENTER_IMAGE_PATH,
+        accent: v.accent,
+        cropVariant: v.cropVariant,
+        layout,
         outPath: THUMBNAIL_PATH,
       });
       madeThumb = true;

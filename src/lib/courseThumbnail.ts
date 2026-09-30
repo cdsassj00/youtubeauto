@@ -46,15 +46,25 @@ function fitSize(text: string, maxWidth: number, max: number, min: number): numb
 async function screenPlate(
   framePath: string,
   crop?: { left: number; top: number; width: number; height: number },
+  cropVariant = 0,
+  dim = 0.5,
 ): Promise<Buffer> {
   const meta = await sharp(framePath).metadata();
   const fw = meta.width ?? 1920;
   const fh = meta.height ?? 1080;
+  // ★잘라 오는 자리도 편마다 바꾼다★ 늘 같은 데를 잘라 오면 강의가 달라도 배경이 비슷해
+  // 보인다. 셋 다 메뉴 띠·자막 띠·웹캠을 피하되, 넓게/좁게/오른쪽으로 서로 다르게 잡는다.
+  const BOXES = [
+    { l: 0.02, t: 0.12, w: 0.68, h: 0.62 }, // 왼쪽 넓게
+    { l: 0.18, t: 0.2, w: 0.46, h: 0.42 }, // 가운데 바짝 당겨서
+    { l: 0.34, t: 0.1, w: 0.58, h: 0.56 }, // 오른쪽으로 옮겨서
+  ];
+  const b = BOXES[((cropVariant ?? 0) % BOXES.length + BOXES.length) % BOXES.length];
   const box = crop ?? {
-    left: Math.round(fw * 0.02),
-    top: Math.round(fh * 0.12),
-    width: Math.round(fw * 0.68),
-    height: Math.round(fh * 0.62),
+    left: Math.round(fw * b.l),
+    top: Math.round(fh * b.t),
+    width: Math.round(fw * b.w),
+    height: Math.round(fh * b.h),
   };
   // ★어둡게 깐다★ 엑셀 화면은 거의 흰색이라 그 위에 흰 글씨를 얹으면 사라진다. 목록
   // 크기(가로 320px)에서 시청자가 셀 값을 읽는 것도 아니다 — "표를 다루는 영상이구나"만
@@ -67,11 +77,19 @@ async function screenPlate(
       height: Math.max(2, Math.min(box.height, fh - box.top)),
     })
     .resize(W, H, { fit: 'cover', position: 'left top' })
-    .modulate({ brightness: 0.5, saturation: 1.15 })
+    .modulate({ brightness: dim, saturation: 1.15 })
     .toBuffer();
 }
 
-export type CourseThumbLayout = 'screen' | 'bare';
+/**
+ * 판을 짜는 방식. 편마다 돌려 가며 쓴다.
+ *
+ * ★같은 틀이 스물일곱 번 반복되면 목록에서 한 덩어리로 뭉친다★ 배경·문구가 달라도
+ * 글씨 자리·인물 자리·띠 자리가 늘 같으면 눈은 "아까 본 것"으로 처리하고 지나간다.
+ * 그래서 실루엣 자체가 다른 넷을 두고 돌린다. 시리즈 표식(왼쪽 아래 띠)만 고정으로
+ * 남겨 두어 "이 채널 것"이라는 인식은 유지한다.
+ */
+export type CourseThumbLayout = 'screen' | 'bare' | 'band' | 'boxed';
 
 export interface CourseThumbOpts {
   /** 배경으로 쓸 강의 화면(프레임 png). */
@@ -87,6 +105,8 @@ export interface CourseThumbOpts {
   /** 그날의 강조색. */
   accent?: string;
   crop?: { left: number; top: number; width: number; height: number };
+  /** 배경에서 잘라 올 자리(0·1·2). 편마다 바꿔 배경이 닮아 보이지 않게 한다. */
+  cropVariant?: number;
   layout?: CourseThumbLayout;
   outPath: string;
 }
@@ -96,7 +116,8 @@ export async function drawCourseThumbnail(opts: CourseThumbOpts): Promise<void> 
   const layout: CourseThumbLayout = opts.layout ?? 'screen';
   const ACC = /^#[0-9a-f]{6}$/i.test(opts.accent ?? '') ? opts.accent! : '#ffd400';
 
-  const plate = await screenPlate(framePath, crop);
+  // band 는 강조색 판 위에 글씨를 얹으므로 배경을 덜 어둡게 해도 읽힌다.
+  const plate = await screenPlate(framePath, crop, opts.cropVariant ?? 0, layout === 'band' ? 0.62 : 0.5);
 
   const lines = headline
     .split(/\s*[·\n]\s*/)
@@ -107,28 +128,69 @@ export async function drawCourseThumbnail(opts: CourseThumbOpts): Promise<void> 
   // ★크기가 곧 임팩트다★ 처음엔 760px 폭에 132px 상한으로 잡았는데, 목록 크기로 줄여
   // 지금 쓰는 썸네일과 나란히 놓아 보니 확연히 약했다. 배경을 실제 화면으로 바꾸는 것과
   // 글씨가 작아지는 것은 별개의 문제다 — 지금 것의 장점(굵고 큰 글씨)은 그대로 가져간다.
-  const maxW = layout === 'bare' ? 1150 : 1010;
-  const cap = layout === 'bare' ? 176 : 158;
+  // ★인물 원이 앉는 자리는 비워 둔다★ 원은 지름 268 로 오른쪽 아래에 앉는다. 글씨 폭을
+  // 화면 폭에 맞춰 잡으면 긴 문구의 끝 글자가 원 뒤로 들어간다 — 실제로 band 에서 "설계"
+  // 의 끝이 잘렸다. 인물이 있는 판은 원 왼쪽까지만 쓴다.
+  const MAXW: Record<CourseThumbLayout, number> = { screen: 940, bare: 1150, band: 900, boxed: 740 };
+  const CAP: Record<CourseThumbLayout, number> = { screen: 158, bare: 176, band: 150, boxed: 132 };
+  const maxW = MAXW[layout];
+  const cap = CAP[layout];
   const plain = (t: string) => t.replace(/\*\*/g, '');
   const size = Math.min(...lines.map((l) => fitSize(plain(l), maxW, cap, 64)));
   const lineH = Math.round(size * 1.06);
+  const blockH = (lines.length - 1) * lineH;
 
   // ★글씨가 놓이는 자리는 반드시 어둡게 깐다★ 엑셀 화면은 거의 흰색이라 흰 글씨가
   // 그냥 사라진다. 흰 글씨에 검은 테두리를 두르는 방법도 있지만 목록 크기에서 지저분하다.
   // 글씨가 앉을 만큼만 어두운 판을 깔고 그 위에 쓴다 — 화면은 여전히 보인다.
-  const scrim =
-    layout === 'bare'
-      ? `<rect x="0" y="0" width="${W}" height="${H}" fill="#05070d" opacity=".34"/>
-<rect x="0" y="${H - 300}" width="${W}" height="300" fill="url(#veil)"/>`
-      : `<rect x="0" y="0" width="${W}" height="${H}" fill="#05070d" opacity=".22"/>
-<rect x="0" y="0" width="${Math.round(W * 0.68)}" height="${H}" fill="url(#side)"/>`;
-
-  // ★bare 는 아래에서부터 쌓는다★ 위에서부터 잡으면 두 줄짜리 문구의 둘째 줄이 화면
-  // 밖으로 나간다(실제로 그렇게 잘렸다). 마지막 줄의 기준선을 먼저 정하고 위로 올린다.
+  //
+  // ★bare·boxed 는 아래/오른쪽에서부터 쌓는다★ 위에서부터 잡으면 두 줄짜리 문구의 둘째
+  // 줄이 화면 밖으로 나간다(실제로 그렇게 잘렸다).
   const stripY = H - 64;
-  const textTop = layout === 'bare' ? H - 176 - (lines.length - 1) * lineH : 250;
-  // 배지도 마찬가지다. bare 에서는 글씨 아래에 자리가 없으니 위에 얹는다.
-  const badgeY = layout === 'bare' ? textTop - size - 96 : textTop + (lines.length - 1) * lineH + 34;
+  const bandTop = Math.round(H * 0.28);
+  const bandH = blockH + size + 96;
+
+  let textX = 56;
+  let anchor: 'start' | 'end' = 'start';
+  let textTop = 250;
+  let textFill = '#ffffff';
+  let strokeW = Math.round(size * 0.1);
+  let spanFill = ACC;
+  let scrim: string;
+  let presenterAt: 'br' | 'bl' | 'none' = presenterPath ? 'br' : 'none';
+
+  if (layout === 'bare') {
+    textTop = H - 176 - blockH;
+    presenterAt = 'none';
+    scrim = `<rect x="0" y="0" width="${W}" height="${H}" fill="#05070d" opacity=".34"/>
+<rect x="0" y="${H - 300}" width="${W}" height="300" fill="url(#veil)"/>`;
+  } else if (layout === 'band') {
+    // ★강조색 판을 가로로 지른다★ 어두운 판에 흰 글씨만 쓰던 것과 실루엣이 가장 크게
+    // 다르다. 글씨는 판 위에 검게 얹어 대비를 뒤집는다.
+    textTop = bandTop + size + 34;
+    textFill = '#0a0f18';
+    strokeW = 0;
+    spanFill = '#ffffff';
+    scrim = `<rect x="0" y="0" width="${W}" height="${H}" fill="#05070d" opacity=".2"/>
+<rect x="0" y="${bandTop}" width="${W}" height="${bandH}" fill="${ACC}"/>`;
+  } else if (layout === 'boxed') {
+    // ★좌우를 뒤집는다★ 글씨가 오른쪽, 인물이 왼쪽. 배경 화면은 왼쪽에서 그대로 보인다.
+    textX = W - 56;
+    anchor = 'end';
+    textTop = 268;
+    presenterAt = presenterPath ? 'bl' : 'none';
+    scrim = `<rect x="0" y="0" width="${W}" height="${H}" fill="#05070d" opacity=".2"/>
+<rect x="${Math.round(W * 0.34)}" y="0" width="${Math.round(W * 0.66)}" height="${H}" fill="url(#rside)"/>`;
+  } else {
+    scrim = `<rect x="0" y="0" width="${W}" height="${H}" fill="#05070d" opacity=".22"/>
+<rect x="0" y="0" width="${Math.round(W * 0.68)}" height="${H}" fill="url(#side)"/>`;
+  }
+
+  // 배지 자리는 글씨 블록을 기준으로 잡는다 — 판마다 글씨가 다른 높이에 있다.
+  const badgeY = layout === 'bare' || layout === 'band' ? textTop - size - 96 : textTop + blockH + 34;
+  const badgeSize = badge ? fitSize(badge, 300, 74, 40) : 0;
+  const badgeW = badge ? Math.round(badgeSize * widthUnits(badge) + 52) : 0;
+  const badgeX = anchor === 'end' ? textX - badgeW : textX;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
 <defs>
@@ -136,6 +198,11 @@ export async function drawCourseThumbnail(opts: CourseThumbOpts): Promise<void> 
     <stop offset="0" stop-color="#05070d" stop-opacity=".92"/>
     <stop offset=".62" stop-color="#05070d" stop-opacity=".78"/>
     <stop offset="1" stop-color="#05070d" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="rside" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#05070d" stop-opacity="0"/>
+    <stop offset=".38" stop-color="#05070d" stop-opacity=".82"/>
+    <stop offset="1" stop-color="#05070d" stop-opacity=".94"/>
   </linearGradient>
   <filter id="ts" x="-12%" y="-30%" width="130%" height="180%">
     <feDropShadow dx="0" dy="5" stdDeviation="10" flood-color="#03050a" flood-opacity=".92"/>
@@ -146,34 +213,37 @@ export async function drawCourseThumbnail(opts: CourseThumbOpts): Promise<void> 
   </linearGradient>
 </defs>
 ${scrim}
-<!-- 왼쪽 세로 띠 — 시리즈 표식. 자리·색이 매 편 같아서 눈이 하나로 학습한다. -->
-<rect x="0" y="0" width="14" height="${H}" fill="${ACC}"/>
+${
+  // 시리즈 세로 띠. band 는 강조색 판이 이미 그 구실을 해서 겹치면 지저분하다.
+  layout === 'band'
+    ? ''
+    : `<rect x="${anchor === 'end' ? W - 14 : 0}" y="0" width="14" height="${H}" fill="${ACC}"/>`
+}
 ${lines
   .map((l, i) => {
-    // **강조** 로 감싼 조각만 액센트색으로 칠한다. 지금 쓰는 썸네일이 한 낱말만 노랗게
+    // **강조** 로 감싼 조각만 다른 색으로 칠한다. 지금 쓰는 썸네일이 한 낱말만 노랗게
     // 하는데, 그게 "어디를 읽어야 하는지"를 0.2초에 알려 준다.
     const spans = l
       .split(/(\*\*[^*]+\*\*)/)
       .filter(Boolean)
       .map((p) =>
         p.startsWith('**')
-          ? `<tspan fill="${ACC}">${esc(p.slice(2, -2))}</tspan>`
+          ? `<tspan fill="${spanFill}">${esc(p.slice(2, -2))}</tspan>`
           : `<tspan>${esc(p)}</tspan>`,
       )
       .join('');
     // ★테두리를 두른다★ 배경이 실제 화면이라 자리마다 밝기가 다르다. 그림자만으로는
     // 밝은 셀 위에서 글자가 묻힌다. paint-order 로 테두리를 글자 뒤에 깔면 어디에 놓여도 읽힌다.
-    return `<text x="56" y="${textTop + i * lineH}" font-family="${FONT}" font-size="${size}" font-weight="900" letter-spacing="-3" filter="url(#ts)" fill="#ffffff" stroke="#05070d" stroke-width="${Math.round(size * 0.1)}" paint-order="stroke" stroke-linejoin="round">${spans}</text>`;
+    const ink = strokeW
+      ? ` filter="url(#ts)" stroke="#05070d" stroke-width="${strokeW}" paint-order="stroke" stroke-linejoin="round"`
+      : '';
+    return `<text x="${textX}" y="${textTop + i * lineH}" text-anchor="${anchor}" font-family="${FONT}" font-size="${size}" font-weight="900" letter-spacing="-3" fill="${textFill}"${ink}>${spans}</text>`;
   })
   .join('\n')}
 ${
   badge
-    ? (() => {
-        const bs = fitSize(badge, 300, 74, 40);
-        const bw = Math.round(bs * widthUnits(badge) + 52);
-        return `<rect x="56" y="${badgeY}" width="${bw}" height="${bs + 30}" rx="12" fill="${ACC}"/>
-<text x="${56 + bw / 2}" y="${badgeY + bs + 8}" font-family="${FONT}" font-size="${bs}" font-weight="900" fill="#0a0f18" text-anchor="middle">${esc(badge)}</text>`;
-      })()
+    ? `<rect x="${badgeX}" y="${badgeY}" width="${badgeW}" height="${badgeSize + 30}" rx="12" fill="${layout === 'band' ? '#0a0f18' : ACC}"/>
+<text x="${badgeX + badgeW / 2}" y="${badgeY + badgeSize + 8}" font-family="${FONT}" font-size="${badgeSize}" font-weight="900" fill="${layout === 'band' ? ACC : '#0a0f18'}" text-anchor="middle">${esc(badge)}</text>`
     : ''
 }
 ${
@@ -188,7 +258,7 @@ ${
 
   // 인물은 동그랗게 잘라 오른쪽 아래에 얹는다. 배경 제거(누끼)가 없어도 자연스럽고,
   // 얼굴이 있으면 클릭률이 오른다는 것이 여러 자료의 공통된 이야기다.
-  if (presenterPath) {
+  if (presenterPath && presenterAt !== 'none') {
     const R = 268;
     const circle = Buffer.from(`<svg width="${R}" height="${R}"><circle cx="${R / 2}" cy="${R / 2}" r="${R / 2}" fill="#fff"/></svg>`);
     const face = await sharp(presenterPath)
@@ -201,8 +271,11 @@ ${
     const ring = Buffer.from(
       `<svg width="${R + 16}" height="${R + 16}"><circle cx="${(R + 16) / 2}" cy="${(R + 16) / 2}" r="${R / 2 + 5}" fill="none" stroke="${ACC}" stroke-width="8"/></svg>`,
     );
-    layers.push({ input: face, left: W - R - 46, top: H - R - 46 });
-    layers.push({ input: ring, left: W - R - 54, top: H - R - 54 });
+    // 시리즈 띠가 왼쪽 아래에 있으므로, 인물이 왼쪽으로 갈 때는 띠를 피해 살짝 올린다.
+    const px = presenterAt === 'bl' ? 46 : W - R - 46;
+    const py = presenterAt === 'bl' ? H - R - 86 : H - R - 46;
+    layers.push({ input: face, left: px, top: py });
+    layers.push({ input: ring, left: px - 8, top: py - 8 });
   }
 
   if (process.env.COURSE_THUMB_DEBUG) await fs.writeFile(`${outPath}.svg`, svg, 'utf8');
