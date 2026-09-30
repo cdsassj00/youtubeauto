@@ -469,3 +469,40 @@ export async function listRecentVideoTitles(max = 30): Promise<string[]> {
   return titles;
 }
 
+
+/**
+ * 채널 앞면에 트레일러를 건다 — 구독하지 않은 사람이 채널에 들어왔을 때 자동 재생되는 영상.
+ *
+ * ★유튜브에는 "동영상 프로필 사진"이 없다★ 프로필 사진(아바타)은 이미지뿐이고 API 로
+ * 바꾸는 길도 없다. 영상으로 자기를 소개하는 자리는 채널 트레일러 하나다. 그래서 여기에 건다.
+ *
+ * ★지금 있는 브랜딩 설정을 읽어 합친다★ channels.update 는 brandingSettings 를 통째로
+ * 갈아 끼운다. 트레일러만 담아 보내면 채널 설명·키워드·배너·국가 설정이 조용히 지워진다.
+ *
+ * ★영상이 공개 또는 일부공개여야 한다★ 비공개 영상을 걸면 유튜브가 받기는 하지만 아무에게도
+ * 안 보인다. 트레일러는 피드에 뜰 필요가 없으므로 일부공개가 맞다.
+ */
+export async function setChannelTrailer(videoId: string): Promise<{ channelId: string; before: string }> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+
+  const ch = await youtube.channels.list({ part: ['brandingSettings', 'snippet'], mine: true });
+  const me = ch.data.items?.[0];
+  if (!me?.id) throw new Error('내 채널을 찾지 못했습니다.');
+
+  const branding = me.brandingSettings ?? {};
+  const before = branding.channel?.unsubscribedTrailer ?? '';
+
+  await youtube.channels.update({
+    part: ['brandingSettings'],
+    requestBody: {
+      id: me.id,
+      brandingSettings: {
+        ...branding,
+        channel: { ...(branding.channel ?? {}), unsubscribedTrailer: videoId },
+      },
+    },
+  });
+
+  return { channelId: me.id, before };
+}

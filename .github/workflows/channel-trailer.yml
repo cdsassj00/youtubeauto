@@ -1,0 +1,72 @@
+name: 채널 트레일러 걸기 (쇼릴)
+
+# ★유튜브에는 "동영상 프로필 사진"이 없다★ 프로필 사진(아바타)은 이미지뿐이고 API 로 바꾸는
+# 길도 없다. 영상으로 자기를 소개하는 자리는 채널 트레일러 하나 — 구독하지 않은 사람이
+# 채널 첫 화면에 들어왔을 때 자동 재생되는 영상이다.
+#
+# ★일부공개로 올린다★ 트레일러는 피드나 구독 알림에 뜰 이유가 없다. 공개로 올리면 그날
+# 강의 영상 자리를 차지하고 구독자에게 알림이 간다. 비공개는 아무에게도 안 보여서 트레일러
+# 구실을 못 한다 — 일부공개가 그 사이다.
+#
+# ★어느 채널인지 반드시 고른다★ 쇼릴은 강사 개인 브랜딩이라 강의 채널(default)에 맞는다.
+# 주식 채널에 걸면 채널 성격과 어긋난다.
+#
+# 드는 쿼터: 업로드 1,600 + 채널 설정 50. 이미 올린 영상을 걸기만 하면 50.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '예행 모드 (true=보기만 / false=실제 반영)'
+        required: false
+        default: 'true'
+      channel:
+        description: '어느 채널에 걸지 — default(강의 채널) | ch2(주식 채널)'
+        required: false
+        default: 'default'
+      video_id:
+        description: '이미 올려 둔 영상을 걸 때만. 비우면 저장소의 쇼릴을 새로 올린다'
+        required: false
+        default: ''
+      title:
+        description: '올릴 때 붙일 제목'
+        required: false
+        default: '신성진 — AX 업무전환 쇼릴'
+
+jobs:
+  trailer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || 'default' }}
+      # ★여기서 못박는다★ 저장소 기본값은 private 인데, 비공개 트레일러는 아무에게도 안 보인다.
+      YOUTUBE_PRIVACY_STATUS: unlisted
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+      TRAILER_VIDEO_ID: ${{ github.event.inputs.video_id || '' }}
+      TRAILER_TITLE: ${{ github.event.inputs.title || '신성진 — AX 업무전환 쇼릴' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - name: 의존성 설치
+        run: npm ci
+      - name: 트레일러 걸기
+        run: npx tsx src/pipeline/channelTrailer.ts 2>&1 | tee out-trailer.log
+      - name: 요약
+        if: always()
+        run: |
+          {
+            echo '## 채널 트레일러'
+            echo ''
+            echo '```'
+            cat out-trailer.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
