@@ -237,7 +237,10 @@ ${lines
     const ink = strokeW
       ? ` filter="url(#ts)" stroke="#05070d" stroke-width="${strokeW}" paint-order="stroke" stroke-linejoin="round"`
       : '';
-    return `<text x="${textX}" y="${textTop + i * lineH}" text-anchor="${anchor}" font-family="${FONT}" font-size="${size}" font-weight="900" letter-spacing="-3" fill="${textFill}"${ink}>${spans}</text>`;
+    // ★xml:space="preserve" 가 없으면 강조 경계의 띄어쓰기가 사라진다★ **AI가** 알아서 를
+    // tspan 둘로 쪼개면 두 번째 조각의 앞 공백을 XML 이 지워 "AI가알아서" 로 붙어 나온다.
+    // 글자가 큰 자리라 붙은 것이 바로 보인다.
+    return `<text xml:space="preserve" x="${textX}" y="${textTop + i * lineH}" text-anchor="${anchor}" font-family="${FONT}" font-size="${size}" font-weight="900" letter-spacing="-3" fill="${textFill}"${ink}>${spans}</text>`;
   })
   .join('\n')}
 ${

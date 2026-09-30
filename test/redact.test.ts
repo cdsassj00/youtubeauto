@@ -71,3 +71,21 @@ test('지울 말이 없으면 그대로 둔다', () => {
     delete process.env.COURSE_REDACT;
   }
 });
+
+/**
+ * 훈계조 검사. 강의 자막 자체가 가르치는 말이라 그 어조가 문구로 딸려 오기 쉽다.
+ */
+import { flagScolding } from '../src/lib/courseMeta.js';
+
+test('훈계로 읽히는 말을 잡아낸다', () => {
+  assert.deepEqual(flagScolding('**양식 하나로**\n평생 재사용'), ['평생']);
+  assert.deepEqual(flagScolding('API 키는\n제대로 숨겨라'), ['제대로', '명령형']);
+  assert.deepEqual(flagScolding('엑셀 **총정리**\n핵심만'), ['총정리', '핵심']);
+});
+
+test('유튜브 말투는 걸리지 않는다', () => {
+  assert.deepEqual(flagScolding('**API 키** 여기 두면\n털립니다'), []);
+  assert.deepEqual(flagScolding('이걸 아직\n**손으로** 하고 있었음'), []);
+  assert.deepEqual(flagScolding('노트북 날아가도\n**코드는 삽니다**'), []);
+  assert.deepEqual(flagScolding('아직 손으로 해요?'), []);
+});
