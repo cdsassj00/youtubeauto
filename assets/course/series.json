@@ -10,7 +10,7 @@
       "seriesTitle": "관리자 AI 리더십",
       "playlistTitle": "관리자 AI 리더십",
       "numberStyle": "none",
-      "hook": "리더를 위한 AI 강의"
+      "hook": "팀장이 먼저 봐야 할 것"
     },
     {
       "name": "AI챔피언 강사양성과정",
@@ -20,7 +20,7 @@
       "seriesTitle": "AI챔피언 강사양성과정",
       "playlistTitle": "AI챔피언 강사양성과정",
       "numberStyle": "prefix",
-      "hook": "돈 주고도 못 듣는 강의"
+      "hook": "강사들이 듣던 그 강의"
     },
     {
       "name": "AI 에이전트 업무자동화",
@@ -30,7 +30,7 @@
       "seriesTitle": "AI 에이전트 업무자동화",
       "playlistTitle": "AI 에이전트 업무자동화",
       "numberStyle": "prefix",
-      "hook": "현장에서 바로 쓰는 AI"
+      "hook": "퇴근이 빨라지는 AI"
     }
   ]
 }

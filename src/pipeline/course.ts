@@ -15,7 +15,7 @@ import { OUT_DIR, THUMBNAIL_PATH, config,
   PRESENTER_IMAGE_PATH,
 } from '../config.js';
 import { downloadDriveFile } from '../lib/drive.js';
-import { generateCourseMeta } from '../lib/courseMeta.js';
+import { flagScolding, generateCourseMeta } from '../lib/courseMeta.js';
 import { generateThumbnail } from '../lib/thumbnail.js';
 import { pickFrames } from '../lib/courseFrames.js';
 import { drawCourseThumbnail } from '../lib/courseThumbnail.js';
@@ -230,6 +230,10 @@ export async function publishOne(): Promise<'ok' | 'stop'> {
   // ★왜 이 문구가 나왔는지를 남긴다★ 조회수가 안 나올 때 "문구를 어디서 뽑았나"를 되짚을
   // 데가 없으면 프롬프트를 감으로 고치게 된다. 발행물에는 안 나가고 로그에만 남는다.
   if (meta.hookSource) console.log(`  · 뽑은 대목: ${meta.hookSource}`);
+  // ★말투는 기계가 못 고친다★ 강의 자막 자체가 가르치는 말이라 그 어조가 그대로 딸려
+  // 오기 쉽다. 표시만 남겨 사람이 보고 판단하게 한다.
+  const scold = flagScolding(headline);
+  if (scold.length) console.warn(`  ⚠ 훈계조로 읽힐 수 있는 말: ${scold.join(', ')} — 문구를 다시 보십시오`);
   console.log(`\n${description}\n────────────────────────────────────\n`);
 
   if (dryRun) {
