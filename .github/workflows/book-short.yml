@@ -37,6 +37,14 @@ on:
         description: '공개 범위 (public | unlisted | private)'
         required: false
         default: 'public'
+      backdrop:
+        description: '배경 — auto(스톡 먼저, 없으면 코드로) | stock(스톡만) | code(코드로만)'
+        required: false
+        default: 'auto'
+      backdrop_style:
+        description: '코드로 그릴 때 결 — 비우면 컷마다 돌림 | sketch | vector | grid'
+        required: false
+        default: ''
 
 jobs:
   short:
@@ -46,6 +54,8 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-4-8' }}
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -56,6 +66,8 @@ jobs:
       YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || 'public' }}
       BOOK_ID: ${{ github.event.inputs.book_id || '' }}
       BOOK_BUDGET: ${{ github.event.inputs.count || '1' }}
+      BACKDROP: ${{ github.event.inputs.backdrop || 'auto' }}
+      BACKDROP_STYLE: ${{ github.event.inputs.backdrop_style || '' }}
       DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
     steps:
       - uses: actions/checkout@v4
