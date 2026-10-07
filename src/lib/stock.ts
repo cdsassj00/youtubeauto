@@ -71,19 +71,26 @@ interface PexelsPhoto {
  *
  * 실패하면 null — B롤은 있으면 좋고 없어도 영상은 나와야 하므로 절대 예외를 던지지 않는다.
  */
-export async function fetchStock(query: string, seed = 0): Promise<StockClip | null> {
-  return (await fetchClip(query, seed)) ?? (await fetchPhoto(query, seed));
+export type StockOrientation = 'landscape' | 'portrait';
+
+export async function fetchStock(query: string, seed = 0, orientation: StockOrientation = 'landscape'): Promise<StockClip | null> {
+  return (await fetchClip(query, seed, orientation)) ?? (await fetchPhoto(query, seed, orientation));
 }
 
-/** 가로 영상 하나를 찾아 내려받는다. */
-export async function fetchClip(query: string, seed = 0): Promise<StockClip | null> {
+/**
+ * 영상 하나를 찾아 내려받는다.
+ *
+ * ★쇼츠는 세로를 받아야 한다★ 가로 클립을 세로 틀에 맞추면 양옆을 잘라 내느라 가운데
+ * 좁은 띠만 남는다. Pexels 는 세로 영상도 따로 주므로 그쪽을 달라고 한다.
+ */
+export async function fetchClip(query: string, seed = 0, orientation: StockOrientation = 'landscape'): Promise<StockClip | null> {
   const key = config.pexelsApiKey;
   if (!key) return null;
 
   try {
     const url =
       `${API}/videos/search?query=${encodeURIComponent(query)}` +
-      `&per_page=15&orientation=landscape&size=medium`;
+      `&per_page=15&orientation=${orientation}&size=medium`;
     const r = await fetch(url, { headers: { Authorization: key } });
     if (!r.ok) {
       console.warn(`    · 스톡 검색 실패(${r.status}) "${query}"`);
@@ -131,17 +138,17 @@ export async function fetchClip(query: string, seed = 0): Promise<StockClip | nu
 }
 
 /**
- * 가로 사진 하나를 찾아 내려받는다(영상이 없을 때의 대체).
+ * 사진 하나를 찾아 내려받는다(영상이 없을 때의 대체).
  * large2x(약 1880px)면 1080p 에서 켄번즈로 1.2배까지 확대해도 깨지지 않는다.
  */
-export async function fetchPhoto(query: string, seed = 0): Promise<StockClip | null> {
+export async function fetchPhoto(query: string, seed = 0, orientation: StockOrientation = 'landscape'): Promise<StockClip | null> {
   const key = config.pexelsApiKey;
   if (!key) return null;
 
   try {
     const url =
       `${API}/v1/search?query=${encodeURIComponent(query)}` +
-      `&per_page=15&orientation=landscape&size=large`;
+      `&per_page=15&orientation=${orientation}&size=large`;
     const r = await fetch(url, { headers: { Authorization: key } });
     if (!r.ok) {
       console.warn(`    · 스톡 사진 검색 실패(${r.status}) "${query}"`);
