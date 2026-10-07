@@ -18,6 +18,8 @@ import { config } from '../config.js';
 import { loadBooks, planBookShort, type Book } from '../lib/bookShort.js';
 import { renderBookShort, type CutSpec } from '../lib/bookShortRender.js';
 import { fetchStock } from '../lib/stock.js';
+import { fetchAsset, availableProviders } from '../lib/stockProviders.js';
+import { drawBackdrop, BACKDROP_STYLES, type BackdropStyle } from '../lib/shortBackdrop.js';
 import { generateBgm, bgmStyleFromEnv } from '../lib/bgm.js';
 import { thumbVariant } from '../lib/thumbVariant.js';
 import { uploadVideo, listPublishedOrders, apiErrorDetail } from '../lib/youtube.js';
@@ -75,24 +77,58 @@ export async function makeOne(): Promise<'ok' | 'stop'> {
   const scold = flagScolding([plan.hook, plan.title, plan.closer, ...plan.beats.map((b) => b.text)].join('\n'));
   if (scold.length) console.warn(`  ⚠ 훈계조로 읽힐 수 있는 말: ${scold.join(', ')}`);
 
+  const accent = thumbVariant(pick.quoteIndex + 1).accent;
   await fs.mkdir(OUT_DIR, { recursive: true });
   const workDir = path.join(OUT_DIR, 'work');
   await fs.rm(workDir, { recursive: true, force: true });
 
-  console.log('▶ [2/4] 배경 받기');
-  // ★배경이 없어도 영상은 나와야 한다★ Pexels 키가 없거나 검색이 비면 그 컷은 검은
-  // 배경으로 간다. 글씨가 주역이라 그래도 쓸 만하다.
+  console.log('▶ [2/4] 배경 마련하기');
+  // ★배경을 구하는 길을 셋 둔다★
+  //  1) Pexels 세로 영상 — 가장 보기 좋다. 세로를 따로 달라고 해야 한다.
+  //  2) 픽사베이·언스플래시까지 돌려 본다(fetchAsset 이 소스를 돌아가며 찾는다).
+  //     가로만 걸리면 세로 틀에 맞춰 잘라 쓴다 — 어둡게 깔린 배경이라 가장자리가
+  //     잘려도 티가 안 난다.
+  //  3) 그래도 없으면 코드로 그린다. 공짜이고 회차마다 다르며, 무엇보다 글씨가 반드시
+  //     읽힌다 — 밝기를 우리가 정하기 때문이다.
+  // BACKDROP=code 로 두면 1·2 를 건너뛰고 처음부터 코드로 그린다.
+  const mode = env('BACKDROP', 'auto').toLowerCase();
+  const styleEnv = env('BACKDROP_STYLE') as BackdropStyle | '';
+  const providers = availableProviders();
+  console.log(`  · 방식 ${mode}${providers.length ? ` · 스톡 ${providers.join(', ')}` : ' · 스톡 키 없음'}`);
+
   const queries = [plan.hookQuery, ...plan.beats.map((b) => b.query), plan.hookQuery];
+  const texts = [plan.hook, ...plan.beats.map((b) => b.text), plan.closer];
+  const bgDir = path.join(OUT_DIR, 'bg');
+  await fs.mkdir(bgDir, { recursive: true });
+
   const bgs: (string | undefined)[] = [];
   for (const [i, q] of queries.entries()) {
-    const clip = await fetchStock(q, pick.quoteIndex + i, 'portrait');
-    if (!clip) {
-      console.log(`  · "${q}" — 못 찾음(검은 배경)`);
-      bgs.push(undefined);
-      continue;
+    const seed = pick.quoteIndex + i;
+    if (mode !== 'code') {
+      const portrait = await fetchStock(q, seed, 'portrait');
+      if (portrait) {
+        bgs.push(path.join(PUBLIC_DIR, portrait.relPath));
+        console.log(`  · "${q}" → 세로 ${portrait.kind}`);
+        continue;
+      }
+      const any = await fetchAsset(q, seed, true);
+      if (any) {
+        bgs.push(path.join(PUBLIC_DIR, any.relPath));
+        console.log(`  · "${q}" → ${any.provider} ${any.kind}(가로, 잘라 씀)`);
+        continue;
+      }
+      if (mode === 'stock') {
+        console.log(`  · "${q}" — 못 찾음(검은 배경)`);
+        bgs.push(undefined);
+        continue;
+      }
     }
-    bgs.push(path.join(PUBLIC_DIR, clip.relPath));
-    console.log(`  · "${q}" → ${clip.kind}`);
+    // ★판을 컷마다 돌린다★ 한 가지로 다 깔면 썸네일에서 겪은 일이 그대로 반복된다.
+    const style: BackdropStyle = styleEnv && BACKDROP_STYLES.includes(styleEnv)
+      ? styleEnv
+      : BACKDROP_STYLES[(seed + i) % BACKDROP_STYLES.length];
+    bgs.push(await drawBackdrop(style, texts[i] ?? q, accent, path.join(bgDir, `bg${i}.png`)));
+    console.log(`  · "${q}" → 코드로 그림(${style})`);
   }
 
   const cuts: CutSpec[] = [
@@ -115,7 +151,7 @@ export async function makeOne(): Promise<'ok' | 'stop'> {
   const outPath = path.join(OUT_DIR, 'short.mp4');
   await renderBookShort({
     cuts,
-    accent: thumbVariant(pick.quoteIndex + 1).accent,
+    accent,
     badge: pick.book.title,
     bgmPath: bgm,
     workDir,
