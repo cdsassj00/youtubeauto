@@ -14,7 +14,7 @@
  *  무시되는 옵션이 다시 생긴다.)
  */
 
-export type EngineId = 'stock' | 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper' | 'handdrawn' | 'listing' | 'whiteboard';
+export type EngineId = 'stock' | 'illustrated' | 'scrapbook' | 'footage' | 'signal' | 'signal3d' | 'deck3d' | 'hyper' | 'handdrawn' | 'tldraw' | 'listing' | 'whiteboard';
 
 /** 엔진과 무관하게 항상 적용되는 옵션은 여기 적지 않는다(주제·길이·모드·채널·배속). */
 export interface EngineCaps {
@@ -132,6 +132,20 @@ export const ENGINES: EngineCaps[] = [
     blurb:
       '종이 질감 배경 위에 손으로 그린 듯한 도식과 자막이 올라간다. 이 파이프라인의 첫 화면 스타일로, ' +
       'AI 그림도 스톡 영상도 안 써서 이미지 비용이 0 이다.',
+    artStyle: false,
+    broll: false,
+    level: true,
+    tone: true,
+  },
+  {
+    id: 'tldraw',
+    label: '손그림 애니메이션 (tldraw)',
+    blurb:
+      '도식이 한 획씩 그려지며 나레이션을 따라간다. handdrawn 이 다 그려진 도식을 얹는 것과 달리 ' +
+      '그려지는 과정이 보인다 — 설명 영상에서는 그 과정이 곧 설명이다. ' +
+      '★아직 이 저장소에서 돌려 본 적이 없다★ 사양은 docs/engine-tldraw.md 에 있고, ' +
+      '상용 라이선스 없이는 워터마크가 박힌다.',
+    // 화면을 tldraw 가 직접 그린다 — AI 그림도 스톡도 부르지 않는다.
     artStyle: false,
     broll: false,
     level: true,
