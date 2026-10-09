@@ -24,7 +24,7 @@ const pages = (tok) => Math.round(tok / PAGE);
 function scaleAt(t) {
   // 카메라 배율: 현재 원 반지름이 R0 가 되도록, 로그 공간에서 부드럽게
   let k = 0;
-  for (let i = 1; i < M.length; i++) k += E.inOutCubic(prog(t, tIn(i) - 0.2, tIn(i) + 0.9));
+  for (let i = 1; i < M.length; i++) k += E.inOutCubic(prog(t, tIn(i) - 1.0, tIn(i) + 0.15));
   const i0 = Math.floor(k), fr = k - i0;
   const a = Math.log(rad(M[i0].tok)), b = Math.log(rad(M[Math.min(M.length - 1, i0 + 1)].tok));
   return { s: R0 / Math.exp(lerp(a, b, fr)), k };
@@ -48,17 +48,20 @@ function draw(ctx, t) {
   ctx.restore();
 
   const { s, k } = scaleAt(t);
-  const cur = Math.min(M.length - 1, Math.round(k));
-  // 원들(큰 것부터)
+  const cur = Math.max(0, M.filter((_, i) => t >= tIn(i) + 0.1).length - 1);   // 원이 나와야 제목이 바뀐다
+  void k;
+  // 원들(큰 것부터) — 머리글 아래로만 그린다
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 430, W, H - 430); ctx.clip();
   for (let i = M.length - 1; i >= 0; i--) {
     if (t < tIn(i)) continue;
-    const g = E.outBack(prog(t, tIn(i), tIn(i) + 0.7), 1.2);
+    const g = E.outBack(prog(t, tIn(i) + 0.1, tIn(i) + 0.75), 1.1);
     const r = rad(M[i].tok) * s * g;
     if (r < 0.6) continue;
     ctx.beginPath(); ctx.arc(BX, BY - r, r, 0, 7);
     ctx.fillStyle = M[i].fill; ctx.fill();
     ctx.lineWidth = i === M.length - 1 ? 0 : 3; ctx.strokeStyle = INK; if (ctx.lineWidth) ctx.stroke();
   }
+  ctx.restore();
   // 라벨: 현재 원과 직전 원
   M.forEach((m, i) => {
     if (t < tIn(i)) return;
