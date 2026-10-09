@@ -23,6 +23,7 @@ const ENGINES = {
   deck3d: { artStyle: false, broll: false },
   hyper: { artStyle: false, broll: false },
   handdrawn: { artStyle: false, broll: false },
+  tldraw: { artStyle: false, broll: false },
   listing: { artStyle: false, broll: false },
   whiteboard: { artStyle: true, broll: false },
 };
@@ -101,7 +102,7 @@ export default async function handler(req, res) {
       market: ['KR', 'US'].includes(String(body.market || '').toUpperCase()) ? String(body.market).toUpperCase() : '',
       max_min: /^\d{1,2}$/.test(String(body.max_min ?? '')) ? String(body.max_min) : '',
       // 영상 스타일(=렌더 엔진). illustrated=2D 벡터 | deck3d=3D 기하학 | signal=데이터 중심.
-      style: ['stock', 'illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d', 'hyper', 'handdrawn', 'listing', 'whiteboard'].includes(body.style)
+      style: ['stock', 'illustrated', 'scrapbook', 'footage', 'deck3d', 'signal', 'signal3d', 'hyper', 'handdrawn', 'tldraw', 'listing', 'whiteboard'].includes(body.style)
         ? body.style
         : '',
       // 나레이션 배속(0.8~1.4). 비우면 워크플로 기본값.
