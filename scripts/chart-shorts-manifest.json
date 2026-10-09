@@ -1,0 +1,14 @@
+[
+  {
+    "id": "openweight",
+    "file": "assets/shorts/charts/openweight-race.mp4",
+    "label": false,
+    "fps": 30,
+    "bgm": { "bpm": 118, "key": 0, "hits": [8.2, 10.7, 13.0, 15.9, 19.9, 24.7] },
+    "titleKo": "가장 큰 오픈웨이트 AI 모델은?",
+    "engineTag": "OPEN-WEIGHT AI WAR",
+    "youtubeTitle": "가장 큰 오픈웨이트 AI 모델은? 2022→2026 1위 교체전 #Shorts",
+    "description": "BLOOM 176B 에서 Kimi K3 2.8T 까지 — 가중치를 공개한 AI 모델 중 가장 큰 모델의 1위가 어떻게 바뀌어 왔는지 4년을 30초로 봅니다.\n\n· 기준: 오픈웨이트(가중치 공개) 모델의 총 파라미터 수\n· GPT·Claude·Gemini 처럼 가중치를 공개하지 않은 모델은 제외\n\n#오픈웨이트 #오픈소스AI #LLM #DeepSeek #Kimi #Llama #AI트렌드",
+    "tags": ["오픈웨이트", "오픈소스AI", "LLM", "DeepSeek", "Kimi", "Llama", "AI트렌드", "데이터시각화", "CDSA", "AX교육", "Shorts"]
+  }
+]

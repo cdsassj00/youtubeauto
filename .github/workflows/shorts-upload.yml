@@ -1,7 +1,8 @@
-name: AI 쇼츠 3편 업로드 (다비드·자유의여신상·모아이)
+name: 완성 쇼츠 업로드 (AI 클립 · 모션차트)
 
-# 일회성 업로드 워크플로. Higgsfield/Seedance 로 만든 완성 클립 3개를
-# scripts/shorts-manifest.json 에서 읽어 CDSA 마무리 카드를 붙이고 유튜브에 올린다.
+# 완성 클립을 매니페스트에서 읽어 CDSA 마무리 카드를 붙이고 유튜브에 올린다.
+#   scripts/shorts-manifest.json        Higgsfield/Seedance AI 클립 3편(기본)
+#   scripts/chart-shorts-manifest.json  모션차트 쇼츠(shorts-charts/ 로 렌더, 소리 없으면 합성 비트를 깐다)
 # 대본·나레이션·렌더 비용이 없다(ffmpeg 합성만) — 도는 것은 업로드뿐이다.
 on:
   workflow_dispatch:
@@ -10,8 +11,12 @@ on:
         description: '공개 상태 (public | unlisted | private)'
         required: false
         default: 'public'
+      manifest:
+        description: '매니페스트 경로 (scripts/shorts-manifest.json | scripts/chart-shorts-manifest.json)'
+        required: false
+        default: 'scripts/shorts-manifest.json'
       only:
-        description: '일부만 올리려면 id 를 콤마로(예: 2,3). 비우면 3편 전부.'
+        description: '일부만 올리려면 id 를 콤마로(예: 2,3). 비우면 전부.'
         required: false
         default: ''
       channel:
@@ -36,6 +41,7 @@ jobs:
       TARGET_CHANNEL: ${{ github.event.inputs.channel || 'default' }}
       YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || 'public' }}
       ONLY: ${{ github.event.inputs.only || '' }}
+      MANIFEST: ${{ github.event.inputs.manifest || 'scripts/shorts-manifest.json' }}
       DO_UPLOAD: 'true'
     steps:
       - name: 체크아웃
