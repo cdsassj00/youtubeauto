@@ -166,6 +166,10 @@ async function main() {
 
   // 이미 같은 제목이 채널에 있으면 건너뛴다 — 버튼을 두 번 눌러도 두 번 올라가지 않게.
   const existing = config.doUpload ? new Set(await listRecentVideoTitles(200)) : new Set();
+  // 매일 발행은 MAX_UPLOADS=1 로 돈다: 매니페스트 순서대로 아직 안 올라간 것 하나만 올린다.
+  // 채널에 올라간 것이 곧 진행 상황이라 따로 "어디까지 올렸다" 파일을 두지 않는다.
+  const maxUploads = Number(process.env.MAX_UPLOADS || 0) || Infinity;
+  let uploaded = 0;
 
   console.log(`▶ 쇼츠 ${items.length}편 처리 (채널: ${config.targetChannel}, 공개: ${config.youtubePrivacyStatus})`);
 
@@ -174,6 +178,10 @@ async function main() {
     if (existing.has(item.youtubeTitle.slice(0, 100))) {
       console.log('  · 같은 제목이 이미 채널에 있음 → 건너뜀');
       continue;
+    }
+    if (uploaded >= maxUploads) {
+      console.log(`  · 오늘 몫(${maxUploads}편)을 채움 → 다음 실행으로`);
+      break;
     }
     const videoPath = await build(item);
     console.log(`  · 합성 완료: ${videoPath} (${(((await fs.stat(videoPath)).size) / 1e6).toFixed(1)}MB)`);
@@ -190,12 +198,14 @@ async function main() {
         tags: item.tags || ['AI영상', 'AI숏폼', 'Seedance', 'CDSA', 'AX교육', 'Shorts'],
       },
     });
+    uploaded++;
     console.log(`  · 업로드 완료: https://youtu.be/${videoId} (${config.youtubePrivacyStatus})`);
     // 같은 실행에서 여러 편을 올리면 결과를 한곳에 남겨 Actions 요약에서 바로 보이게 한다.
     if (process.env.GITHUB_STEP_SUMMARY) {
       await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, `- [${item.id}] ${item.youtubeTitle} → https://youtu.be/${videoId}\n`);
     }
   }
+  if (config.doUpload && uploaded === 0) console.log('\n· 올릴 새 쇼츠가 없습니다 — 대기열이 비었거나 전부 올라가 있습니다.');
   console.log('\n✅ 완료');
 }
 
