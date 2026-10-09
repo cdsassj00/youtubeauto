@@ -18,7 +18,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';
 import ffmpegPath from 'ffmpeg-static';
-import { uploadVideo } from '../src/lib/youtube.js';
+import { uploadVideo, listRecentVideoTitles } from '../src/lib/youtube.js';
 import { makeTrack } from '../shorts-charts/music.mjs';
 import { config } from '../src/config.js';
 
@@ -141,18 +141,40 @@ function buildDescription(item) {
   ].join('\n');
 }
 
+const KNOWN_MANIFESTS = ['scripts/shorts-manifest.json', 'scripts/chart-shorts-manifest.json'];
+
 async function main() {
   await fs.mkdir(WORK, { recursive: true });
   const manifestPath = process.env.MANIFEST || 'scripts/shorts-manifest.json';
   const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
   const only = (process.env.ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const items = only.length ? manifest.filter((m) => only.includes(m.id)) : manifest;
+  // ★ONLY 로 이름을 찍으면 매니페스트 칸은 몰라도 된다★ 실행 화면에서 manifest 칸을 기본값
+  // (AI 클립 목록)으로 둔 채 차트 id 만 적어 아무것도 못 찾고 실패한 적이 있다. 이름이 겹치지
+  // 않으므로 두 목록을 합쳐 찾는다. ONLY 가 비면 지정한 매니페스트 하나만 — 실수로 전부 다시
+  // 올리는 일이 없게 한다.
+  let pool = manifest;
+  if (only.length) {
+    for (const extra of KNOWN_MANIFESTS) {
+      if (extra === manifestPath || !existsSync(extra)) continue;
+      pool = pool.concat(JSON.parse(await fs.readFile(extra, 'utf8')));
+    }
+  }
+  const items = only.length ? only.map((id) => pool.find((m) => m.id === id)).filter(Boolean) : manifest;
+  const missing = only.filter((id) => !pool.some((m) => m.id === id));
+  if (missing.length) throw new Error(`매니페스트에 없는 id: ${missing.join(', ')} (있는 것: ${pool.map((m) => m.id).join(', ')})`);
   if (!items.length) throw new Error('업로드할 항목이 없습니다(ONLY 필터 확인).');
+
+  // 이미 같은 제목이 채널에 있으면 건너뛴다 — 버튼을 두 번 눌러도 두 번 올라가지 않게.
+  const existing = config.doUpload ? new Set(await listRecentVideoTitles(200)) : new Set();
 
   console.log(`▶ 쇼츠 ${items.length}편 처리 (채널: ${config.targetChannel}, 공개: ${config.youtubePrivacyStatus})`);
 
   for (const item of items) {
     console.log(`\n=== [${item.id}] ${item.titleKo} ===`);
+    if (existing.has(item.youtubeTitle.slice(0, 100))) {
+      console.log('  · 같은 제목이 이미 채널에 있음 → 건너뜀');
+      continue;
+    }
     const videoPath = await build(item);
     console.log(`  · 합성 완료: ${videoPath} (${(((await fs.stat(videoPath)).size) / 1e6).toFixed(1)}MB)`);
 
