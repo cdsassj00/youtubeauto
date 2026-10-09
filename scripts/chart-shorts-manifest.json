@@ -4,11 +4,145 @@
     "file": "assets/shorts/charts/openweight-race.mp4",
     "label": false,
     "fps": 30,
-    "bgm": { "bpm": 118, "key": 0, "hits": [8.2, 10.7, 13.0, 15.9, 19.9, 24.7] },
+    "bgm": {
+      "bpm": 118,
+      "key": 0,
+      "hits": [
+        8.2,
+        10.7,
+        13.0,
+        15.9,
+        19.9,
+        24.7
+      ]
+    },
     "titleKo": "가장 큰 오픈웨이트 AI 모델은?",
     "engineTag": "OPEN-WEIGHT AI WAR",
     "youtubeTitle": "가장 큰 오픈웨이트 AI 모델은? 2022→2026 1위 교체전 #Shorts",
     "description": "BLOOM 176B 에서 Kimi K3 2.8T 까지 — 가중치를 공개한 AI 모델 중 가장 큰 모델의 1위가 어떻게 바뀌어 왔는지 4년을 30초로 봅니다.\n\n· 기준: 오픈웨이트(가중치 공개) 모델의 총 파라미터 수\n· GPT·Claude·Gemini 처럼 가중치를 공개하지 않은 모델은 제외\n\n#오픈웨이트 #오픈소스AI #LLM #DeepSeek #Kimi #Llama #AI트렌드",
-    "tags": ["오픈웨이트", "오픈소스AI", "LLM", "DeepSeek", "Kimi", "Llama", "AI트렌드", "데이터시각화", "CDSA", "AX교육", "Shorts"]
+    "tags": [
+      "오픈웨이트",
+      "오픈소스AI",
+      "LLM",
+      "DeepSeek",
+      "Kimi",
+      "Llama",
+      "AI트렌드",
+      "데이터시각화",
+      "CDSA",
+      "AX교육",
+      "Shorts"
+    ]
+  },
+  {
+    "id": "speedrun",
+    "file": "assets/shorts/charts/speedrun.mp4",
+    "label": false,
+    "fps": 30,
+    "bgm": {
+      "bpm": 124,
+      "key": 3,
+      "hits": []
+    },
+    "titleKo": "100만 명 모으는 데 걸린 시간",
+    "engineTag": "SPEEDRUN · 1,000,000 USERS",
+    "youtubeTitle": "100만 명 모으는 데 넷플릭스 3.5년… ChatGPT는? #Shorts",
+    "description": "서비스를 내놓고 사용자 100만 명을 모으기까지 걸린 시간. 넷플릭스 3.5년, 페이스북 10개월, 인스타그램 2.5개월, 아이폰 74일 — 그리고 ChatGPT는 단 5일.\n\n· 막대는 같은 눈금(선형)이라 ChatGPT 막대는 거의 보이지 않습니다\n· 출처: Statista(2023), 각 사 발표. ChatGPT 100만 명은 2022.12.05 샘 올트먼 발표\n\n#ChatGPT #OpenAI #스타트업 #성장",
+    "tags": [
+      "ChatGPT",
+      "OpenAI",
+      "스타트업",
+      "성장속도",
+      "데이터시각화",
+      "모션차트",
+      "AI트렌드",
+      "CDSA",
+      "AX교육",
+      "Shorts"
+    ]
+  },
+  {
+    "id": "weekly",
+    "file": "assets/shorts/charts/weekly.mp4",
+    "label": false,
+    "fps": 30,
+    "bgm": {
+      "bpm": 120,
+      "key": -2,
+      "hits": []
+    },
+    "titleKo": "ChatGPT 주간 사용자",
+    "engineTag": "WEEKLY ACTIVE USERS",
+    "youtubeTitle": "ChatGPT 주간 사용자 1억 → 8억, 2년 만에 8배 #Shorts",
+    "description": "2023년 11월 1억 명에서 2025년 10월 8억 명까지 — 매주 ChatGPT를 쓰는 사람 수가 어떻게 늘었는지.\n\n· 1억 → 2억: 297일, 4억 → 8억: 228일 — 덩치가 커질수록 더 빨리 두 배가 됐습니다\n· 8억 명은 대한민국 인구(약 5,170만)의 약 15배\n· 출처: OpenAI·샘 올트먼 공식 발표(주간 활성 사용자). 발표 시점끼리 직선으로 이었습니다\n\n#ChatGPT #OpenAI #AI사용자",
+    "tags": [
+      "ChatGPT",
+      "OpenAI",
+      "주간사용자",
+      "AI사용자",
+      "데이터시각화",
+      "모션차트",
+      "AI트렌드",
+      "CDSA",
+      "AX교육",
+      "Shorts"
+    ]
+  },
+  {
+    "id": "nvidia",
+    "file": "assets/shorts/charts/nvidia.mp4",
+    "label": false,
+    "fps": 30,
+    "bgm": {
+      "bpm": 112,
+      "key": -4,
+      "hits": []
+    },
+    "titleKo": "엔비디아 1조 → 5조 달러",
+    "engineTag": "NVIDIA · MARKET CAP",
+    "youtubeTitle": "엔비디아 시총 1조 → 5조 달러, 걸린 날짜만 보면 #Shorts",
+    "description": "엔비디아 시가총액이 1조 달러를 처음 넘은 2023년 5월부터 5조 달러를 넘은 2025년 10월까지. 계단 한 칸의 폭이 다음 1조까지 걸린 날수입니다.\n\n· 1조→2조 269일 · 2조→3조 103일 · 3조→4조 399일 · 4조→5조 112일\n· 5조 달러는 한국 한 해 GDP(2024년 약 1.9조 달러)의 약 2.7배\n· 기준: 각 조 달러를 장중 처음 넘은 날. 그 사이 시총이 다시 내려간 적도 있습니다\n· 투자 권유가 아닌 기록 정리입니다\n\n#엔비디아 #NVIDIA #AI반도체 #시가총액",
+    "tags": [
+      "엔비디아",
+      "NVIDIA",
+      "AI반도체",
+      "시가총액",
+      "젠슨황",
+      "데이터시각화",
+      "모션차트",
+      "AI트렌드",
+      "CDSA",
+      "AX교육",
+      "Shorts"
+    ]
+  },
+  {
+    "id": "context",
+    "file": "assets/shorts/charts/context.mp4",
+    "label": false,
+    "fps": 30,
+    "bgm": {
+      "bpm": 100,
+      "key": 2,
+      "hits": []
+    },
+    "titleKo": "AI가 한 번에 읽을 수 있는 양",
+    "engineTag": "CONTEXT WINDOW",
+    "youtubeTitle": "AI가 한 번에 읽는 양, 5년 새 4,883배 #Shorts",
+    "description": "컨텍스트 윈도우 — AI가 한 번에 읽고 기억할 수 있는 글의 양. GPT-3 2,048토큰(책 5쪽)에서 Llama 4 Scout 1,000만 토큰(소설 약 83권)까지.\n\n· 원의 넓이가 토큰 수에 비례합니다\n· 쪽수 환산: 영문 기준 1쪽 ≈ 400토큰(약 300단어), 소설 1권 ≈ 300쪽 — 대략의 감을 위한 환산입니다\n· 각 사 발표 최대 컨텍스트 기준\n\n#컨텍스트윈도우 #LLM #Gemini #Claude #Llama",
+    "tags": [
+      "컨텍스트윈도우",
+      "LLM",
+      "토큰",
+      "Gemini",
+      "Claude",
+      "Llama",
+      "데이터시각화",
+      "모션차트",
+      "AI트렌드",
+      "CDSA",
+      "AX교육",
+      "Shorts"
+    ]
   }
 ]
