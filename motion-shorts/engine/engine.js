@@ -120,9 +120,19 @@ function wrapWords(words, f, maxW) {
   }
   return lines;
 }
-// 공백으로 단어를 나누고, 단어 안의 *강조* 조각은 따로 색을 준다 — "*스크램블*." 의 마침표가 떨어지지 않게
+// 강조를 먼저 조각내고 그다음 공백으로 단어를 나눈다 — "*손그림 도식*." 처럼 강조가 여러 단어에
+// 걸치거나 바로 뒤에 문장부호가 붙어도, 단어 안의 각 조각이 제 색을 가진다.
 function capWords(say) {
-  return say.split(/\s+/).filter(Boolean).map((tok) => ({ t: plain(tok), segs: parseEm(tok) }));
+  const words = []; let cur = null;
+  for (const seg of parseEm(say)) {
+    for (const tok of seg.t.split(/(\s+)/)) {
+      if (!tok) continue;
+      if (/^\s+$/.test(tok)) { cur = null; continue; }
+      if (!cur) { cur = { t: '', segs: [] }; words.push(cur); }
+      cur.t += tok; cur.segs.push({ t: tok, em: seg.em });
+    }
+  }
+  return words;
 }
 function caption(beat, lt) {
   const key = 'cap' + beat.i;
