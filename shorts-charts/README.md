@@ -16,6 +16,9 @@ node shorts-charts/render.mjs shorts-charts/charts/nvidia.html out/stills --stil
 # MP4 (소리 없음) — 끝에 bgm.hits 로 쓸 임팩트 시각을 찍어 준다
 node shorts-charts/render.mjs shorts-charts/charts/nvidia.html assets/shorts/charts/nvidia.mp4
 # 브라우저로 그냥 재생: charts/<name>.html?play
+
+# 비트를 깔아 완성본 (render.mjs 가 찍어 준 임팩트 시각을 그대로)
+node shorts-charts/finish.mjs assets/shorts/charts/nvidia.mp4 out/nvidia_final.mp4 --hits 6,9.2,13.4,17,19.6 --bpm 112 --key -4
 ```
 
 Playwright 가 받아 둔 브라우저 버전이 안 맞으면 `CHROMIUM_PATH=/path/to/chrome` 으로 지정한다.
