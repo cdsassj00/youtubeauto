@@ -1,31 +1,37 @@
-name: 완성 쇼츠 업로드 (AI 클립 · 모션차트)
+name: 차트 쇼츠 매일 발행 (저녁 7시, 1편)
 
-# 완성 클립을 매니페스트에서 읽어 CDSA 마무리 카드를 붙이고 유튜브에 올린다.
-#   scripts/shorts-manifest.json        Higgsfield/Seedance AI 클립 3편(기본)
-#   scripts/chart-shorts-manifest.json  모션차트 쇼츠(shorts-charts/ 로 렌더, 소리 없으면 합성 비트를 깐다)
-# 대본·나레이션·렌더 비용이 없다(ffmpeg 합성만) — 도는 것은 업로드뿐이다.
+# scripts/chart-shorts-manifest.json 이 대기열이다. 매일 한 번, 위에서부터 보며 채널에 아직
+# 같은 제목이 없는 첫 편 하나를 올린다(MAX_UPLOADS=1). 이미 올라간 것은 채널 제목으로 걸러지므로
+# 따로 진행 기록을 두지 않는다 — 버튼으로 먼저 올린 편도 자동으로 건너뛴다.
+# 새 쇼츠는 shorts-charts/ 로 렌더해 assets/shorts/charts/ 에 넣고 매니페스트 끝에 한 줄 추가하면
+# 다음 날부터 차례가 온다. 대기열이 비면 아무것도 하지 않고 초록으로 끝난다.
+#
+# ★예약 실행은 기본 브랜치의 이 파일로만 돈다★ 브랜치에 있는 동안은 시간이 와도 돌지 않는다.
 on:
+  schedule:
+    # 10:00 UTC = 19:00 KST. 정각은 GitHub 예약이 몰려 늦어지기 쉬워 10분 당겨 둔다.
+    - cron: '50 9 * * *'
   workflow_dispatch:
     inputs:
+      count:
+        description: '이번에 올릴 편수 (기본 1)'
+        required: false
+        default: '1'
       privacy:
         description: '공개 상태 (public | unlisted | private)'
         required: false
         default: 'public'
-      manifest:
-        description: '매니페스트 경로 (scripts/shorts-manifest.json | scripts/chart-shorts-manifest.json)'
-        required: false
-        default: 'scripts/shorts-manifest.json'
-      only:
-        description: '일부만 올리려면 id 를 콤마로(예: 2,3). 비우면 전부.'
-        required: false
-        default: ''
       channel:
         description: '업로드 채널 (default | ch2)'
         required: false
         default: 'default'
 
+concurrency:
+  group: chart-shorts-daily
+  cancel-in-progress: false
+
 jobs:
-  upload:
+  publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -40,8 +46,8 @@ jobs:
       SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'false' }}
       TARGET_CHANNEL: ${{ github.event.inputs.channel || 'default' }}
       YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || 'public' }}
-      ONLY: ${{ github.event.inputs.only || '' }}
-      MANIFEST: ${{ github.event.inputs.manifest || 'scripts/shorts-manifest.json' }}
+      MANIFEST: scripts/chart-shorts-manifest.json
+      MAX_UPLOADS: ${{ github.event.inputs.count || '1' }}
       DO_UPLOAD: 'true'
     steps:
       - name: 체크아웃
@@ -59,5 +65,5 @@ jobs:
       - name: 의존성 설치
         run: npm ci
 
-      - name: 클립 합성 + 업로드
+      - name: 대기열에서 한 편 발행
         run: npx tsx scripts/upload-shorts.mjs

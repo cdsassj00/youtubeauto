@@ -1,0 +1,176 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas><script src="lib.js"></script><script>
+// ChatGPT 주간 사용자 — 다크 네온 라인. 공식 발표 시점끼리만 직선으로 잇는다(사이 값을 지어내지 않는다).
+// 세로축은 따라 올라가는 카메라다: 선이 화면 위로 빠져나가려 할 때마다 눈금이 다시 짜인다.
+const BG = '#04060A', MINT = '#3DF5C4', MINT2 = '#0FA37F', MUTED = '#5B6676';
+const PTS = [
+  { d: '2023-11-06', v: 100, note: 'DevDay 2023' },
+  { d: '2024-08-29', v: 200, note: '' },
+  { d: '2024-12-04', v: 300, note: '' },
+  { d: '2025-02-20', v: 400, note: '' },
+  { d: '2025-03-31', v: 500, note: '' },
+  { d: '2025-08-04', v: 700, note: '' },
+  { d: '2025-10-06', v: 800, note: 'DevDay 2025' },
+];
+const D0 = new Date(PTS[0].d), D1 = new Date(PTS.at(-1).d);
+const span = (D1 - D0) / 864e5;
+PTS.forEach((p) => (p.day = (new Date(p.d) - D0) / 864e5));
+const TS = 3.0, TE = 19.5;             // 선이 달리는 구간(초)
+const dayAt = (t) => span * E.inOutSine(prog(t, TS, TE)) ** 1.0;
+const tOfDay = (dd) => { // 역함수(이분법)
+  let a = TS, b = TE;
+  for (let i = 0; i < 30; i++) { const m = (a + b) / 2; if (dayAt(m) < dd) a = m; else b = m; }
+  return (a + b) / 2;
+};
+PTS.forEach((p) => (p.t = tOfDay(p.day)));
+function valAt(dd) {
+  for (let i = 1; i < PTS.length; i++) if (dd <= PTS[i].day) {
+    const a = PTS[i - 1], b = PTS[i];
+    return lerp(a.v, b.v, (dd - a.day) / (b.day - a.day));
+  }
+  return PTS.at(-1).v;
+}
+const PX = 130, PW = 790, PY = 1560, PH = 820;  // 플롯 영역 (아래 기준)
+const korean = (m) => (m >= 100 ? `${(m / 100).toFixed(m % 100 === 0 ? 0 : 1)}억` : `${Math.round(m)}00만`);
+
+function draw(ctx, t) {
+  ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(540, 1100, 50, 540, 1100, 1100);
+  glow.addColorStop(0, 'rgba(61,245,196,0.10)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+
+  const dd = dayAt(t), cur = valAt(dd);
+  // 카메라: 세로축 최대값
+  const yMax = Math.max(160, cur * 1.18 + 20);
+  const yMaxS = yMax;
+  const X = (day) => PX + (day / span) * PW;
+  const Yv = (v) => PY - (v / yMaxS) * PH;
+
+  // 헤더
+  const h = E.outCubic(prog(t, 0.1, 0.8));
+  txt(ctx, 'WEEKLY ACTIVE USERS', 80, 150, { font: f(700, 28, NUM), color: MINT, ls: 8, alpha: h });
+  txt(ctx, 'ChatGPT 주간 사용자', 80, 238, { font: f(800, 72), color: '#F2F5F8', ls: -2, alpha: h });
+  // 큰 카운터
+  const shown = t < TS ? 100 * E.outExpo(prog(t, 0.6, TS)) : cur;
+  ctx.save();
+  const big = korean(Math.max(1, shown));
+  txt(ctx, big, 72, 470, { font: f(900, 230, NUM), color: '#fff', ls: -10, alpha: prog(t, 0.5, 0.9) });
+  const bw = measure(ctx, big, f(900, 230, NUM), -10);
+  txt(ctx, '명', 72 + bw + 16, 470, { font: f(800, 80), color: MINT, alpha: prog(t, 0.5, 0.9) });
+  ctx.restore();
+  const dt = new Date(+D0 + dd * 864e5);
+  txt(ctx, `${dt.getFullYear()}.${String(dt.getMonth() + 1).padStart(2, '0')}`, 80, 545, { font: f(600, 40, NUM), color: MUTED, ls: 4, alpha: prog(t, 0.9, 1.4) });
+
+  // 격자 + 축 라벨(눈금은 카메라에 맞춰 다시 짠다)
+  const step = yMaxS > 600 ? 200 : yMaxS > 300 ? 100 : 50;
+  ctx.save();
+  for (let v = step; v < yMaxS; v += step) {
+    const y = Yv(v);
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(PX, y); ctx.lineTo(PX + PW, y); ctx.stroke();
+    txt(ctx, korean(v), PX - 18, y + 10, { font: f(600, 26, NUM), color: MUTED, align: 'right' });
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.beginPath(); ctx.moveTo(PX, PY); ctx.lineTo(PX + PW, PY); ctx.stroke();
+  for (const y of [2024, 2025]) {
+    const x = X((new Date(`${y}-01-01`) - D0) / 864e5);
+    txt(ctx, String(y), x, PY + 50, { font: f(600, 28, NUM), color: MUTED, align: 'center' });
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.beginPath(); ctx.moveTo(x, PY); ctx.lineTo(x, PY - PH); ctx.stroke();
+  }
+  ctx.restore();
+
+  if (t < TS - 0.6) { finish(ctx, t); return; }
+  // 그려진 경로
+  const path = [];
+  for (const p of PTS) if (p.day <= dd) path.push([X(p.day), Yv(p.v)]);
+  path.push([X(dd), Yv(cur)]);
+  if (path.length >= 1) {
+    // 면
+    const ag = ctx.createLinearGradient(0, PY - PH, 0, PY);
+    ag.addColorStop(0, 'rgba(61,245,196,0.35)'); ag.addColorStop(1, 'rgba(61,245,196,0)');
+    ctx.beginPath(); ctx.moveTo(path[0][0], PY);
+    path.forEach(([x, y]) => ctx.lineTo(x, y));
+    ctx.lineTo(path.at(-1)[0], PY); ctx.closePath(); ctx.fillStyle = ag; ctx.fill();
+    // 선(글로우 2겹)
+    for (const [lw, a, blur] of [[16, 0.25, 40], [6, 1, 18]]) {
+      ctx.save(); ctx.shadowColor = MINT; ctx.shadowBlur = blur; ctx.strokeStyle = MINT; ctx.globalAlpha = a;
+      ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.beginPath(); path.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  // 마일스톤 핑 + 라벨
+  PTS.forEach((p, i) => {
+    if (t < p.t) return;
+    const x = X(p.day), y = Yv(p.v), k = prog(t, p.t, p.t + 0.8);
+    ctx.save();
+    ctx.strokeStyle = MINT; ctx.globalAlpha = 1 - k; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(x, y, 12 + 70 * E.outCubic(k), 0, 7); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill();
+    ctx.fillStyle = BG; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill();
+    const la = E.outBack(prog(t, p.t, p.t + 0.35));
+    const last = i === PTS.length - 1;
+    const first = i === 0;
+    const lx = first ? x + 18 : last ? x - 20 : x - 14, ly = first ? y - 40 : y - 34;
+    const al = first ? 'left' : 'right';
+    ctx.save(); ctx.translate(lx, ly); ctx.scale(la, la);
+    txt(ctx, korean(p.v), 0, 0, { font: f(800, 34, NUM), color: '#fff', align: al });
+    txt(ctx, p.d.slice(0, 7).replace('-', '.'), 0, 32, { font: f(600, 22, NUM), color: MUTED, align: al });
+    ctx.restore();
+  });
+  // 머리 점
+  if (t < TE + 0.2) {
+    const x = X(dd), y = Yv(cur);
+    ctx.save(); ctx.shadowColor = MINT; ctx.shadowBlur = 40; ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, 13, 0, 7); ctx.fill(); ctx.restore();
+  }
+  // 배가 기간 칩
+  chip(ctx, t, 9.0, 650, '1억 → 2억', `${days(PTS[0].d, PTS[1].d)}일`);
+  chip(ctx, t, TE + 0.3, 740, '4억 → 8억', `${days(PTS[3].d, PTS[6].d)}일`);
+  finish(ctx, t);
+}
+
+function chip(ctx, t, t0, y, a, b) {
+  const p = E.outBack(prog(t, t0, t0 + 0.4));
+  if (p <= 0) return;
+  const fade = 1 - prog(t, 22.0, 22.4);
+  ctx.save(); ctx.globalAlpha = fade; ctx.translate(80, y); ctx.scale(p, p);
+  ctx.fillStyle = 'rgba(61,245,196,0.12)'; ctx.strokeStyle = 'rgba(61,245,196,0.6)'; ctx.lineWidth = 2;
+  rr(ctx, 0, -46, 430, 68, 34); ctx.fill(); ctx.stroke();
+  txt(ctx, a, 30, 0, { font: f(700, 32), color: '#DDE4EC' });
+  txt(ctx, `두 배까지 ${b}`, 400, 0, { font: f(800, 32), color: MINT, align: 'right' });
+  ctx.restore();
+}
+
+function finish(ctx, t) {
+  const p = E.outQuint(prog(t, 22.0, 22.8));
+  if (p <= 0) return;
+  ctx.save();
+  ctx.fillStyle = `rgba(4,6,10,${0.82 * p})`; ctx.fillRect(0, 600, W, 1150);
+  const y = lerp(1250, 1050, p);
+  txt(ctx, '대한민국 인구의', 540, y - 170, { font: f(700, 54), color: '#DDE4EC', align: 'center', alpha: p });
+  const n = Math.round(lerp(1, 15, E.outExpo(prog(t, 22.4, 23.8))));
+  txt(ctx, `${n}배`, 540, y + 40, { font: f(900, 220, NUM), color: MINT, align: 'center', ls: -8, alpha: p });
+  // 사람 점 15개
+  for (let i = 0; i < 15; i++) {
+    const q = E.outBack(prog(t, 23.0 + i * 0.07, 23.3 + i * 0.07));
+    const cx = 540 + (i - 7) * 58, cy = y + 150;
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(q, q); ctx.fillStyle = i === 14 ? '#fff' : MINT;
+    ctx.beginPath(); ctx.arc(0, -16, 11, 0, 7); ctx.fill();
+    rr(ctx, -15, 0, 30, 30, [14, 14, 4, 4]); ctx.fill();
+    ctx.restore();
+  }
+  txt(ctx, '매주 ChatGPT를 쓰는 사람 8억 명 · 2025.10 OpenAI 발표', 540, y + 260, { font: f(600, 30), color: MUTED, align: 'center', alpha: prog(t, 23.8, 24.4) });
+  ctx.restore();
+}
+
+defineChart({
+  duration: 28,
+  hits: PTS.map((p) => p.t).concat([22.4]),
+  draw(ctx, t) {
+    draw(ctx, t);
+    txt(ctx, '출처: OpenAI·샘 올트먼 공식 발표(주간 활성 사용자) · 발표 시점끼리 직선 연결 · 인구 5,170만 기준', 540, 1838, { font: f(500, 22), color: 'rgba(255,255,255,.35)', align: 'center' });
+    grain(ctx, 0.05, 'screen');
+  },
+});
+</script></body></html>
