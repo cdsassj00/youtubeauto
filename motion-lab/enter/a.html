@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Enter Key Study</title>
+<style>
+  :root {
+    --bg0: #08090b;
+    --bg1: #16181d;
+    --ink: #f2ede6;
+    --ink-dim: rgba(242, 237, 230, 0.48);
+    --ink-faint: rgba(242, 237, 230, 0.22);
+    --accent: #ff6a2b;
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg0); overflow: hidden; }
+  #stage {
+    position: relative; width: 1080px; height: 680px; overflow: hidden;
+    background: radial-gradient(ellipse 70% 75% at 50% 52%, var(--bg1) 0%, #0d0e11 58%, var(--bg0) 100%);
+    font-family: "Helvetica Neue", "Inter", Arial, sans-serif; color: var(--ink);
+  }
+  #pulse {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse 38% 34% at 50% 60%, rgba(255, 106, 43, 0.30) 0%, rgba(255, 106, 43, 0.0) 100%);
+  }
+  canvas#gl { position: absolute; left: 0; top: 0; width: 1080px; height: 680px; display: block; }
+  .hud { position: absolute; pointer-events: none; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase; color: var(--ink-dim); }
+  #tl { left: 44px; top: 38px; display: flex; align-items: center; gap: 12px; }
+  #tl .mark { width: 9px; height: 9px; background: var(--accent); border-radius: 2px; }
+  #tr { right: 44px; top: 38px; text-align: right; }
+  #headline { left: 44px; bottom: 56px; }
+  #headline .h { font-size: 44px; font-weight: 300; letter-spacing: -0.02em; line-height: 1.05; margin-top: 10px; }
+  #headline .h b { font-weight: 600; color: var(--accent); }
+  #headline .s { font-size: 14px; color: var(--ink-dim); margin-top: 10px; letter-spacing: 0.01em; }
+  #readout { right: 44px; bottom: 56px; width: 220px; }
+  #readout .row { display: flex; justify-content: space-between; align-items: baseline; }
+  #readout .val { font-size: 34px; font-weight: 300; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  #readout .val small { font-size: 13px; color: var(--ink-dim); margin-left: 4px; }
+  #readout .bar { position: relative; height: 2px; background: var(--ink-faint); margin-top: 12px; }
+  #readout .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); }
+  #readout .tick { position: absolute; top: -5px; width: 1px; height: 12px; background: var(--ink-dim); left: 50%; }
+  #readout .legend { display: flex; justify-content: space-between; margin-top: 10px; font-size: 10px; letter-spacing: 0.2em; color: var(--ink-dim); }
+  .lab { position: absolute; pointer-events: none; opacity: 0; font-size: 10.5px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink); white-space: nowrap; }
+  .lab .n { color: var(--accent); margin-right: 10px; }
+  .lab .d { display: block; margin-top: 4px; font-size: 10px; letter-spacing: 0.08em; text-transform: none; color: var(--ink-dim); }
+  .ln { position: absolute; height: 1px; background: rgba(242, 237, 230, 0.35); pointer-events: none; opacity: 0; transform-origin: 0 0; }
+  .dot { position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--ink); opacity: 0; pointer-events: none; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three.module.js", "three/addons/": "../vendor/addons/" } }
+</script>
+</head>
+<body>
+<div id="stage">
+  <div id="pulse"></div>
+  <canvas id="gl" width="1080" height="680"></canvas>
+  <div class="hud" id="tl"><div class="mark"></div><div class="eyebrow">Form Study &nbsp;/&nbsp; 01</div></div>
+  <div class="hud eyebrow" id="tr">Enter &nbsp;·&nbsp; 2.25u &nbsp;·&nbsp; Linear</div>
+  <div class="hud" id="headline">
+    <div class="eyebrow">The Return Key</div>
+    <div class="h">Made to be <b>pressed.</b></div>
+    <div class="s">Sculpted PBT. Gold-plated stabilizer. 4.0 mm of certainty.</div>
+  </div>
+  <div class="hud" id="readout">
+    <div class="row"><span class="eyebrow">Travel</span><span class="val" id="tv">0.00<small>mm</small></span></div>
+    <div class="bar"><div class="fill" id="tf"></div><div class="tick"></div></div>
+    <div class="legend"><span>0</span><span>ACT 2.0</span><span>4.0</span></div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const W = 1080, H = 680, LOOP = 8;
+const TAU = Math.PI * 2;
+
+// ---------- math helpers ----------
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * t * (t * (t * 6 - 15) + 10); };
+const easeInCubic = (t) => t * t * t;
+
+// ---------- renderer ----------
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H, false);
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(28, W / H, 0.1, 100);
+
+// ---------- lights ----------
+const key = new THREE.DirectionalLight(0xfff3e6, 2.6);
+key.position.set(4.5, 8, 4);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -4; key.shadow.camera.right = 4;
+key.shadow.camera.top = 5; key.shadow.camera.bottom = -4;
+key.shadow.camera.near = 1; key.shadow.camera.far = 20;
+key.shadow.radius = 5;
+key.shadow.bias = -0.0004;
+scene.add(key);
+
+const rim = new THREE.DirectionalLight(0xb8c8ff, 2.2);
+rim.position.set(-5, 3.5, -4.5);
+scene.add(rim);
+
+const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+fill.position.set(-3, 2, 6);
+scene.add(fill);
+
+const glowLight = new THREE.PointLight(0xff6a2b, 0, 3.2, 2);
+scene.add(glowLight);
+
+// ---------- geometry builders ----------
+function roundedRectRing(w, d, r, n) {
+  const pts = [];
+  r = Math.min(r, w / 2 - 1e-4, d / 2 - 1e-4);
+  const corners = [[1, 1, 0], [-1, 1, Math.PI / 2], [-1, -1, Math.PI], [1, -1, Math.PI * 1.5]];
+  for (const [sx, sz, a0] of corners) {
+    const cx = sx * (w / 2 - r), cz = sz * (d / 2 - r);
+    for (let i = 0; i <= n; i++) {
+      const a = a0 + (i / n) * Math.PI / 2;
+      pts.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]);
+    }
+  }
+  return pts;
+}
+
+// Lofted keycap-style solid: tapered sides, filleted top edge, cylindrical dish.
+function loftCap(o) {
+  const { wb, db, rb, wt, dt, rt, h, fil, dish = 0, zshift = 0, n = 8, sides = 8, filSteps = 8, capRings = 10 } = o;
+  const rings = [];
+  for (let k = 0; k <= sides; k++) {
+    const t = k / sides;
+    rings.push({ w: lerp(wb, wt, t), d: lerp(db, dt, t), r: lerp(rb, rt, t), y: t * (h - fil), zo: t * zshift, dw: 0 });
+  }
+  for (let j = 1; j <= filSteps; j++) {
+    const a = (j / filSteps) * Math.PI / 2;
+    const inset = fil * (1 - Math.cos(a));
+    rings.push({ w: wt - 2 * inset, d: dt - 2 * inset, r: Math.max(rt - inset, 0.01), y: h - fil + fil * Math.sin(a), zo: zshift, dw: 1 - Math.cos(a) });
+  }
+  const wc = wt - 2 * fil, dc = dt - 2 * fil, rc = Math.max(rt - fil, 0.01);
+  for (let c = 1; c <= capRings; c++) {
+    const s = 1 - c / capRings;
+    rings.push({ w: Math.max(wc * s, 1e-4), d: Math.max(dc * s, 1e-4), r: Math.max(rc * s, 5e-5), y: h, zo: zshift, dw: 1, cap: true });
+  }
+  const halfD = dc / 2;
+  const pos = [], idx = [];
+  let M = 0;
+  for (const rg of rings) {
+    const pts = roundedRectRing(rg.w, rg.d, rg.r, n);
+    M = pts.length;
+    for (const [x, z] of pts) {
+      const zr = z / halfD;
+      const dd = dish * rg.dw * Math.max(0, 1 - zr * zr);
+      pos.push(x, rg.y - dd, z + rg.zo);
+    }
+  }
+  for (let k = 0; k < rings.length - 1; k++) {
+    for (let i = 0; i < M; i++) {
+      const a = k * M + i, b = k * M + (i + 1) % M, c = (k + 1) * M + i, d = (k + 1) * M + (i + 1) % M;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  // separate bottom cap (own vertices for a crisp edge)
+  const base = pos.length / 3;
+  const bpts = roundedRectRing(wb, db, rb, n);
+  for (const [x, z] of bpts) pos.push(x, 0, z);
+  pos.push(0, 0, 0);
+  const ctr = base + bpts.length;
+  for (let i = 0; i < bpts.length; i++) idx.push(ctr, base + i, base + (i + 1) % bpts.length);
+
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return { geo: g, dishAt: (z) => { const zr = (z - zshift) / halfD; return dish * Math.max(0, 1 - zr * zr); } };
+}
+
+class Helix extends THREE.Curve {
+  constructor(r, h, turns) { super(); this.r = r; this.h = h; this.turns = turns; }
+  getPoint(u, target = new THREE.Vector3()) {
+    const a = u * this.turns * TAU;
+    return target.set(this.r * Math.cos(a), u * this.h, this.r * Math.sin(a));
+  }
+}
+
+function radialTexture(stops, size = 256) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  for (const [o, col] of stops) gr.addColorStop(o, col);
+  g.fillStyle = gr; g.fillRect(0, 0, size, size);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// ---------- materials ----------
+const ACCENT = new THREE.Color('#ff6a2b');
+const mCap = new THREE.MeshPhysicalMaterial({ color: '#ff5d22', roughness: 0.46, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.5, sheen: 0.4, sheenRoughness: 0.6, sheenColor: new THREE.Color('#ffb48a') });
+const mCase = new THREE.MeshStandardMaterial({ color: '#2b2d33', roughness: 0.32, metalness: 0.92, envMapIntensity: 1.0 });
+const mPlate = new THREE.MeshStandardMaterial({ color: '#121316', roughness: 0.55, metalness: 0.6 });
+const mHousing = new THREE.MeshStandardMaterial({ color: '#18191d', roughness: 0.38, metalness: 0.0 });
+const mHousingTop = new THREE.MeshPhysicalMaterial({ color: '#4a4e57', roughness: 0.12, metalness: 0, transparent: true, opacity: 0.55, clearcoat: 1, clearcoatRoughness: 0.08, emissive: ACCENT, emissiveIntensity: 0.1, depthWrite: false });
+const mStem = new THREE.MeshStandardMaterial({ color: '#ff5d22', roughness: 0.35, metalness: 0, emissive: ACCENT, emissiveIntensity: 0.05 });
+const mGold = new THREE.MeshStandardMaterial({ color: '#d9ad62', roughness: 0.22, metalness: 1.0 });
+const mSteel = new THREE.MeshStandardMaterial({ color: '#c9ccd2', roughness: 0.2, metalness: 1.0 });
+
+// ---------- build model ----------
+const root = new THREE.Group();
+scene.add(root);
+
+// Pedestal: aluminium case + plate
+const caseMesh = new THREE.Mesh(new RoundedBoxGeometry(3.3, 0.42, 1.8, 4, 0.09), mCase);
+caseMesh.position.y = -0.30; caseMesh.castShadow = true; caseMesh.receiveShadow = true;
+root.add(caseMesh);
+const plate = new THREE.Mesh(new RoundedBoxGeometry(2.95, 0.05, 1.45, 2, 0.02), mPlate);
+plate.position.y = -0.065; plate.receiveShadow = true; plate.castShadow = true;
+root.add(plate);
+
+// LED bleed decal on plate
+const bleedTex = radialTexture([[0, 'rgba(255,140,80,1)'], [0.35, 'rgba(255,106,43,0.45)'], [1, 'rgba(255,106,43,0)']]);
+const bleed = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.4), new THREE.MeshBasicMaterial({ map: bleedTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 }));
+bleed.rotation.x = -Math.PI / 2; bleed.position.y = -0.037;
+root.add(bleed);
+
+// Switch: bottom housing
+const housingBottom = new THREE.Mesh(new RoundedBoxGeometry(0.74, 0.2, 0.74, 3, 0.04), mHousing);
+housingBottom.castShadow = true; housingBottom.receiveShadow = true;
+const gHB = new THREE.Group(); gHB.add(housingBottom); housingBottom.position.y = 0.06;
+root.add(gHB);
+// little pins under the housing
+for (const [x, z] of [[-0.2, 0.12], [0.18, -0.15]]) {
+  const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.16, 12), mGold);
+  pin.position.set(x, -0.08, z); gHB.add(pin);
+}
+
+// Switch: top housing (smoked)
+const ht = loftCap({ wb: 0.74, db: 0.74, rb: 0.05, wt: 0.62, dt: 0.62, rt: 0.06, h: 0.2, fil: 0.03, n: 6, sides: 3, filSteps: 4, capRings: 3 });
+const housingTop = new THREE.Mesh(ht.geo, mHousingTop);
+const gHT = new THREE.Group(); gHT.add(housingTop);
+root.add(gHT);
+
+// Switch: stem (cross)
+const gStem = new THREE.Group();
+{
+  const base = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.12, 0.26, 2, 0.02), mStem);
+  base.position.y = 0.06;
+  const c1 = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.24, 0.066, 2, 0.012), mStem);
+  const c2 = new THREE.Mesh(new RoundedBoxGeometry(0.066, 0.24, 0.24, 2, 0.012), mStem);
+  c1.position.y = c2.position.y = 0.12 + 0.12;
+  const leg = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.14, 0.05, 1, 0.01), mStem);
+  leg.position.set(0, -0.06, 0.1);
+  for (const m of [base, c1, c2, leg]) { m.castShadow = true; gStem.add(m); }
+}
+root.add(gStem);
+
+// Switch: spring
+const SPRING_H = 0.5;
+const spring = new THREE.Mesh(new THREE.TubeGeometry(new Helix(0.105, SPRING_H, 4.5), 360, 0.014, 8, false), mSteel);
+spring.castShadow = true;
+const gSpring = new THREE.Group(); gSpring.add(spring);
+root.add(gSpring);
+
+// Stabilizers: housings (static), inserts (move with keycap), gold wire (static)
+const gStabFixed = new THREE.Group();
+const gStabMove = new THREE.Group();
+for (const sx of [-1, 1]) {
+  const hsg = new THREE.Mesh(new RoundedBoxGeometry(0.17, 0.16, 0.32, 2, 0.025), mHousing);
+  hsg.position.set(sx * 0.66, 0.04, 0); hsg.castShadow = true; hsg.receiveShadow = true;
+  gStabFixed.add(hsg);
+  const ins = new THREE.Mesh(new RoundedBoxGeometry(0.1, 0.26, 0.12, 2, 0.015), mStem);
+  ins.position.set(sx * 0.66, 0.13, -0.02); ins.castShadow = true;
+  gStabMove.add(ins);
+}
+{
+  const p = (x, y, z) => new THREE.Vector3(x, y, z);
+  const path = new THREE.CurvePath();
+  const segs = [
+    [p(-0.66, 0.06, -0.02), p(-0.66, 0.02, 0.06)],
+    [p(-0.66, 0.02, 0.06), p(-0.62, -0.005, 0.2)],
+    [p(-0.62, -0.005, 0.2), p(0.62, -0.005, 0.2)],
+    [p(0.62, -0.005, 0.2), p(0.66, 0.02, 0.06)],
+    [p(0.66, 0.02, 0.06), p(0.66, 0.06, -0.02)],
+  ];
+  for (const [a, b] of segs) path.add(new THREE.LineCurve3(a, b));
+  const wire = new THREE.Mesh(new THREE.TubeGeometry(path, 200, 0.013, 8, false), mGold);
+  wire.castShadow = true;
+  gStabFixed.add(wire);
+}
+root.add(gStabFixed);
+root.add(gStabMove);
+
+// Keycap
+const CAP = { wb: 2.2, db: 0.95, rb: 0.07, wt: 1.9, dt: 0.68, rt: 0.13, h: 0.48, fil: 0.06, dish: 0.03, zshift: -0.04 };
+const cap = loftCap({ ...CAP, n: 10, sides: 10, filSteps: 10, capRings: 14 });
+const keycap = new THREE.Mesh(cap.geo, mCap);
+keycap.castShadow = true; keycap.receiveShadow = true;
+const gCap = new THREE.Group(); gCap.add(keycap);
+// legend
+{
+  const cw = 1024, ch = 300;
+  const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, cw, ch);
+  g.fillStyle = 'rgba(255,244,234,0.94)';
+  g.font = '500 92px "Helvetica Neue", Arial, sans-serif';
+  g.textBaseline = 'middle';
+  g.fillText('Enter', 78, ch / 2 + 4);
+  // return arrow
+  g.strokeStyle = 'rgba(255,244,234,0.94)'; g.lineWidth = 11; g.lineCap = 'round'; g.lineJoin = 'round';
+  const ax = 930, ay = 88, by = 196, bx = 790;
+  g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax, by); g.lineTo(bx, by); g.stroke();
+  g.beginPath(); g.moveTo(bx + 34, by - 32); g.lineTo(bx, by); g.lineTo(bx + 34, by + 32); g.stroke();
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const lw = 1.52, ld = 0.445;
+  const lg = new THREE.PlaneGeometry(lw, ld, 40, 12); lg.rotateX(-Math.PI / 2);
+  const lp = lg.attributes.position;
+  for (let i = 0; i < lp.count; i++) {
+    const z = lp.getZ(i) + CAP.zshift;
+    lp.setZ(i, z);
+    lp.setY(i, CAP.h - cap.dishAt(z) + 0.0035);
+  }
+  lg.computeVertexNormals();
+  const legend = new THREE.Mesh(lg, new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  gCap.add(legend);
+}
+root.add(gCap);
+
+// Floor: shadow catcher + light ripples
+const FLOOR_Y = -0.51;
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.ShadowMaterial({ opacity: 0.42 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = FLOOR_Y; floor.receiveShadow = true;
+scene.add(floor);
+const floorGlowTex = radialTexture([[0, 'rgba(255,120,60,0.9)'], [0.5, 'rgba(255,106,43,0.25)'], [1, 'rgba(255,106,43,0)']]);
+const floorGlow = new THREE.Mesh(new THREE.PlaneGeometry(7, 4.5), new THREE.MeshBasicMaterial({ map: floorGlowTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 }));
+floorGlow.rotation.x = -Math.PI / 2; floorGlow.position.y = FLOOR_Y + 0.002;
+scene.add(floorGlow);
+const ripples = [0, 0.16, 0.34].map(() => {
+  const m = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 160), new THREE.MeshBasicMaterial({ color: ACCENT, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0, side: THREE.DoubleSide }));
+  m.rotation.x = -Math.PI / 2; m.position.y = FLOOR_Y + 0.004; m.scale.set(1, 1, 0.62);
+  scene.add(m);
+  return m;
+});
+const rippleDelays = [0, 0.16, 0.34];
+
+// ---------- HUD part labels ----------
+const stage = document.getElementById('stage');
+const PARTS = [
+  { name: 'Keycap', desc: 'Doubleshot PBT · cylindrical dish', g: () => gCap, ax: 1.12, ay: 0.3 },
+  { name: 'Top housing', desc: 'Smoked polycarbonate', g: () => gHT, ax: 0.36, ay: 0.1 },
+  { name: 'Stem', desc: 'POM · MX cross', g: () => gStem, ax: 0.17, ay: 0.2 },
+  { name: 'Spring', desc: '45 gf · gold-plated', g: () => gSpring, ax: 0.12, ay: 0.22 },
+  { name: 'Base', desc: 'Nylon · PCB mount', g: () => gHB, ax: 0.37, ay: 0.06 },
+];
+PARTS.forEach((p, i) => {
+  p.lab = document.createElement('div'); p.lab.className = 'lab';
+  p.lab.innerHTML = `<span class="n">0${i + 1}</span>${p.name}<span class="d">${p.desc}</span>`;
+  p.ln = document.createElement('div'); p.ln.className = 'ln';
+  p.dot = document.createElement('div'); p.dot.className = 'dot';
+  stage.appendChild(p.ln); stage.appendChild(p.dot); stage.appendChild(p.lab);
+});
+
+const elPulse = document.getElementById('pulse');
+const elHead = document.getElementById('headline');
+const elRead = document.getElementById('readout');
+const elTV = document.getElementById('tv');
+const elTF = document.getElementById('tf');
+
+// ---------- timeline (all pure functions of t) ----------
+// explode amount per part: 1 = apart, 0 = assembled. Loop starts & ends exploded.
+function explode(t, inA, inB, outA, outB) { return 1 - smooth(inA, inB, t) + smooth(outA, outB, t); }
+function pressDepth(t) {
+  if (t < 3.2) return 0;
+  if (t < 3.42) return easeInCubic((t - 3.2) / 0.22);
+  if (t < 3.78) return 1;
+  const u = t - 3.78;
+  return Math.exp(-u * 8.5) * Math.cos(u * 21);
+}
+function glowAmt(t) {
+  const a = smooth(3.3, 3.45, t);
+  const u = Math.max(0, t - 3.45);
+  return a * Math.exp(-u * 1.5);
+}
+
+const v3 = new THREE.Vector3();
+function toScreen(obj, x, y, z) {
+  v3.set(x, y, z); obj.localToWorld(v3); v3.project(camera);
+  return [(v3.x * 0.5 + 0.5) * W, (-v3.y * 0.5 + 0.5) * H];
+}
+
+function renderAt(tIn) {
+  const t = ((tIn % LOOP) + LOOP) % LOOP;
+  const ph = (t / LOOP) * TAU;
+
+  const eCap = explode(t, 1.0, 2.6, 5.7, 7.4);
+  const eTop = explode(t, 0.8, 2.3, 5.85, 7.55);
+  const eStem = explode(t, 0.6, 2.1, 6.0, 7.7);
+  const eSpr = explode(t, 0.4, 1.9, 6.15, 7.85);
+  const eCam = explode(t, 0.2, 2.8, 5.5, 7.9);
+
+  const d = pressDepth(t);
+  const TRAVEL = 0.16;
+  const press = d * TRAVEL;
+  const bob = (k) => Math.sin(ph * 2 + k) * 0.035;
+
+  // keycap
+  gCap.position.set(0, 0.46 - press + eCap * 2.55 + bob(0) * eCap, 0);
+  gCap.rotation.set(-0.16 * eCap, 0.1 * eCap * Math.sin(ph), 0.04 * eCap);
+  // top housing
+  gHT.position.set(0, 0.16 + eTop * 1.85 + bob(1.2) * eTop, 0);
+  gHT.rotation.set(-0.1 * eTop, 0.5 * eTop, 0);
+  // stem + stabilizer inserts
+  gStem.position.set(0, 0.26 - press + eStem * 1.25 + bob(2.4) * eStem, 0);
+  gStem.rotation.set(-0.08 * eStem, -0.35 * eStem, 0);
+  gStabMove.position.set(0, -press + eStem * 1.25 + bob(2.4) * eStem, 0);
+  // spring: base rises, length interpolates between seated/compressed and natural
+  const seatedLen = 0.28 - press;
+  const len = lerp(seatedLen, SPRING_H, eSpr);
+  gSpring.position.set(0, -0.02 + eSpr * 0.62 + bob(3.6) * eSpr, 0);
+  gSpring.scale.set(1, len / SPRING_H, 1);
+  gSpring.rotation.set(0, ph * 0.5 * eSpr, 0);
+
+  // light / glow
+  const gl = glowAmt(t);
+  glowLight.position.set(0, 0.32, 0.1);
+  glowLight.intensity = 0.25 + gl * 5.5;
+  mHousingTop.emissiveIntensity = 0.08 + gl * 1.4;
+  mStem.emissiveIntensity = 0.04 + gl * 0.5;
+  bleed.material.opacity = gl * 0.9;
+  floorGlow.material.opacity = gl * 0.35;
+  ripples.forEach((m, i) => {
+    const u = t - 3.43 - rippleDelays[i];
+    const k = clamp(u / 1.7, 0, 1);
+    const s = lerp(1.9, 6.5, 1 - Math.pow(1 - k, 3));
+    m.scale.set(s, s * 0.62, 1);
+    m.material.opacity = u > 0 && k < 1 ? (1 - k) * (1 - k) * (0.9 - i * 0.22) : 0;
+  });
+
+  // camera
+  const az = 0.5 + 0.28 * Math.sin(ph);
+  const el = lerp(0.36, 0.28, eCam) + 0.03 * Math.sin(ph * 2);
+  const D = lerp(6.9, 10.6, eCam) - 0.25 * gl;
+  const ty = lerp(0.18, 1.45, eCam);
+  camera.position.set(D * Math.cos(el) * Math.sin(az), ty + D * Math.sin(el), D * Math.cos(el) * Math.cos(az));
+  camera.lookAt(0, ty, 0);
+  camera.updateMatrixWorld();
+  root.updateMatrixWorld(true);
+
+  // HUD
+  elPulse.style.opacity = (gl * 0.9).toFixed(3);
+  const hv = smooth(2.3, 3.0, t) * (1 - smooth(5.3, 5.9, t));
+  elHead.style.opacity = hv.toFixed(3);
+  elHead.style.transform = `translateY(${((1 - hv) * 14).toFixed(2)}px)`;
+  elRead.style.opacity = hv.toFixed(3);
+  const mm = Math.max(0, d) * 4.0;
+  elTV.innerHTML = `${mm.toFixed(2)}<small>mm</small>`;
+  elTF.style.width = `${(clamp(d, 0, 1) * 100).toFixed(1)}%`;
+
+  const colX = 790;
+  const parts = [eCap, eTop, eStem, eSpr, eSpr];
+  PARTS.forEach((p, i) => {
+    const vis = smooth(0.55, 0.9, parts[i]) * (i === 4 ? smooth(0.55, 0.9, eStem) : 1);
+    const [sx, sy] = toScreen(p.g(), p.ax, p.ay, 0);
+    const x0 = sx + 8, x1 = colX - 14;
+    p.dot.style.left = `${sx.toFixed(1)}px`; p.dot.style.top = `${sy.toFixed(1)}px`; p.dot.style.opacity = vis.toFixed(3);
+    p.ln.style.left = `${x0.toFixed(1)}px`; p.ln.style.top = `${sy.toFixed(1)}px`;
+    p.ln.style.width = `${Math.max(0, (x1 - x0) * vis).toFixed(1)}px`; p.ln.style.opacity = (vis * 0.9).toFixed(3);
+    p.lab.style.left = `${colX}px`; p.lab.style.top = `${(sy - 7).toFixed(1)}px`;
+    p.lab.style.opacity = vis.toFixed(3);
+    p.lab.style.transform = `translateX(${((1 - vis) * 10).toFixed(2)}px)`;
+  });
+
+  renderer.render(scene, camera);
+}
+
+window.renderAt = renderAt;
+renderAt(0);
+window.__ready = true;
+</script>
+</body>
+</html>
