@@ -33,7 +33,9 @@ const TOKENS = {
   EASE: { enter: [0.16, 1, 0.3, 1], move: [0.76, 0, 0.24, 1], exit: [0.7, 0, 0.84, 0], pop: [0.34, 1.56, 0.64, 1] },
   COLOR: {
     bgCenter: 0xF1EEE9, bgEdge: 0xDCD7CF,
-    cap: 0xF4F1EC, accent: 0xE0592A, housing: 0xD8D6D2, block: 0xC7CACF,
+    cap: 0xF4F1EC, accent: 0xE0592A, block: 0xC7CACF,
+    housing: 0xC2BFB9,                   // 1차 고침: D8D6D2 → C2BFB9
+    capInner: 0xC8C6C1,                  // 셸 안쪽 면 = F4F1EC × 0.82
     key: 0xFFF3E6, fill: 0xE9EEF4, rim: 0xFFFFFF, groundShadow: 0x3A332C,
   },
   CAP: {                       // 1 unit = 1 cm
@@ -41,10 +43,11 @@ const TOKENS = {
     fillet: 0.07,              // 윗면 가장자리 둥글림(지시서에 숫자 없음 → 판단)
     wall: 0.1,
     rough: 0.42, clearcoat: 0.25, clearcoatRough: 0.2,
+    env: 0.15,                 // 키캡 envMapIntensity — 1차 고침: 0.35 → 0.15(윗면 기본 밝기를 내려 광택 띠가 읽히게)
     seg: { corner: 8, edge: 18, side: 3, fillet: 5, top: 12 },
   },
   LEGEND: { inset: 0.35, stroke: 0.07, size: 0.5, tall: 0.34, arrowLen: 0.15, arrowHalf: 0.1, thick: 0.012, sink: 0.002, rough: 0.4 },
-  SOCKET: { len: 0.40, wid: 0.13, h: 0.5 },
+  SOCKET: { len: 0.40, wid: 0.13, h: 0.5, bevel: 0.02, castShadow: false },
   SWITCH: { w: 1.5, h: 0.55, d: 1.5, radius: 0.05, opacity: 0.85, rough: 0.3, stemLen: 0.40, stemWid: 0.13, stemH: 0.4, stemRough: 0.45 },
   BLOCK: { w: 6.6, h: 0.7, d: 3.8, radius: 0.25, chamfer: 0.05, metal: 1, rough: 0.32, chamferRough: 0.08, seg: { corner: 10, edge: 24, top: 6 } },
   POSE: { rest: 0.62, bottom: 0.22 },                // 키캡 바닥 y (블록 윗면 = 0)
@@ -56,8 +59,9 @@ const TOKENS = {
     envRotY: 270,              // RoomEnvironment 방향(지시서에 없음 → 블록 윗면이 알루미늄으로 읽히는 쪽)
   },
   LOOK: {
-    exposure: 0.9, vignette: 0.08, grain: 0.02,
+    exposure: 0.85, vignette: 0.08, grain: 0.02,
     vignetteFrom: 0.3,
+    contact: { strength: 0.6, fall: 0.42, reach: 0.35 },   // 키캡 바닥 ↔ 하우징 접촉 그림자(틈이 reach 보다 크면 0)
     groundGap: 0.9, groundOpacity: 0.45, groundFeather: 0.85, groundGrow: 0.15, groundOffset: [0.2, -0.15],
   },
   GLINT: {
@@ -65,10 +69,13 @@ const TOKENS = {
     bend: 8,                   // 법선 x 에 따른 띠 휨(도) — 곡면에서 반사처럼 휘게
     gateLo: 0.05, gateHi: 0.3, // 위를 향한 반사에만
     soft: 0.35,                // 띠 가장자리 부드러움(폭 대비)
-    cap: { widthMul: 1, gain: 2.5 }, chamfer: { widthMul: 1, gain: 1 },
+    cap: { widthMul: 1, gain: 4 }, chamfer: { widthMul: 1, gain: 1 },
     margin: 0.75,              // 끝점(225 · 24)에서 띠 가장자리가 윗면 끝에 막 닿는 여유(폭 배수)
   },
-  CAM: { fov: 30, dist: 17, near: 14.5, elev: 22, elevDrift: 0.8, az: 30, azMin: 22, targetY: 0.32, follow: 0.6, punch: 0.02 },
+  CAM: { fov: 30, dist: 12.5, near: 11, flight: 13.5,
+    frameTop: 0.10, frameBottom: 0.95, frameMargin: 0.004,   // 키캡 윗끝 ≥ 10%, 블록 아래끝 ≤ 95%
+    guardRadius: 6, guardSigma: 2,                           // 위 경계를 못 지키는 프레임만 거리를 늘리는 보정(부드럽게)
+    elev: 22, elevDrift: 0.8, az: 30, azMin: 22, targetY: 0.1, follow: 0.6, punch: 0.02 },
 };
 
 // ───────────────────────────────────────────── 2. SHOTS (프레임 표)
@@ -89,10 +96,10 @@ const SHOTS = {
   tap:    { ease: 'exit', spring: { z: 0.6, f: 6 }, sy: 0.97, sxz: 1.015, block: { dip: 0.012, spring: { z: 0.6, f: 5 } } },
   glint:  { farL: 215, inL: 225, center: 240, outR: 264, farR: 274 },   // 240 = 다음 루프의 0
   cam: {
-    pushFrom: 42, pushTo: 60, pushEase: 'enter',
+    // 거리: [from, to, 목표(TOKENS.CAM 키), 이징] — 구간 밖에서는 직전 값을 유지(시작 = dist)
+    dolly: [[42, 60, 'near', 'enter'], [61, 82, 'flight', 'move'], [82, 105, 'near', 'move'], [120, 225, 'dist', 'move']],
     followUp: [61, 83], followDown: [83, 108], followEase: 'move',   // move 의 느린 출발 + 정점 1프레임 늦게
     punchAt: 105, punchIn: 6, punchInEase: 'enter', punchOut: 15, punchOutEase: 'move',
-    pullFrom: 120, pullTo: 225, pullEase: 'move',
   },
 };
 
@@ -243,23 +250,32 @@ function blockDy(f) {
 }
 
 // 카메라
-function camState(f) {
+let CAM_GUARD = null, CAM_SHIFT = null;   // 프레임별 거리 보정(비율) · 수직 이동(world). init 에서 한 번 푼다
+function sampleArr(arr, f) {
+  if (!arr) return 0;
+  const N = TOKENS.FRAMES, i = Math.floor(f), k = f - i;
+  return lerp(arr[((i % N) + N) % N], arr[(((i + 1) % N) + N) % N], k);
+}
+function camState(f, guarded = true) {
   const C = TOKENS.CAM, S = SHOTS.cam, ph = TAU * f / TOKENS.FRAMES;
   const az = (C.az + C.azMin) / 2 + ((C.az - C.azMin) / 2) * Math.cos(ph);   // 30 → 22 → 30
   const el = C.elev + C.elevDrift * Math.sin(ph);                             // 서 있지 않게 하는 미세 드리프트
-  let dist = f < S.pullFrom
-    ? lerp(C.dist, C.near, EASE[S.pushEase](seg(f, S.pushFrom, S.pushTo)))
-    : lerp(C.near, C.dist, EASE[S.pullEase](seg(f, S.pullFrom, S.pullTo)));
+  let dist = C.dist;
+  for (const [a, b, key, ease] of S.dolly) {
+    if (f < a) break;
+    dist = lerp(dist, C[key], EASE[ease](seg(f, a, b)));
+  }
   const pIn = S.punchAt + S.punchIn;
   let pk = 0;
   if (f >= S.punchAt && f < pIn) pk = EASE[S.punchInEase](seg(f, S.punchAt, pIn));
   else if (f >= pIn) pk = 1 - EASE[S.punchOutEase](seg(f, pIn, pIn + S.punchOut));
   dist *= 1 - C.punch * pk;
+  if (guarded) dist *= 1 + sampleArr(CAM_GUARD, f);
   const liftMax = C.follow * (P.bottom + SHOTS.flight.rise - P.rest);
   let lift = 0;
   if (f >= S.followUp[0] && f < S.followDown[0]) lift = EASE[S.followEase](seg(f, S.followUp[0], S.followUp[1]));
   else if (f >= S.followDown[0]) lift = 1 - EASE[S.followEase](seg(f, S.followDown[0], S.followDown[1]));
-  const target = [0, C.targetY + liftMax * lift, 0];
+  const target = [0, C.targetY + liftMax * lift + (guarded ? sampleArr(CAM_SHIFT, f) : 0), 0];
   const ce = Math.cos(rad(el));
   const pos = [target[0] + dist * ce * Math.sin(rad(az)), target[1] + dist * Math.sin(rad(el)), target[2] + dist * ce * Math.cos(rad(az))];
   return { pos, target, fov: C.fov };
@@ -271,7 +287,7 @@ function glintState(f) {
   const G = SHOTS.glint;
   const x = f < G.farR - TOKENS.FRAMES ? f + TOKENS.FRAMES : f;   // 0~33 은 앞 루프의 연장
   const on = x >= G.farL && x <= G.farR;
-  return { on, beta: on ? GLINT_PATH(x) : 0 };
+  return { on, beta: on && GLINT_PATH ? GLINT_PATH(x) : 0 };
 }
 
 function stateAt(fIn) {
@@ -283,6 +299,7 @@ function stateAt(fIn) {
     cap: { y: capBottom(f) + (TOKENS.CAP.h / 2) * sc.sy, z: capZ(f), rot: capRot(f), sy: sc.sy, sxz: sc.sxz },
     stemY: TOKENS.SWITCH.h + stemDy(f),
     housingSY: (TOKENS.SWITCH.h - housingDip(f)) / TOKENS.SWITCH.h,
+    contact: clamp01(1 - (capBottom(f) - TOKENS.SWITCH.h) / TOKENS.LOOK.contact.reach),   // 틈이 좁을수록 진하게
     blockY: blockDy(f),
     cam: camState(f),
     glint: glintState(f),
@@ -334,7 +351,7 @@ const DISH = (() => {
 })();
 const CEIL = K.h - K.wall - K.dish;
 
-function buildKeycap(mat, accentMat) {
+function buildKeycap(mat, accentMat, innerMat) {
   const g = new THREE.Group();
   const { corner: nC, edge: nE } = K.seg, rf = K.fillet, hs = K.h - rf;
   const sideInset = (y) => (K.taper - rf) * y / hs;
@@ -356,13 +373,19 @@ function buildKeycap(mat, accentMat) {
   // 안쪽 셸 + 천장
   const inTop = ring(K.wall + sideInset(CEIL), K.radius - K.wall, () => CEIL);
   const inner = [in0, inTop, ...fanRings(inTop, K.seg.top / 2, () => CEIL)];
-  g.add(new THREE.Mesh(loft(inner, (c) => new THREE.Vector3(-c.x, c.y > CEIL - 1e-4 ? -4 : 0, -c.z)), mat));
+  g.add(new THREE.Mesh(loft(inner, (c) => new THREE.Vector3(-c.x, c.y > CEIL - 1e-4 ? -4 : 0, -c.z)), innerMat));
   // 십자 소켓
-  const S = TOKENS.SOCKET;
-  for (const [sx, sz] of [[S.len, S.wid], [S.wid, S.len]]) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, S.h, sz), mat);
-    m.position.y = CEIL - S.h / 2; g.add(m);
-  }
+  // 십자 소켓: 막대 둘을 한 덩어리 십자 단면으로 뽑고 끝면에 베벨
+  const S = TOKENS.SOCKET, a = S.len / 2 - S.bevel, b = S.wid / 2 - S.bevel;
+  const cross = new THREE.Shape();
+  [[a, b], [b, b], [b, a], [-b, a], [-b, b], [-a, b], [-a, -b], [-b, -b], [-b, -a], [b, -a], [b, -b], [a, -b]]
+    .forEach(([u, v], i) => (i ? cross.lineTo(u, v) : cross.moveTo(u, v)));
+  const sg = new THREE.ExtrudeGeometry(cross, { depth: S.h - S.bevel, bevelEnabled: true, bevelThickness: S.bevel, bevelSize: S.bevel, bevelSegments: 1 });
+  sg.rotateX(PI / 2);                                       // 뽑는 방향 → -y(천장에서 아래로)
+  sg.translate(0, CEIL, 0);
+  const socket = new THREE.Mesh(sg, mat);
+  socket.userData.socket = true;
+  g.add(socket);
   // ↵ 기호(살짝 올린 판, 접시 곡면을 따라 휜다)
   const L = TOKENS.LEGEND, hs2 = L.stroke / 2, vb = L.arrowHalf;
   const sh = new THREE.Shape();
@@ -377,7 +400,7 @@ function buildKeycap(mat, accentMat) {
   for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + K.h - DISH(p.getZ(i)) - L.sink);
   lg.computeVertexNormals();
   g.add(new THREE.Mesh(lg, accentMat));
-  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = o.userData.socket ? S.castShadow : true; o.receiveShadow = true; } });
   return g;
 }
 
@@ -463,12 +486,26 @@ const rim = new THREE.DirectionalLight(Cl.rim, Lt.rim.I); rim.position.set(...Lt
 scene.add(key, key.target, fill, rim);
 
 const capMat = withGlint(new THREE.MeshPhysicalMaterial({
-  color: Cl.cap, roughness: K.rough, clearcoat: K.clearcoat, clearcoatRoughness: K.clearcoatRough, envMapIntensity: Lt.env,
+  color: Cl.cap, roughness: K.rough, clearcoat: K.clearcoat, clearcoatRoughness: K.clearcoatRough, envMapIntensity: K.env,
 }), TOKENS.GLINT.cap);
 const legendMat = new THREE.MeshPhysicalMaterial({ color: Cl.accent, roughness: TOKENS.LEGEND.rough, envMapIntensity: Lt.env });
 const SW = TOKENS.SWITCH;
 const stemMat = new THREE.MeshPhysicalMaterial({ color: Cl.accent, roughness: SW.stemRough, envMapIntensity: Lt.env });
 const housingMat = new THREE.MeshPhysicalMaterial({ color: Cl.housing, roughness: SW.rough, transparent: true, opacity: SW.opacity, envMapIntensity: Lt.env });
+const CONTACT_U = { amount: { value: 0 } };
+housingMat.onBeforeCompile = (sh) => {
+  const C = TOKENS.LOOK.contact;
+  Object.assign(sh.uniforms, { uContact: CONTACT_U.amount, uContactK: { value: C.strength }, uContactFall: { value: C.fall }, uContactTop: { value: SW.h } });
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vLocalY;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLocalY = position.y;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vLocalY; uniform float uContact, uContactK, uContactFall, uContactTop;')
+    .replace('#include <aomap_fragment>', `{
+        float ao = 1.0 - uContactK * uContact * smoothstep(uContactTop - uContactFall, uContactTop, vLocalY);
+        reflectedLight.directDiffuse *= ao; reflectedLight.indirectDiffuse *= ao;
+        reflectedLight.directSpecular *= ao; reflectedLight.indirectSpecular *= ao;
+      }
+      #include <aomap_fragment>`);
+};
 const B = TOKENS.BLOCK;
 const blockMat = new THREE.MeshPhysicalMaterial({ color: Cl.block, metalness: B.metal, roughness: B.rough, envMapIntensity: Lt.env });
 const chamferMat = withGlint(new THREE.MeshPhysicalMaterial({ color: Cl.block, metalness: B.metal, roughness: B.chamferRough, envMapIntensity: Lt.env }), TOKENS.GLINT.chamfer);
@@ -486,7 +523,10 @@ for (const [sx, sz] of [[SW.stemLen, SW.stemWid], [SW.stemWid, SW.stemLen]]) {
 }
 assembly.add(stem);
 const capPivot = new THREE.Group();          // 키캡 중심 = 회전·스케일 중심
-const capBody = buildKeycap(capMat, legendMat);
+const capInnerMat = new THREE.MeshPhysicalMaterial({
+  color: Cl.capInner, roughness: K.rough, clearcoat: K.clearcoat, clearcoatRoughness: K.clearcoatRough, envMapIntensity: Lt.env,
+});
+const capBody = buildKeycap(capMat, legendMat, capInnerMat);
 capBody.position.y = -K.h / 2;
 capPivot.add(capBody);
 assembly.add(capPivot);
@@ -549,6 +589,7 @@ function applyCamera(cam, cs) {
 function applyState(s) {
   assembly.position.y = s.blockY;
   housing.scale.y = s.housingSY;
+  CONTACT_U.amount.value = s.contact;
   stem.position.y = s.stemY;
   capPivot.position.set(0, s.cap.y, s.cap.z);
   capPivot.rotation.set(s.cap.rot, 0, 0);
@@ -560,8 +601,69 @@ function applyState(s) {
 }
 
 // ───────────────────────────────────────────── 9. 초기 풀이(한 번, 결정적)
-(function solveInit() {
-  const scratch = new THREE.PerspectiveCamera(TOKENS.CAM.fov, W / H, 0.5, 100);
+const scratch = new THREE.PerspectiveCamera(TOKENS.CAM.fov, W / H, 0.5, 100);
+
+// 공중제비: frame 81 에 밑면 법선이 카메라를 향하도록 시간 휨(warp) 하나를 푼다
+function solveFlip() {
+  const F = SHOTS.flip, f = F.faceCam, cs = camState(f);
+  const cy = blockDy(f) + capBottom(f) + (K.h / 2) * capScale(f).sy, cz = capZ(f);
+  let th = Math.atan2(-(cs.pos[2] - cz), -(cs.pos[1] - cy)); if (th < 0) th += TAU;
+  const want = th / (TAU * F.turns);
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (EASE[F.ease](m) < want) lo = m; else hi = m; }
+  const u = seg(f, F.from, F.to);
+  FLIP_WARP = ((lo + hi) / 2 - u) / Math.sin(PI * u);
+  return th * 180 / PI;
+}
+
+// 화면 경계: 키캡 윗끝 ≥ frameTop, 블록 아래끝 ≤ frameBottom 을 못 지키는 프레임만
+//   ① 거리를 최소한으로 늘리고(부드럽게) ② 바라보는 점을 최소한으로 위아래로 옮긴다(부드럽게).
+function solveGuard() {
+  const C = TOKENS.CAM, N = TOKENS.FRAMES, R = C.guardRadius, v = new THREE.Vector3();
+  const T = C.frameTop + C.frameMargin, Bt = C.frameBottom - C.frameMargin;
+  const capMesh = capBody.children[0], blockSide = assembly.children[0].children[0];
+  const worldPts = (mesh) => { const a = mesh.geometry.attributes.position, out = []; for (let i = 0; i < a.count; i++) out.push(new THREE.Vector3().fromBufferAttribute(a, i).applyMatrix4(mesh.matrixWorld)); return out; };
+  const frames = [];
+  for (let f = 0; f < N; f++) {
+    const st = stateAt(f); st.cam = camState(f, false);
+    applyState(st); scene.updateMatrixWorld(true);
+    frames.push({ cs: st.cam, cap: worldPts(capMesh), blk: worldPts(blockSide) });
+  }
+  const bounds = (fr, x, dy) => {
+    const t = [fr.cs.target[0], fr.cs.target[1] + dy, fr.cs.target[2]];
+    applyCamera(scratch, { fov: fr.cs.fov, target: t, pos: fr.cs.pos.map((p, i) => t[i] + (p - fr.cs.target[i]) * (1 + x)) });
+    let top = 1, bot = 0;
+    for (const p of fr.cap) { v.copy(p).project(scratch); top = Math.min(top, (1 - v.y) / 2); }
+    for (const p of fr.blk) { v.copy(p).project(scratch); bot = Math.max(bot, (1 - v.y) / 2); }
+    return [top, bot];
+  };
+  const bis = (ok, lo, hi, n = 18) => { for (let i = 0; i < n; i++) { const m = (lo + hi) / 2; if (ok(m)) hi = m; else lo = m; } return hi; };
+  const range = (fr, x) => [bis((dy) => bounds(fr, x, dy)[0] >= T, -4, 4), -bis((dy) => bounds(fr, x, -dy)[1] <= Bt, -4, 4)];
+  const smooth = (arr, useMax) => {
+    const wrap = (i) => ((i % N) + N) % N;
+    const src = useMax ? arr.map((_, f) => { let m = 0; for (let d = -R; d <= R; d++) m = Math.max(m, arr[wrap(f + d)]); return m; }) : arr;
+    return Float64Array.from(arr, (_, f) => { let sw = 0, sv = 0; for (let d = -R; d <= R; d++) { const w = Math.exp(-(d * d) / (2 * C.guardSigma ** 2)); sw += w; sv += w * src[wrap(f + d)]; } return sv / sw; });
+  };
+  // ① 거리
+  const need = new Float64Array(N);
+  frames.forEach((fr, f) => {
+    const [top, bot] = bounds(fr, 0, 0);
+    if (top >= T && bot <= Bt) return;
+    need[f] = bis((x) => { const [lo, hi] = range(fr, x); return lo <= hi; }, 0, 1, 14);
+  });
+  CAM_GUARD = smooth(need, true);
+  // ② 수직 이동: 프레임마다 가능한 범위 [lo, hi] 를 구하고, 0 에서 출발해 '부드럽게 → 범위 안으로' 를 되풀이한다
+  const lo = new Float64Array(N), hi = new Float64Array(N);
+  frames.forEach((fr, f) => { const r = range(fr, CAM_GUARD[f]), pad = Math.min(0.1 * (r[1] - r[0]), 0.02); lo[f] = r[0] + pad; hi[f] = r[1] - pad; });
+  let shift = Float64Array.from(lo, (_, f) => Math.min(Math.max(0, lo[f]), hi[f]));
+  const active = Array.from(shift, (_, f) => { for (let d = -R; d <= R; d++) if (shift[(((f + d) % N) + N) % N] !== 0) return true; return false; });
+  for (let it = 0; it < 60; it++) shift = smooth(shift, false).map((x, f) => (active[f] ? Math.min(Math.max(x, lo[f]), hi[f]) : 0));
+  CAM_SHIFT = shift;
+  return need;
+}
+
+// 광택 띠 궤적: 키 프레임마다 실제 카메라로 윗면·블록 끝의 각도를 잰다
+function solveGlint() {
   const betaOf = (f, pts, pick) => {
     applyCamera(scratch, camState(f));
     const bs = pts.map((p) => { const v = new THREE.Vector3(...p).applyMatrix4(scratch.matrixWorldInverse); return Math.atan2(v.x, -v.z) * 180 / PI; });
@@ -581,18 +683,15 @@ function applyState(s) {
     betaOf(G.farR % N, blk, Math.max) + mBlk,
   ];
   GLINT_PATH = monotone(xs, ys);
+  return { xs, ys };
+}
 
-  // 공중제비: frame 81 에 밑면 법선이 카메라를 향하도록 시간 휨(warp) 하나를 푼다
-  const F = SHOTS.flip, f = F.faceCam, cs = camState(f);
-  const cy = blockDy(f) + capBottom(f) + (K.h / 2) * capScale(f).sy, cz = capZ(f);
-  const dy = cs.pos[1] - cy, dz = cs.pos[2] - cz;
-  let th = Math.atan2(-dz, -dy); if (th < 0) th += TAU;
-  const want = th / (TAU * F.turns);
-  let lo = 0, hi = 1;
-  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (EASE[F.ease](m) < want) lo = m; else hi = m; }
-  const u = seg(f, F.from, F.to);
-  FLIP_WARP = ((lo + hi) / 2 - u) / Math.sin(PI * u);
-  window.__debug = { glint: { xs, ys }, flipTarget: th * 180 / PI, flipWarp: FLIP_WARP, stem: STEM };
+(function solveInit() {
+  solveFlip(); solveGuard();          // 카메라 ↔ 공중제비 각도가 서로 기대므로 두 번 돈다
+  const flipTarget = solveFlip(); const need = solveGuard();
+  const glint = solveGlint();
+  const guardFrames = [...need.keys()].filter((f) => need[f] > 0);
+  window.__debug = { glint, flipTarget, flipWarp: FLIP_WARP, stem: STEM, guardFrames, guardMax: Math.max(...CAM_GUARD), guard: Array.from(CAM_GUARD, (x) => +x.toFixed(4)) };
 })();
 
 // ───────────────────────────────────────────── 10. 렌더 계약
@@ -603,7 +702,7 @@ function renderFrame(f) {
   renderer.render(scene, camera);
   renderer.render(postScene, ortho);
 }
-window.TOKENS = TOKENS; window.SHOTS = SHOTS; window.stateAt = stateAt; window.__qa = { camera, capBody, applyState, scene };
+window.TOKENS = TOKENS; window.SHOTS = SHOTS; window.stateAt = stateAt; window.__qa = { camera, capBody, applyState, scene, assembly };
 window.renderAt = (t) => renderFrame(t * TOKENS.FPS);
 renderFrame(0);
 window.__ready = true;
