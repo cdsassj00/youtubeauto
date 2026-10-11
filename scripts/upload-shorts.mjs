@@ -10,7 +10,7 @@
 //   MANIFEST=scripts/chart-shorts-manifest.json npx tsx scripts/upload-shorts.mjs   # 모션차트 쇼츠
 //
 // 항목 필드: url(내려받기) 또는 file(저장소 안 경로), label(false 면 상단 라벨 생략 — 제목이 화면에
-// 이미 박혀 있는 차트용), fps(기본 24), bgm(소리 없는 클립에 깔 비트: {bpm,key,hits}),
+// 이미 박혀 있는 차트용), fps(기본 24), bgm(소리 없는 클립에 깔 비트: {bpm,key,hits}), outro(false 면 마무리 카드 생략 — 루프 영상용),
 // description·tags(없으면 프롬프트 공개형 설명).
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -118,6 +118,9 @@ async function build(item) {
       "[1:v]fade=in:st=0.3:d=0.4:alpha=1[lbl];[0:v][lbl]overlay=0:0:enable='between(t,0.3,14.6)'[v]",
       '-map', '[v]', '-map', '0:a', '-c:v', 'libx264', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-r', fps, '-c:a', 'aac', '-ar', '44100', p('labeled.mp4')]);
   }
+
+  // outro:false — 이음매 없는 루프 영상은 마무리 카드를 붙이지 않는다(쇼츠가 처음으로 되돌아가며 계속 이어지게).
+  if (item.outro === false) return p('labeled.mp4');
 
   const listPath = p('concat.txt');
   await fs.writeFile(listPath, `file '${path.resolve(p('labeled.mp4'))}'\nfile '${path.resolve(p('outro.mp4'))}'\n`);
