@@ -1,0 +1,159 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas><script src="lib.js"></script><script>
+// 100만 명 모으는 데 걸린 시간 — 팝/네오브루탈(노랑 바탕, 굵은 검정 테두리, 딱딱한 그림자).
+// 막대는 선형 눈금이다: 넷플릭스 3.5년이 꽉 찬 막대면 ChatGPT 5일은 2px 남짓이 된다 — 그게 이 편의 웃음 포인트.
+const Y = '#FFD84D', INK = '#111';
+const ROWS = [
+  { name: '넷플릭스', d: 1278, label: '3.5년', c: '#E50914' },
+  { name: '에어비앤비', d: 913, label: '2.5년', c: '#FF5A5F' },
+  { name: '트위터', d: 730, label: '2년', c: '#1DA1F2' },
+  { name: '페이스북', d: 304, label: '10개월', c: '#1877F2' },
+  { name: '스포티파이', d: 152, label: '5개월', c: '#1DB954' },
+  { name: '인스타그램', d: 76, label: '2.5개월', c: 'IG' },
+  { name: '아이폰', d: 74, label: '74일', c: '#E9E9EC' },
+  { name: 'ChatGPT', d: 5, label: '5일', c: '#10A37F' },
+];
+const X0 = 318, MAXW = 570, Y0 = 560, RH = 136, BH = 74;
+const T0 = 2.0, STEP = 1.45;
+const rowT = (i) => T0 + i * STEP;
+const GPT_T = rowT(7);
+
+function bg(ctx) {
+  ctx.fillStyle = Y; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(0,0,0,0.07)';
+  for (let y = 14; y < H; y += 30) for (let x = (y / 30) % 2 ? 14 : 29; x < W; x += 30) {
+    const r = 2.2 + 1.6 * Math.sin(y / 300 + x / 500);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  }
+}
+
+function brutalBox(ctx, x, y, w, h, fill, { r = 14, sh = 9, lw = 5 } = {}) {
+  ctx.save();
+  ctx.fillStyle = INK; rr(ctx, x + sh, y + sh, w, h, r); ctx.fill();
+  if (fill === 'IG') {
+    const g = ctx.createLinearGradient(x, 0, x + Math.max(w, 60), 0);
+    g.addColorStop(0, '#F58529'); g.addColorStop(0.5, '#DD2A7B'); g.addColorStop(1, '#8134AF');
+    ctx.fillStyle = g;
+  } else ctx.fillStyle = fill;
+  rr(ctx, x, y, w, h, r); ctx.fill();
+  ctx.lineWidth = lw; ctx.strokeStyle = INK; ctx.stroke();
+  ctx.restore();
+}
+
+function header(ctx, t) {
+  const a = E.outBack(prog(t, 0.1, 0.6));
+  ctx.save(); ctx.translate(540, 0);
+  // 킥커 알약
+  const kw = 560;
+  ctx.save(); ctx.translate(0, 150); ctx.scale(a, a);
+  ctx.fillStyle = INK; rr(ctx, -kw / 2, -34, kw, 68, 34); ctx.fill();
+  txt(ctx, 'SPEEDRUN · 1,000,000 USERS', 0, 11, { font: f(800, 28, NUM), color: Y, align: 'center', ls: 4 });
+  ctx.restore();
+  // 제목
+  const p1 = E.outCubic(prog(t, 0.25, 0.75)), p2 = E.outBack(prog(t, 0.5, 1.0));
+  txt(ctx, '100만 명 모으는 데', 0, 300 + (1 - p1) * 40, { font: f(900, 96), color: INK, align: 'center', ls: -3, alpha: p1 });
+  ctx.save(); ctx.translate(0, 410); ctx.rotate(-0.035); ctx.scale(p2, p2);
+  const tw = measure(ctx, '걸린 시간은?', f(900, 104), -3) + 60;
+  brutalBox(ctx, -tw / 2, -92, tw, 124, '#fff', { r: 10, sh: 10, lw: 6 });
+  txt(ctx, '걸린 시간은?', 0, 4, { font: f(900, 104), color: INK, align: 'center', ls: -3 });
+  ctx.restore();
+  ctx.restore();
+}
+
+function rows(ctx, t, dim = 0) {
+  ROWS.forEach((r, i) => {
+    const ti = rowT(i);
+    if (t < ti) return;
+    const yc = Y0 + i * RH + RH / 2;
+    const slide = E.outBack(prog(t, ti, ti + 0.45));
+    const dx = (1 - slide) * -900;
+    ctx.save(); ctx.translate(dx, 0);
+    ctx.globalAlpha = 1 - dim * (i === 7 ? 0 : 0.7);
+    // 이름
+    txt(ctx, r.name, 60, yc + 15, { font: f(800, r.name.length > 5 ? 40 : 44), color: INK, ls: -1 });
+    // 막대
+    const g = E.outCubic(prog(t, ti + 0.3, ti + 1.15));
+    const w = Math.max(3, (r.d / 1278) * MAXW * g);
+    brutalBox(ctx, X0, yc - BH / 2, w, BH, r.c, { r: Math.min(12, w / 2), sh: 8, lw: 5 });
+    // 값
+    const done = prog(t, ti + 1.1, ti + 1.4);
+    const vx = X0 + w + 26;
+    if (done < 1) txt(ctx, `${comma(r.d * g)}일`, vx, yc + 15, { font: f(800, 40, NUM), color: INK, alpha: (1 - done) * prog(t, ti + 0.3, ti + 0.4) });
+    if (done > 0) {
+      const s = E.outBack(done, 3);
+      ctx.save(); ctx.translate(vx, yc + 15); ctx.scale(s, s);
+      txt(ctx, r.label, 0, 0, { font: f(900, 50), color: INK, ls: -1 });
+      ctx.restore();
+    }
+    ctx.restore();
+  });
+}
+
+function magnifier(ctx, t) {
+  const p = E.outBack(prog(t, GPT_T + 1.3, GPT_T + 1.8));
+  const out = E.inOutCubic(prog(t, 16.0, 16.5));
+  const k = p * (1 - out);
+  if (k <= 0.01) return;
+  const fx = X0 + 50, fy = Y0 + 7 * RH + RH / 2;     // 확대할 곳(ChatGPT 막대와 '5일')
+  const cx = 640, cy = 1330, R = 200 * k, Z = 3.6;
+  ctx.save();
+  ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(cx + 12, cy + 12, R + 12, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.save(); ctx.clip();
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  ctx.translate(cx, cy); ctx.scale(Z, Z); ctx.translate(-fx, -fy);
+  bg(ctx); rows(ctx, t);
+  ctx.restore();
+  ctx.lineWidth = 14; ctx.strokeStyle = INK; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.stroke();
+  // 손잡이 + 가이드 선
+  ctx.lineCap = 'round'; ctx.lineWidth = 30;
+  ctx.beginPath(); ctx.moveTo(cx + R * 0.72, cy + R * 0.72); ctx.lineTo(cx + R * 1.15, cy + R * 1.15); ctx.stroke();
+  ctx.restore();
+  // 스탬프
+  const s = E.outElastic(prog(t, GPT_T + 1.6, GPT_T + 2.4));
+  if (s > 0) {
+    ctx.save(); ctx.translate(560, 1020); ctx.rotate(-0.12); ctx.scale(s * (1 - out), s * (1 - out));
+    brutalBox(ctx, -230, -95, 460, 150, '#FF3B30', { r: 18, sh: 12, lw: 7 });
+    txt(ctx, '단 5일!', 0, 20, { font: f(900, 112), color: '#fff', align: 'center', ls: -3 });
+    ctx.restore();
+  }
+}
+
+function finale(ctx, t) {
+  const p = E.outQuint(prog(t, 16.2, 16.9));
+  if (p <= 0) return;
+  const y = lerp(H + 50, 640, p);
+  brutalBox(ctx, 70, y, 940, 720, INK, { r: 28, sh: 0, lw: 0 });
+  txt(ctx, '넷플릭스보다', 540, y + 130, { font: f(800, 64), color: Y, align: 'center' });
+  const n = Math.round(lerp(1, 255.6, E.outExpo(prog(t, 16.8, 18.4))));
+  const pop = 1 + 0.12 * Math.sin(Math.PI * prog(t, 18.3, 18.7));
+  ctx.save(); ctx.translate(540, y + 380); ctx.scale(pop, pop);
+  txt(ctx, `${n}배`, 0, 0, { font: f(900, 250, NUM), color: Y, align: 'center', ls: -10 });
+  ctx.restore();
+  txt(ctx, '빨랐다', 540, y + 500, { font: f(900, 78), color: '#fff', align: 'center', ls: -2 });
+  txt(ctx, '3.5년 ÷ 5일 · ChatGPT 100만 명 2022.12.05', 540, y + 610, { font: f(600, 36), color: 'rgba(255,255,255,.6)', align: 'center', alpha: prog(t, 18.6, 19.2) });
+  // 마지막 질문
+  const q = E.outBack(prog(t, 22.0, 22.5));
+  if (q > 0) {
+    ctx.save(); ctx.translate(540, 1500); ctx.rotate(0.03); ctx.scale(q, q);
+    brutalBox(ctx, -400, -70, 800, 130, '#fff', { r: 18, sh: 10, lw: 6 });
+    txt(ctx, '다음 기록은 누가 깰까? 👇', 0, 18, { font: f(900, 54), color: INK, align: 'center', ls: -1 });
+    ctx.restore();
+  }
+}
+
+defineChart({
+  duration: 27,
+  hits: [GPT_T + 1.6, 16.3],
+  draw(ctx, t) {
+    bg(ctx);
+    header(ctx, t);
+    const dim = E.inOutCubic(prog(t, 16.0, 16.6));
+    rows(ctx, t, dim);
+    if (dim > 0) { ctx.fillStyle = `rgba(255,216,77,${0.55 * dim})`; ctx.fillRect(0, 470, W, H); }
+    magnifier(ctx, t);
+    finale(ctx, t);
+    txt(ctx, '출처: Statista(2023)·각 사 발표 — 서비스 출시부터 사용자 100만 명까지', 540, 1838, { font: f(500, 24), color: 'rgba(0,0,0,.55)', align: 'center' });
+    grain(ctx, 0.08, 'multiply');
+  },
+});
+</script></body></html>

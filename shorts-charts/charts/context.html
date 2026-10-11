@@ -1,0 +1,126 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas><script src="lib.js"></script><script>
+// AI가 한 번에 읽는 양(컨텍스트 윈도우) — 크림 종이 에디토리얼, 무한 줌아웃.
+// 원의 "넓이"가 토큰 수에 비례한다. 원들은 바닥 한 점에서 맞닿아 있고, 새 원이 나올 때마다
+// 카메라가 물러나 이전 원이 점이 된다. 쪽수 환산: 영문 기준 1쪽 ≈ 400토큰(약 300단어), 소설 1권 ≈ 300쪽.
+const PAPER = '#F3EDE1', INK = '#1C2433', RED = '#E2492F', SOFT = '#8C8576';
+const M = [
+  { name: 'GPT-3', when: '2020.06', tok: 2048, fill: '#E9DFCB' },
+  { name: 'ChatGPT', when: '2022.11', tok: 4096, fill: '#E3D5BB' },
+  { name: 'GPT-4 (32K)', when: '2023.03', tok: 32768, fill: '#DCCBAE' },
+  { name: 'Claude', when: '2023.05', tok: 100000, fill: '#D3BF9F' },
+  { name: 'Claude 2.1', when: '2023.11', tok: 200000, fill: '#C9B28F' },
+  { name: 'Gemini 1.5 Pro', when: '2024.02', tok: 1000000, fill: '#BFA47F' },
+  { name: 'Llama 4 Scout', when: '2025.04', tok: 10000000, fill: '#E2492F' },
+];
+const PAGE = 400;
+const R0 = 385;                     // 화면에서 "현재 원"의 반지름
+const rad = (tok) => Math.sqrt(tok / M[0].tok);   // 기준 단위 반지름
+const BX = 540, BY = 1560;          // 원들이 맞닿는 바닥점
+const T0 = 2.2, ST = 2.9;           // i 번째 원 등장 = T0 + i*ST
+const tIn = (i) => T0 + i * ST;
+const pages = (tok) => Math.round(tok / PAGE);
+
+function scaleAt(t) {
+  // 카메라 배율: 현재 원 반지름이 R0 가 되도록, 로그 공간에서 부드럽게
+  let k = 0;
+  for (let i = 1; i < M.length; i++) k += E.inOutCubic(prog(t, tIn(i) - 1.0, tIn(i) + 0.15));
+  const i0 = Math.floor(k), fr = k - i0;
+  const a = Math.log(rad(M[i0].tok)), b = Math.log(rad(M[Math.min(M.length - 1, i0 + 1)].tok));
+  return { s: R0 / Math.exp(lerp(a, b, fr)), k };
+}
+
+function draw(ctx, t) {
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
+  // 종이 결: 가는 가로 줄
+  ctx.strokeStyle = 'rgba(28,36,51,0.035)'; ctx.lineWidth = 1;
+  for (let y = 0; y < H; y += 6) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // 헤더(에디토리얼)
+  const hp = E.outCubic(prog(t, 0.1, 0.9));
+  ctx.save(); ctx.globalAlpha = hp;
+  ctx.fillStyle = INK; ctx.fillRect(80, 110, 920, 4);
+  txt(ctx, 'CONTEXT WINDOW', 80, 168, { font: f(800, 28, NUM), color: RED, ls: 10 });
+  txt(ctx, 'NO. 04', 1000, 168, { font: f(600, 28, NUM), color: SOFT, align: 'right', ls: 4 });
+  txt(ctx, 'AI가 한 번에', 80, 268, { font: f(900, 88), color: INK, ls: -4 });
+  txt(ctx, '읽을 수 있는 양', 80, 372, { font: f(900, 88), color: INK, ls: -4 });
+  ctx.fillStyle = INK; ctx.fillRect(80, 410, 920, 2);
+  ctx.restore();
+
+  const { s, k } = scaleAt(t);
+  const cur = Math.max(0, M.filter((_, i) => t >= tIn(i) + 0.1).length - 1);   // 원이 나와야 제목이 바뀐다
+  void k;
+  // 원들(큰 것부터) — 머리글 아래로만 그린다
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 430, W, H - 430); ctx.clip();
+  for (let i = M.length - 1; i >= 0; i--) {
+    if (t < tIn(i)) continue;
+    const g = E.outBack(prog(t, tIn(i) + 0.1, tIn(i) + 0.75), 1.1);
+    const r = rad(M[i].tok) * s * g;
+    if (r < 0.6) continue;
+    ctx.beginPath(); ctx.arc(BX, BY - r, r, 0, 7);
+    ctx.fillStyle = M[i].fill; ctx.fill();
+    ctx.lineWidth = i === M.length - 1 ? 0 : 3; ctx.strokeStyle = INK; if (ctx.lineWidth) ctx.stroke();
+  }
+  ctx.restore();
+  // 라벨: 현재 원과 직전 원
+  M.forEach((m, i) => {
+    if (t < tIn(i)) return;
+    const vis = i === cur ? 1 : i === cur - 1 ? 0.55 : 0;
+    const a = vis * prog(t, tIn(i) + 0.3, tIn(i) + 0.7);
+    if (a <= 0.01) return;
+    const r = rad(m.tok) * s;
+    const topY = BY - 2 * r;
+    const isCur = i === cur;
+    const lx = isCur ? 540 : BX + r * 0.72 + 30, ly = isCur ? Math.max(topY - 30, 520) : BY - r * 1.0;
+    if (isCur) {
+      // 원 위 라벨은 "현재" 크게
+      return;
+    }
+    txt(ctx, m.name, lx, ly, { font: f(800, 30), color: INK, alpha: a });
+    txt(ctx, `${comma(m.tok)} 토큰`, lx, ly + 36, { font: f(600, 24, NUM), color: SOFT, alpha: a });
+  });
+
+  // 현재 원의 큰 카드(아래 정보 띠)
+  const c = M[cur];
+  const ca = prog(t, tIn(cur) + 0.2, tIn(cur) + 0.6);
+  txt(ctx, c.when, 80, 520, { font: f(700, 34, NUM), color: SOFT, ls: 4, alpha: ca });
+  txt(ctx, c.name, 80, 590, { font: f(900, 64), color: cur === M.length - 1 ? RED : INK, ls: -2, alpha: ca });
+  // 토큰 카운터(오른쪽 위)
+  const prevTok = cur ? M[cur - 1].tok : 0;
+  const tok = lerp(prevTok, c.tok, E.outExpo(prog(t, tIn(cur), tIn(cur) + 1.0)));
+  txt(ctx, comma(tok), 1000, 590, { font: f(800, 58, NUM), color: INK, align: 'right', ls: -2, alpha: ca });
+  txt(ctx, '토큰', 1000, 520, { font: f(600, 30), color: SOFT, align: 'right', alpha: ca });
+
+  // 쪽수 환산 띠
+  const pg = pages(tok);
+  const book = pg / 300;
+  const bandA = prog(t, tIn(0) + 0.4, tIn(0) + 0.9);
+  ctx.save(); ctx.globalAlpha = bandA;
+  ctx.fillStyle = INK; rr(ctx, 80, 1610, 920, 120, 6); ctx.fill();
+  txt(ctx, '책으로 치면', 120, 1683, { font: f(600, 34), color: '#CFC6B4' });
+  const bookTxt = book >= 1 ? `≈ 소설 ${book >= 10 ? Math.round(book) : book.toFixed(1)}권` : `≈ ${comma(pg)}쪽`;
+  txt(ctx, bookTxt, 960, 1690, { font: f(900, 56), color: book >= 1 ? '#FFB3A3' : '#fff', align: 'right', ls: -1 });
+  ctx.restore();
+
+  // 엔딩: 숫자 비교
+  const e = E.outBack(prog(t, tIn(M.length - 1) + 2.4, tIn(M.length - 1) + 2.9));
+  if (e > 0) {
+    ctx.save(); ctx.translate(540, 1060); ctx.rotate(-0.04); ctx.scale(e, e);
+    ctx.fillStyle = PAPER; ctx.strokeStyle = INK; ctx.lineWidth = 5;
+    rr(ctx, -360, -120, 720, 210, 8); ctx.fill(); ctx.stroke();
+    txt(ctx, 'GPT-3 이후 5년 새', 0, -40, { font: f(700, 46), color: INK, align: 'center' });
+    txt(ctx, '4,883배', 0, 60, { font: f(900, 104, NUM), color: RED, align: 'center', ls: -4 });
+    ctx.restore();
+  }
+}
+
+defineChart({
+  duration: 26,
+  hits: [tIn(5), tIn(6), tIn(6) + 2.4],
+  draw(ctx, t) {
+    draw(ctx, t);
+    txt(ctx, '원의 넓이 = 토큰 수 · 영문 기준 1쪽 ≈ 400토큰, 소설 1권 ≈ 300쪽 · 각 사 발표 최대 컨텍스트', 540, 1836, { font: f(500, 22), color: 'rgba(28,36,51,.5)', align: 'center' });
+    grain(ctx, 0.07, 'multiply');
+  },
+});
+</script></body></html>

@@ -1,0 +1,7 @@
+{ "a": "../../out/lab/enter/a.mp4", "b": "../../out/lab/enter/b.mp4", "audio": "../../out/lab/enter/sound.wav",
+  "out": "../../out/lab/enter/enter-ab-short.mp4", "loops": 2, "fps": 30,
+  "kicker": "같은 AI · 같은 소재 · 지시만 다르게",
+  "title": "‘멋지게’ 한 줄 vs <em>숫자</em> 384단어",
+  "labelA": "“멋지고 프리미엄하게” <span>한 줄</span>",
+  "labelB": "숫자 지시서 <span>384단어 · 고침 4개</span>",
+  "foot": "소리는 B 의 프레임에 맞춤 · 지시서 전문은 설명란에" }

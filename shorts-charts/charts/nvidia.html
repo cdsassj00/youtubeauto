@@ -1,0 +1,152 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas><script src="lib.js"></script><script>
+// 엔비디아 시가총액 1조 → 5조 달러 — 블랙 & 골드 계단 차트.
+// 가로축은 실제 날짜 비례라서 계단 한 칸의 "폭"이 곧 다음 조까지 걸린 날수다(좁을수록 빨랐다).
+// 기준은 각 조 달러를 장중 처음 넘은 날. 그 사이 시총이 다시 내려간 적도 있으니 경로가 아니라 "돌파 기록"이다.
+const BG = '#0A0907', GOLD = '#E8C470', PALE = '#F8ECC8', DEEP = '#8A6A2C', MUTED = '#7D7464';
+const MS = [
+  { d: '2023-05-30', v: 1 },
+  { d: '2024-02-23', v: 2 },
+  { d: '2024-06-05', v: 3 },
+  { d: '2025-07-09', v: 4 },
+  { d: '2025-10-29', v: 5 },
+];
+const END = '2025-12-15';                  // 마지막 계단 꼬리 길이(그림용)
+const D0 = new Date(MS[0].d), SPAN = days(MS[0].d, END);
+MS.forEach((m, i) => { m.day = days(MS[0].d, m.d); m.gap = i ? days(MS[i - 1].d, m.d) : 0; });
+const PX = 120, PW = 840, PB = 1520, PH = 830;
+const X = (dd) => PX + (dd / SPAN) * PW;
+const Yv = (v) => PB - (v / 5.4) * PH;
+const T = [2.4, 6.0, 9.2, 13.4, 17.0];       // 각 돌파 순간(초)
+const TEND = 18.6;
+
+function gold(ctx, x0, y0, x1, y1) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, PALE); g.addColorStop(0.45, GOLD); g.addColorStop(1, DEEP);
+  return g;
+}
+// 화면 시각 → 그려진 날짜
+function dayAt(t) {
+  if (t <= T[0]) return 0;
+  for (let i = 1; i < T.length; i++) if (t <= T[i]) return lerp(MS[i - 1].day, MS[i].day, E.inOutSine(prog(t, T[i - 1] + 0.5, T[i])));
+  return lerp(MS[4].day, SPAN, E.outCubic(prog(t, T[4] + 0.4, TEND)));
+}
+const levelAt = (dd) => MS.filter((m) => m.day <= dd).length;
+
+function draw(ctx, t) {
+  ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H);
+  const rg = ctx.createRadialGradient(780, 700, 30, 780, 700, 1200);
+  rg.addColorStop(0, 'rgba(232,196,112,0.16)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  // 가는 골드 프레임
+  ctx.strokeStyle = 'rgba(232,196,112,0.25)'; ctx.lineWidth = 2; ctx.strokeRect(40, 40, W - 80, H - 80);
+
+  const dd = dayAt(t), lvl = Math.max(1, levelAt(dd));
+  const hp = E.outCubic(prog(t, 0.1, 0.9));
+  txt(ctx, 'NVIDIA  ·  MARKET CAP', 540, 150, { font: f(600, 26, NUM), color: GOLD, align: 'center', ls: 12, alpha: hp });
+  txt(ctx, '1조 달러에서 5조 달러까지', 540, 228, { font: f(700, 58), color: PALE, align: 'center', ls: -1, alpha: hp });
+
+  // 큰 숫자
+  const flash = T.map((tt) => Math.exp(-Math.max(0, t - tt) * 4) * (t >= tt ? 1 : 0)).reduce((a, b) => Math.max(a, b), 0);
+  ctx.save(); ctx.translate(540, 520); const sc = 1 + 0.08 * flash; ctx.scale(sc, sc);
+  ctx.font = f(900, 300, NUM); ctx.textAlign = 'center'; ctx.letterSpacing = '-12px';
+  ctx.fillStyle = gold(ctx, 0, -260, 0, 20); ctx.globalAlpha = prog(t, 0.6, 1.2);
+  ctx.shadowColor = `rgba(232,196,112,${0.25 + 0.5 * flash})`; ctx.shadowBlur = 50 + 60 * flash;
+  ctx.fillText(`$${lvl}T`, 0, 0);
+  ctx.restore();
+  txt(ctx, `${lvl}조 달러 · ${MS[lvl - 1].d.replaceAll('-', '.')}`, 540, 600, { font: f(600, 34), color: MUTED, align: 'center', ls: 2, alpha: prog(t, 1.0, 1.5) });
+
+  // 눈금
+  for (let v = 1; v <= 5; v++) {
+    const y = Yv(v);
+    ctx.strokeStyle = 'rgba(232,196,112,0.08)'; ctx.lineWidth = 2; ctx.setLineDash([4, 10]);
+    ctx.beginPath(); ctx.moveTo(PX, y); ctx.lineTo(PX + PW, y); ctx.stroke(); ctx.setLineDash([]);
+    txt(ctx, `$${v}T`, PX - 16, y + 9, { font: f(600, 26, NUM), color: MUTED, align: 'right', alpha: prog(t, 1.2, 1.8) });
+  }
+  ctx.strokeStyle = 'rgba(232,196,112,0.35)'; ctx.beginPath(); ctx.moveTo(PX, PB); ctx.lineTo(PX + PW, PB); ctx.stroke();
+  for (const y of [2024, 2025]) {
+    const x = X(days(MS[0].d, `${y}-01-01`));
+    txt(ctx, String(y), x, PB + 46, { font: f(600, 28, NUM), color: MUTED, align: 'center' });
+  }
+  if (t < T[0] - 0.3) return;
+
+  // 계단 기둥(면)
+  ctx.save();
+  for (let i = 0; i < MS.length; i++) {
+    const a = MS[i].day; if (a > dd) break;
+    const b = Math.min(dd, i + 1 < MS.length ? MS[i + 1].day : SPAN);
+    const x0 = X(a), x1 = X(b), y = Yv(MS[i].v);
+    const g = ctx.createLinearGradient(0, y, 0, PB);
+    g.addColorStop(0, `rgba(232,196,112,${0.10 + i * 0.05})`); g.addColorStop(1, 'rgba(232,196,112,0.02)');
+    ctx.fillStyle = g; ctx.fillRect(x0, y, x1 - x0, PB - y);
+  }
+  // 계단 선
+  ctx.beginPath();
+  ctx.moveTo(X(0), PB);
+  ctx.lineTo(X(0), Yv(1));
+  for (let i = 0; i < MS.length; i++) {
+    const a = MS[i].day; if (a > dd) break;
+    const b = Math.min(dd, i + 1 < MS.length ? MS[i + 1].day : SPAN);
+    ctx.lineTo(X(b), Yv(MS[i].v));
+    if (i + 1 < MS.length && MS[i + 1].day <= dd) {
+      const rise = E.outBack(prog(t, T[i + 1], T[i + 1] + 0.35));
+      ctx.lineTo(X(b), lerp(Yv(MS[i].v), Yv(MS[i + 1].v), rise));
+    }
+  }
+  ctx.strokeStyle = gold(ctx, 0, Yv(5), 0, PB); ctx.lineWidth = 7; ctx.lineJoin = 'miter';
+  ctx.shadowColor = 'rgba(232,196,112,0.6)'; ctx.shadowBlur = 24; ctx.stroke();
+  ctx.restore();
+
+  // 돌파 지점 다이아몬드 + 걸린 날수
+  MS.forEach((m, i) => {
+    if (t < T[i]) return;
+    const x = X(m.day), y = Yv(m.v), k = prog(t, T[i], T[i] + 0.9);
+    ctx.save(); ctx.translate(x, y);
+    ctx.strokeStyle = GOLD; ctx.globalAlpha = 1 - k; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, 14 + 90 * E.outCubic(k), 0, 7); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.rotate(Math.PI / 4); ctx.fillStyle = PALE; ctx.fillRect(-9, -9, 18, 18);
+    ctx.restore();
+    if (i === 0) return;
+    const p = E.outBack(prog(t, T[i] + 0.15, T[i] + 0.55));
+    const fast = i === 2 || i === 4;
+    const mx = (X(MS[i - 1].day) + x) / 2;
+    ctx.save(); ctx.translate(mx, Yv(m.v) - 44); ctx.scale(p, p);
+    const label = `+${m.gap}일`;
+    const w = measure(ctx, label, f(800, 32, NUM)) + 36;
+    ctx.fillStyle = fast ? GOLD : 'rgba(232,196,112,0.12)'; ctx.strokeStyle = GOLD; ctx.lineWidth = 2;
+    rr(ctx, -w / 2, -30, w, 50, 25); ctx.fill(); ctx.stroke();
+    txt(ctx, label, 0, 7, { font: f(800, 32, NUM), color: fast ? BG : PALE, align: 'center' });
+    ctx.restore();
+  });
+  // 진행 머리
+  if (t < TEND) {
+    const x = X(dd), y = Yv(MS[Math.max(0, levelAt(dd) - 1)].v);
+    ctx.save(); ctx.shadowColor = GOLD; ctx.shadowBlur = 30; ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill(); ctx.restore();
+  }
+  outro(ctx, t);
+}
+
+function outro(ctx, t) {
+  const p = E.outCubic(prog(t, 19.6, 20.4));
+  if (p <= 0) return;
+  const y = 1640;
+  ctx.save(); ctx.globalAlpha = p;
+  ctx.strokeStyle = 'rgba(232,196,112,0.5)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(340, y - 70); ctx.lineTo(740, y - 70); ctx.stroke();
+  txt(ctx, '4조 → 5조, 단 112일', 540, y, { font: f(800, 52), color: PALE, align: 'center', ls: -1 });
+  ctx.restore();
+  const q = E.outCubic(prog(t, 21.4, 22.2));
+  if (q > 0) txt(ctx, '한국 한 해 GDP(약 1.9조 달러)의 2.7배', 540, y + 66, { font: f(600, 34), color: GOLD, align: 'center', alpha: q });
+}
+
+defineChart({
+  duration: 26,
+  hits: T.slice(1).concat([19.6]),
+  draw(ctx, t) {
+    draw(ctx, t);
+    txt(ctx, '각 조 달러 장중 첫 돌파일 기준 · 한국 GDP 2024년 IMF 추정치', 540, 1836, { font: f(500, 22), color: 'rgba(232,196,112,.4)', align: 'center' });
+    grain(ctx, 0.06, 'screen');
+  },
+});
+</script></body></html>
