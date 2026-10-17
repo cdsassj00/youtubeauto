@@ -15,3 +15,4 @@ public/cutout/
 # 런타임에 내려받는 Pexels 스톡 클립(수십 MB) — 저장소에 들어가면 안 된다
 public/stock/
 motion-lab/**/_dbg*.html
+shorts-charts/charts/stock-data.js
