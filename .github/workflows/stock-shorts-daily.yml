@@ -1,0 +1,85 @@
+name: 주식 쇼츠 매일 발행 (구간별 추천 · 한국 17:30 · 미국 06:30)
+
+# 사이트 공식 추천(/api/daily-brief 의 horizons — 단타·스윙·중기·장기)을 30초 세로 쇼츠로 만들어 올린다.
+# 예전 주식 데일리(8분 미드폼)를 대신한다 — AI 대본·나레이션을 쓰지 않아 한 편에 드는 돈이 없다.
+# 장이 마감되지 않았거나 시세가 낡았으면 아무것도 올리지 않고 초록으로 끝난다(scripts/stock-shorts.mjs).
+#
+# ★예약 실행은 기본 브랜치의 이 파일로만 돈다★
+on:
+  schedule:
+    # ★크론 문자열이 곧 시장 구분이다★ 아래 STOCK_MARKET 이 글자 그대로 비교한다.
+    - cron: '30 8 * * 1-5'    # 17:30 KST 평일 — 한국장 마감(15:30) 뒤
+    - cron: '30 21 * * 1-5'   # 06:30 KST 다음 날 — 미국장 마감 뒤
+  workflow_dispatch:
+    inputs:
+      market:
+        description: '시장 (KR | US)'
+        required: false
+        default: 'KR'
+      privacy:
+        description: '공개 상태 (public | unlisted | private)'
+        required: false
+        default: 'public'
+      channel:
+        description: '업로드 채널 (default | ch2)'
+        required: false
+        default: 'ch2'
+      do_upload:
+        description: '유튜브 업로드 여부 (true | false)'
+        required: false
+        default: 'true'
+
+concurrency:
+  group: stock-shorts-${{ github.event.inputs.market || github.event.schedule }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      STOCK_MARKET: ${{ github.event.inputs.market || (github.event.schedule == '30 21 * * 1-5' && 'US') || 'KR' }}
+      TARGET_CHANNEL: ${{ github.event.inputs.channel || 'ch2' }}
+      YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || 'public' }}
+      DO_UPLOAD: ${{ github.event.inputs.do_upload || 'true' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_REFRESH_TOKEN_CH2: ${{ secrets.YOUTUBE_REFRESH_TOKEN_CH2 }}
+      YOUTUBE_CLIENT_ID_CH2: ${{ secrets.YOUTUBE_CLIENT_ID_CH2 }}
+      YOUTUBE_CLIENT_SECRET_CH2: ${{ secrets.YOUTUBE_CLIENT_SECRET_CH2 }}
+      YOUTUBE_CATEGORY_ID: ${{ vars.YOUTUBE_CATEGORY_ID || '27' }}
+      YOUTUBE_CATEGORY_ID_CH2: ${{ vars.YOUTUBE_CATEGORY_ID_CH2 }}
+      YOUTUBE_DESC_FOOTER: ${{ vars.YOUTUBE_DESC_FOOTER || 'AX전환은 CDSA와 함께\nhttps://cdsa.kr' }}
+      YOUTUBE_DESC_FOOTER_CH2: ${{ vars.YOUTUBE_DESC_FOOTER_CH2 }}
+      SYNTHETIC_MEDIA_DISCLOSURE: ${{ vars.SYNTHETIC_MEDIA_DISCLOSURE || 'false' }}
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 한국어 폰트 설치
+        run: sudo apt-get update -y && sudo apt-get install -y fonts-noto-cjk
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 브라우저 준비 (화면을 프레임마다 찍는다)
+        run: npx playwright install --with-deps chromium
+
+      - name: 쇼츠 만들고 올리기
+        run: npx tsx scripts/stock-shorts.mjs
+
+      - name: 결과 영상 (확인용 아티팩트)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stock-shorts-${{ env.STOCK_MARKET }}
+          path: out/stock-shorts/
+          if-no-files-found: ignore
+          retention-days: 7
