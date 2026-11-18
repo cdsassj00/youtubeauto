@@ -14,7 +14,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { freshnessProblem } from '../src/lib/stockBrief.js';
-import { uploadVideo, listRecentVideoTitles } from '../src/lib/youtube.js';
+import { uploadVideo, listAllVideoTitles, normalizeTitle } from '../src/lib/youtube.js';
 import { config } from '../src/config.js';
 import { buildShortData, buildMeta, fetchBrief, skip, money } from './stock-shorts.mjs';
 
@@ -197,8 +197,10 @@ async function main() {
 
   if (config.doUpload) {
     try {
-      const recent = await listRecentVideoTitles(100);
-      if (recent.some((t) => t.slice(0, 100) === meta.title)) await skip('같은 제목이 이미 채널에 있습니다.');
+      // 채널 전체 제목과 비교(무음판과 같은 규칙) — 최근 n 개만 보면 예전 편을 못 찾아 다시 올린다
+      const all = await listAllVideoTitles();
+      const want = normalizeTitle(meta.title.slice(0, 100));
+      if (all.some((t) => normalizeTitle(t) === want)) await skip('같은 제목이 이미 채널에 있습니다.');
     } catch (e) {
       console.warn(`  · 최근 제목을 못 읽어 중복 검사를 건너뜁니다 — ${e.message}`);
     }
