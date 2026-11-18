@@ -471,6 +471,39 @@ export async function listRecentVideoTitles(max = 30): Promise<string[]> {
 
 
 /**
+ * 채널에 올라간 "모든" 영상의 제목(업로드 재생목록 전체를 끝까지 넘긴다).
+ *
+ * ★최근 n 개만 보면 중복을 못 막는다★ 2026-10-30·31 에 차트 쇼츠가 최근 200개 제목만 보고
+ * 예전에 올린 편(PwnVGRSBtK0 등)을 못 찾아 같은 영상을 공개로 다시 올렸다. 영상 400개 기준
+ * 50개씩 9번 호출(쿼터 9)이라 매번 전부 읽어도 부담이 없다.
+ */
+export async function listAllVideoTitles(): Promise<string[]> {
+  const auth = createOAuthClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+  const ch = await youtube.channels.list({ part: ['contentDetails'], mine: true });
+  const uploads = ch.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploads) throw new Error('업로드 재생목록을 찾지 못했습니다 — 중복 검사를 할 수 없어 중단합니다.');
+  const titles: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await youtube.playlistItems.list({ part: ['snippet'], playlistId: uploads, maxResults: 50, pageToken });
+    for (const it of res.data.items ?? []) if (it.snippet?.title) titles.push(it.snippet.title);
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return titles;
+}
+
+/** 제목 비교용 정규화 — 공백·문장부호·따옴표 모양·#Shorts·대소문자 차이를 무시한다. */
+export function normalizeTitle(t: string): string {
+  return t
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/#shorts/g, '')
+    .replace(/[\s\p{P}\p{S}]+/gu, '');
+}
+
+
+/**
  * 채널 앞면에 트레일러를 건다 — 구독하지 않은 사람이 채널에 들어왔을 때 자동 재생되는 영상.
  *
  * ★유튜브에는 "동영상 프로필 사진"이 없다★ 프로필 사진(아바타)은 이미지뿐이고 API 로

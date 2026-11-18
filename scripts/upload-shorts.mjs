@@ -18,7 +18,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';
 import ffmpegPath from 'ffmpeg-static';
-import { uploadVideo, listRecentVideoTitles } from '../src/lib/youtube.js';
+import { uploadVideo, listAllVideoTitles, normalizeTitle } from '../src/lib/youtube.js';
 import { makeTrack } from '../shorts-charts/music.mjs';
 import { config } from '../src/config.js';
 
@@ -168,7 +168,18 @@ async function main() {
   if (!items.length) throw new Error('업로드할 항목이 없습니다(ONLY 필터 확인).');
 
   // 이미 같은 제목이 채널에 있으면 건너뛴다 — 버튼을 두 번 눌러도 두 번 올라가지 않게.
-  const existing = config.doUpload ? new Set(await listRecentVideoTitles(200)) : new Set();
+  // ★채널 전체를 본다★ 예전엔 최근 200개만 봐서 오래된 편을 못 찾고 같은 영상을 다시 공개로
+  // 올렸다(2026-10-30 Wv0ZpJqlo58, 10-31 VbMGZCLUD6U). 이제 업로드 재생목록 전체를 정규화한
+  // 제목으로 비교하고, 커밋된 장부(scripts/shorts-uploaded.json)에 적힌 id 도 건너뛴다.
+  // 장부를 무시하고 다시 올려야 할 때만 FORCE_REUPLOAD=1.
+  const force = process.env.FORCE_REUPLOAD === '1';
+  const existing = config.doUpload || process.env.CHECK_CHANNEL === '1'
+    ? new Set((await listAllVideoTitles()).map(normalizeTitle))
+    : new Set();
+  const ledgerPath = 'scripts/shorts-uploaded.json';
+  const ledger = existsSync(ledgerPath) ? JSON.parse(await fs.readFile(ledgerPath, 'utf8')) : {};
+  const ledgerFor = ledger[manifestPath] || {};
+  console.log(`· 채널 제목 ${existing.size}개, 장부 ${Object.keys(ledgerFor).length}편으로 중복 검사`);
   // 매일 발행은 MAX_UPLOADS=1 로 돈다: 매니페스트 순서대로 아직 안 올라간 것 하나만 올린다.
   // 채널에 올라간 것이 곧 진행 상황이라 따로 "어디까지 올렸다" 파일을 두지 않는다.
   const maxUploads = Number(process.env.MAX_UPLOADS || 0) || Infinity;
@@ -178,7 +189,11 @@ async function main() {
 
   for (const item of items) {
     console.log(`\n=== [${item.id}] ${item.titleKo} ===`);
-    if (existing.has(item.youtubeTitle.slice(0, 100))) {
+    if (!force && ledgerFor[item.id]?.length) {
+      console.log(`  · 장부에 이미 올린 기록이 있음(${ledgerFor[item.id].join(', ')}) → 건너뜀`);
+      continue;
+    }
+    if (!force && existing.has(normalizeTitle(item.youtubeTitle.slice(0, 100)))) {
       console.log('  · 같은 제목이 이미 채널에 있음 → 건너뜀');
       continue;
     }
@@ -203,6 +218,7 @@ async function main() {
     });
     uploaded++;
     console.log(`  · 업로드 완료: https://youtu.be/${videoId} (${config.youtubePrivacyStatus})`);
+    console.log(`  · 장부(${ledgerPath})의 "${manifestPath}" → "${item.id}" 에 ${videoId} 를 추가해 커밋하세요.`);
     // 같은 실행에서 여러 편을 올리면 결과를 한곳에 남겨 Actions 요약에서 바로 보이게 한다.
     if (process.env.GITHUB_STEP_SUMMARY) {
       await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, `- [${item.id}] ${item.youtubeTitle} → https://youtu.be/${videoId}\n`);
