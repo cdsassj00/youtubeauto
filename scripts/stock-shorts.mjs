@@ -23,15 +23,16 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = process.env.STOCK_API_BASE ?? 'https://stockontology.cc';
 const MARKET = (process.env.STOCK_MARKET ?? 'KR').toUpperCase();
 const PER_BUCKET = 3; // 30초에 읽히는 양 — 구간당 3종목, 나머지는 사이트로 보낸다
+export const TELEGRAM = 'https://t.me/stockontologist';
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
 /** 금액 — 응답의 priceLabel 은 미국이 "94.76$" 로 와서 쓰지 않고 시장 관례대로 다시 쓴다(값은 그대로). */
-const money = (m, n) => (m === 'US' ? `$${Number(n).toFixed(2)}` : `${Math.round(n).toLocaleString('ko-KR')}원`);
+export const money = (m, n) => (m === 'US' ? `$${Number(n).toFixed(2)}` : `${Math.round(n).toLocaleString('ko-KR')}원`);
 const md = (iso) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 const mdDay = (iso) => `${md(iso)} ${WEEKDAY[new Date(`${iso}T00:00:00Z`).getUTCDay()]}요일`;
 
 /** 규칙 첫 두 마디만 — "익절 +15% · 손절 −4%", 장기는 "익절 없음 · 고점 대비 −25% 추적손절". */
-const ruleShort = (b) => (b.ruleKo ?? '').split('·').slice(0, 2).map((s) => s.trim()).join(' · ');
+export const ruleShort = (b) => (b.ruleKo ?? '').split('·').slice(0, 2).map((s) => s.trim()).join(' · ');
 
 /** 응답 → 화면 데이터. 순수 함수(파일·네트워크 없음). */
 export function buildShortData(brief, date) {
@@ -78,6 +79,9 @@ export function buildMeta(brief, data) {
   const lead = data.buckets[0].picks.slice(0, m === 'US' ? 3 : 2).map(short);
   const title = `${data.nextLabel.replace('요일', '')} ${data.marketKo}장 볼 종목 — ${lead.join('·')} | 목표가·손절가 #Shorts`.slice(0, 100);
   const lines = [
+    `더 자세한 종목 분석 ▸ https://stockontology.cc`,
+    `텔레그램 ▸ ${TELEGRAM}`,
+    '',
     `${data.nextLabel} ${data.marketKo}장에서 볼 종목입니다. (${data.dataLabel})`,
     `stockontology.cc 공식 추천을 단타·스윙·중기·장기 네 구간으로 그대로 옮겼습니다.`,
     '',
@@ -88,12 +92,15 @@ export function buildMeta(brief, data) {
       const pl = p.plan ?? {};
       const tgt = pl.target != null ? `목표 ${money(m, pl.target)}(${pl.targetPct > 0 ? '+' : ''}${pl.targetPct}%)` : '목표가 없음';
       const stp = pl.stop != null ? `${b.id === 'long' ? '추적손절' : '손절'} ${money(m, pl.stop)}(${pl.stopPct}%)` : '';
-      lines.push(`${p.rank}. ${p.name}${m === 'US' ? ` (${p.code})` : ''} ${money(m, p.price)} · ${tgt} · ${stp}`);
+      // 지지·저항 — 사이트가 차트에서 잰 가장 가까운 자리(plan.nearestSupport/Resistance). 없으면 뺀다.
+      const lv = [pl.nearestSupport && `지지 ${money(m, pl.nearestSupport.price)}`, pl.nearestResistance && `저항 ${money(m, pl.nearestResistance.price)}`].filter(Boolean).join(' · ');
+      lines.push(`${p.rank}. ${p.name}${m === 'US' ? ` (${p.code})` : ''} ${money(m, p.price)} · ${tgt} · ${stp}${lv ? ` · ${lv}` : ''}`);
     }
     lines.push('');
   }
   lines.push(
     '구간마다 8종목 전체와 고른 근거: https://stockontology.cc',
+    `매일 알림: ${TELEGRAM}`,
     '',
     '공개 데이터를 그대로 옮긴 것이며 투자 자문·권유가 아닙니다. 판단과 책임은 보시는 분께 있습니다.',
   );
@@ -102,7 +109,7 @@ export function buildMeta(brief, data) {
   return { title, description: lines.join('\n').slice(0, 4800), tags };
 }
 
-async function fetchBrief() {
+export async function fetchBrief() {
   if (process.env.STOCK_BRIEF_FILE) {
     const d = JSON.parse(await fs.readFile(process.env.STOCK_BRIEF_FILE, 'utf8'));
     return { date: d.date, brief: d.briefs[0], fromFile: true };
@@ -123,7 +130,7 @@ async function fetchBrief() {
   throw new Error('unreachable');
 }
 
-async function skip(reason) {
+export async function skip(reason) {
   console.log(`⏭ 오늘은 올리지 않습니다 — ${reason}`);
   if (process.env.GITHUB_STEP_SUMMARY) await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, `⏭ ${MARKET} 건너뜀 — ${reason}\n`);
   process.exit(0);

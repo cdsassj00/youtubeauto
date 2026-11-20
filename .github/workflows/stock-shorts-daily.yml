@@ -1,8 +1,11 @@
 name: 주식 쇼츠 매일 발행 (구간별 추천 · 한국 17:30 · 미국 06:30)
 
-# 사이트 공식 추천(/api/daily-brief 의 horizons — 단타·스윙·중기·장기)을 30초 세로 쇼츠로 만들어 올린다.
-# 예전 주식 데일리(8분 미드폼)를 대신한다 — AI 대본·나레이션을 쓰지 않아 한 편에 드는 돈이 없다.
-# 장이 마감되지 않았거나 시세가 낡았으면 아무것도 올리지 않고 초록으로 끝난다(scripts/stock-shorts.mjs).
+# 사이트 공식 추천(/api/daily-brief 의 horizons — 단타·스윙·중기·장기)을 40초 안팎 세로 쇼츠로 만들어 공개로 올린다.
+# 목표가·손절가·지지선·저항선을 나레이션(ElevenLabs, 300자 한 번)과 장면 14개로 설명한다(scripts/stock-studio.mjs).
+# 영상 엔진은 video-studio 저장소(아래 VIDEO_STUDIO_REF 고정 커밋). 화면 스타일은 날마다 돌아간다
+# (모션 블루프린트 · 화이트보드 · 스크랩북) — 하나만 고집하지 않는다. 대본은 고정 틀이라 AI 대본 비용은 없다.
+# ELEVENLABS_API_KEY 가 없으면 예전 무음 차트 쇼츠(scripts/stock-shorts.mjs)로 대신 올린다.
+# 장이 마감되지 않았거나 시세가 낡았으면 아무것도 올리지 않고 초록으로 끝난다.
 #
 # ★예약 실행은 기본 브랜치의 이 파일로만 돈다★
 on:
@@ -28,6 +31,10 @@ on:
         description: '유튜브 업로드 여부 (true | false)'
         required: false
         default: 'true'
+      style:
+        description: '화면 스타일 고정 (비우면 날마다 돌아감: motion:ainews | whiteboard | scrapbook)'
+        required: false
+        default: ''
 
 concurrency:
   group: stock-shorts-${{ github.event.inputs.market || github.event.schedule }}
@@ -36,8 +43,14 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     env:
+      # ★영상 엔진 버전 고정★ 올릴 때는 이 커밋만 바꾼다(엔진이 바뀌어도 매일 발행이 갑자기 깨지지 않게).
+      VIDEO_STUDIO_REF: c823317fa796052e1d4615f45f8343212c1f3967
+      VIDEO_STUDIO_DIR: ${{ github.workspace }}/.video-studio
+      PYTHON: python3
+      STOCK_STYLE: ${{ github.event.inputs.style || '' }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
       STOCK_MARKET: ${{ github.event.inputs.market || (github.event.schedule == '30 21 * * 1-5' && 'US') || 'KR' }}
       TARGET_CHANNEL: ${{ github.event.inputs.channel || 'ch2' }}
       YOUTUBE_PRIVACY_STATUS: ${{ github.event.inputs.privacy || 'public' }}
@@ -63,17 +76,36 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: 한국어 폰트 설치
-        run: sudo apt-get update -y && sudo apt-get install -y fonts-noto-cjk
+      - name: 한국어 폰트 · ffmpeg 설치
+        run: sudo apt-get update -y && sudo apt-get install -y fonts-noto-cjk ffmpeg
 
       - name: 의존성 설치
         run: npm ci
 
-      - name: 브라우저 준비 (화면을 프레임마다 찍는다)
+      - name: Python 설치 (영상 엔진)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 영상 엔진(video-studio) 받기
+        run: |
+          git clone --filter=blob:none https://github.com/cdsassj00/video-studio "$VIDEO_STUDIO_DIR"
+          git -C "$VIDEO_STUDIO_DIR" checkout --quiet "$VIDEO_STUDIO_REF"
+          python3 -m pip install --quiet -r "$VIDEO_STUDIO_DIR/requirements.txt"
+          (cd "$VIDEO_STUDIO_DIR" && npm ci && npx playwright install --with-deps chromium)
+
+      - name: 브라우저 준비 (무음 대체판용)
         run: npx playwright install --with-deps chromium
 
       - name: 쇼츠 만들고 올리기
-        run: npx tsx scripts/stock-shorts.mjs
+        run: |
+          if [ -n "$ELEVENLABS_API_KEY" ]; then
+            # 나레이션판이 실패하면(엔진·API 장애) 그날은 무음 차트판으로라도 올린다 — 업로드는 맨 마지막 단계라 겹치지 않는다
+            npx tsx scripts/stock-studio.mjs || { echo "::warning::나레이션판 실패 → 무음 차트 쇼츠로 대신"; npx tsx scripts/stock-shorts.mjs; }
+          else
+            echo "ELEVENLABS_API_KEY 없음 → 무음 차트 쇼츠로 대신"
+            npx tsx scripts/stock-shorts.mjs
+          fi
 
       - name: 결과 영상 (확인용 아티팩트)
         if: always()

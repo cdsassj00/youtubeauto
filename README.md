@@ -125,14 +125,19 @@ bash scripts/setup-secrets.sh
 ### 주식 쇼츠 (구간별 추천)
 
 `.github/workflows/stock-shorts-daily.yml` — 평일 17:30 KST(한국장)·06:30 KST(미국장)에
-stockontology.cc 공식 추천(`/api/daily-brief` 의 `horizons`: 단타·스윙·중기·장기)을 30초 세로 쇼츠로 만들어 올립니다.
+stockontology.cc 공식 추천(`/api/daily-brief` 의 `horizons`: 단타·스윙·중기·장기)을 40초 안팎 세로 쇼츠로 만들어 **공개**로 올립니다.
 
-- 구간마다 상위 3종목과 목표가·손절가를 응답에서 그대로 옮깁니다(장기는 목표가 없이 추적손절).
-- AI 대본·나레이션을 쓰지 않습니다 — 화면과 합성 비트뿐이라 한 편에 드는 돈이 없습니다.
+- 목표가·손절가·지지선·저항선을 나레이션 + 장면 14개 + 단어 자막으로 설명합니다(video-studio 엔진, 고정 커밋).
+- 화면 스타일은 날마다 돌아갑니다: 모션 블루프린트 · 화이트보드 · 스크랩북(한국·미국편도 서로 다르게). `style` 입력으로 고정 가능.
+- 대본은 고정 틀에 응답 값만 채웁니다 — AI 대본 비용 없음, 나레이션(ElevenLabs) 300자 한 번, 배경음악은 합성.
+- 끝맺음: "더 자세한 종목 분석은 프로필 링크에서 보세요. AI 전문가가 만듭니다." + stockontology.cc · t.me/stockontologist.
 - 백테스트 성적(`track`·`league`·`previous`)은 넣지 않습니다.
 - 장이 마감되지 않았거나 시세가 낡았거나 같은 제목이 이미 있으면 아무것도 올리지 않습니다.
+- `ELEVENLABS_API_KEY` 가 없거나 나레이션판이 실패하면 무음 차트판(`scripts/stock-shorts.mjs`)으로 대신 올립니다.
 - 손으로: Actions → 주식 쇼츠 매일 발행 → Run workflow(시장 KR/US, `do_upload=false` 면 만들기만).
-- 코드: `scripts/stock-shorts.mjs`(데이터·제목·설명·업로드), `shorts-charts/charts/stock-horizons.html`(화면).
+- 시험(돈 안 듦): `STOCK_BRIEF_FILE=brief.json STOCK_FAKE_TTS=1 DO_UPLOAD=false VIDEO_STUDIO_DIR=../video-studio npx tsx scripts/stock-studio.mjs`
+- 코드: `scripts/stock-studio.mjs`(대본·장면 데이터) + `scripts/stock-studio/scenes.template.js`(장면),
+  `scripts/stock-shorts.mjs`(제목·설명·무음판), `shorts-charts/charts/stock-horizons.html`(무음판 화면).
 
 예전 8분 미드폼(주식 데일리)과 이벤트 기반 수시 발행은 2026-10 에 들어냈습니다.
 
